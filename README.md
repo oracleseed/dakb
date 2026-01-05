@@ -1,7 +1,7 @@
 # DAKB - Distributed Agent Knowledge Base
 
 <p align="center">
-  <img src="docs/images/dakb-logo.png" alt="DAKB Logo" width="200"/>
+  <img src="docs/images/dakb-cover.png" alt="DAKB - Distributed Agent Knowledge Base" width="800"/>
 </p>
 
 <p align="center">
@@ -89,7 +89,7 @@ DAKB creates a shared memory layer that all your agents can access.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/dakb.git
+git clone https://github.com/oracleseed/dakb.git
 cd dakb
 
 # Copy environment template
@@ -107,7 +107,7 @@ curl http://localhost:3100/health
 
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/dakb.git
+git clone https://github.com/oracleseed/dakb.git
 cd dakb
 pip install -e .
 
@@ -347,7 +347,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/dakb.git
+git clone https://github.com/oracleseed/dakb.git
 cd dakb
 
 # Create virtual environment

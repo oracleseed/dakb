@@ -1,0 +1,243 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dakb"
+version = "3.0.0"
+description = "Distributed Agent Knowledge Base - A shared knowledge system for multi-agent AI collaboration"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "DAKB Contributors"}
+]
+maintainers = [
+    {name = "DAKB Contributors"}
+]
+keywords = [
+    "ai",
+    "agents",
+    "knowledge-base",
+    "multi-agent",
+    "llm",
+    "claude",
+    "mcp",
+    "collaboration",
+    "semantic-search",
+    "faiss",
+    "embeddings"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pymongo>=4.6.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "sentence-transformers>=2.2.0",
+    "faiss-cpu>=1.7.4",
+    "numpy>=1.24.0",
+    "httpx>=0.25.0",
+    "python-multipart>=0.0.6",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0.0",
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "pre-commit>=3.5.0",
+    "httpx>=0.25.0",
+]
+
+gpu = [
+    "faiss-gpu>=1.7.4",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+
+all = [
+    "dakb[dev,docs]",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/dakb"
+Documentation = "https://github.com/yourusername/dakb#documentation"
+Repository = "https://github.com/yourusername/dakb"
+Issues = "https://github.com/yourusername/dakb/issues"
+Changelog = "https://github.com/yourusername/dakb/blob/main/CHANGELOG.md"
+
+[project.scripts]
+dakb = "dakb.cli:main"
+dakb-gateway = "dakb.gateway.main:run"
+dakb-embedding = "dakb.embeddings:run"
+
+[project.entry-points."mcp.servers"]
+dakb = "dakb.mcp:server"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dakb*", "packages*"]
+exclude = ["tests*", "docs*", "examples*"]
+
+[tool.setuptools.package-data]
+dakb = ["py.typed", "config/*.yaml"]
+
+# ==============================================================================
+# Ruff Configuration
+# ==============================================================================
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "B904",   # raise without from inside except
+    "ARG001", # unused function argument
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG", "S101"]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dakb"]
+
+# ==============================================================================
+# MyPy Configuration
+# ==============================================================================
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = [
+    "faiss.*",
+    "sentence_transformers.*",
+    "pymongo.*",
+    "mcp.*",
+]
+ignore_missing_imports = true
+
+# ==============================================================================
+# Pytest Configuration
+# ==============================================================================
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+asyncio_mode = "auto"
+
+# ==============================================================================
+# Coverage Configuration
+# ==============================================================================
+[tool.coverage.run]
+source = ["dakb"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+skip_covered = true
+
+# ==============================================================================
+# Black Configuration (for compatibility)
+# ==============================================================================
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.ruff_cache
+  | \.venv
+  | venv
+  | build
+  | dist
+)/
+'''
+
+# ==============================================================================
+# isort Configuration (for compatibility)
+# ==============================================================================
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["dakb"]
+skip_gitignore = true

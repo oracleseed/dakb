@@ -1,0 +1,127 @@
+# DAKB Docker Compose Configuration
+# ==================================
+#
+# Start all services:
+#   docker-compose up -d
+#
+# View logs:
+#   docker-compose logs -f
+#
+# Stop services:
+#   docker-compose down
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # MongoDB - Primary Data Store
+  # ==========================================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: dakb-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-dakb}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD is required}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-dakb}
+    volumes:
+      - dakb-mongodb:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - dakb-network
+
+  # ==========================================================================
+  # Embedding Service - Vector Embeddings
+  # ==========================================================================
+  embedding:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.embedding
+    container_name: dakb-embedding
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${EMBEDDING_PORT:-3101}:3101"  # Loopback only for security
+    environment:
+      DAKB_EMBEDDING_HOST: "0.0.0.0"
+      DAKB_EMBEDDING_PORT: "3101"
+      DAKB_EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cpu}
+      DAKB_EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-mpnet-base-v2}
+    volumes:
+      - dakb-models:/app/models
+      - dakb-faiss:/app/data/dakb_faiss
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3101/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # Model loading takes time
+    networks:
+      - dakb-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ==========================================================================
+  # Gateway Service - REST API
+  # ==========================================================================
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: dakb-gateway
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-3100}:3100"
+    environment:
+      DAKB_GATEWAY_HOST: "0.0.0.0"
+      DAKB_GATEWAY_PORT: "3100"
+      DAKB_JWT_SECRET: ${DAKB_JWT_SECRET:?DAKB_JWT_SECRET is required}
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-dakb}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${MONGO_DATABASE:-dakb}?authSource=admin
+      DAKB_EMBEDDING_URL: http://embedding:3101
+      DAKB_FAISS_DIR: /app/data/dakb_faiss
+      DAKB_LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - dakb-faiss:/app/data/dakb_faiss
+      - dakb-logs:/app/logs
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      embedding:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - dakb-network
+
+# ==========================================================================
+# Networks
+# ==========================================================================
+networks:
+  dakb-network:
+    driver: bridge
+
+# ==========================================================================
+# Volumes
+# ==========================================================================
+volumes:
+  dakb-mongodb:
+    driver: local
+  dakb-models:
+    driver: local
+  dakb-faiss:
+    driver: local
+  dakb-logs:
+    driver: local

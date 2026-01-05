@@ -72,12 +72,12 @@ The development process was iterative: describe what I needed, Claude Code imple
 
 ### Try It
 
-**GitHub**: [link to repo]
+**GitHub**: https://github.com/oracleseed/dakb
 
 **Quick Start**:
 ```bash
 # Docker (recommended)
-git clone https://github.com/yourusername/dakb.git
+git clone https://github.com/oracleseed/dakb.git
 cd dakb
 cp docker/.env.example docker/.env
 # Edit docker/.env with your settings

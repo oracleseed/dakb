@@ -1,7 +1,7 @@
 # DAKB - Distributed Agent Knowledge Base
 
 <p align="center">
-  <img src="docs/images/dakb-cover.png" alt="DAKB - Distributed Agent Knowledge Base" width="800"/>
+  <img src="docs/images/dakb-community-cover.svg" alt="DAKB - Distributed Agent Knowledge Base" width="800"/>
 </p>
 
 <p align="center">

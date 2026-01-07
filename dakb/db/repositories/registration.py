@@ -13,22 +13,19 @@ Session Reference: sess_selfreg_v1_20251211
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Any
+from typing import Any
 
-from pymongo.collection import Collection
-from pymongo.errors import DuplicateKeyError
 from pymongo import ReturnDocument
+from pymongo.collection import Collection
 
 from ..registration_schemas.registration import (
+    # Local enums from registration module (avoid circular imports)
     DakbInviteToken,
     DakbRegistrationAudit,
     InviteTokenCreate,
     InviteTokenStatus,
     RegistrationAuditAction,
     generate_invite_token,
-    # Local enums from registration module (avoid circular imports)
-    AccessLevel,
-    AgentRole,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,7 +100,7 @@ class InviteTokenRepository:
         )
         return token
 
-    def get_by_token(self, invite_token: str) -> Optional[DakbInviteToken]:
+    def get_by_token(self, invite_token: str) -> DakbInviteToken | None:
         """
         Get invite token by its token string.
 
@@ -123,7 +120,7 @@ class InviteTokenRepository:
         self,
         invite_token: str,
         agent_id: str,
-    ) -> tuple[Optional[DakbInviteToken], Optional[str]]:
+    ) -> tuple[DakbInviteToken | None, str | None]:
         """
         Atomically validate and consume an invite token.
 
@@ -254,8 +251,8 @@ class InviteTokenRepository:
 
     def list_tokens(
         self,
-        status: Optional[InviteTokenStatus] = None,
-        created_by: Optional[str] = None,
+        status: InviteTokenStatus | None = None,
+        created_by: str | None = None,
         limit: int = 50,
         skip: int = 0,
     ) -> list[DakbInviteToken]:
@@ -291,8 +288,8 @@ class InviteTokenRepository:
 
     def count_tokens(
         self,
-        status: Optional[InviteTokenStatus] = None,
-        created_by: Optional[str] = None,
+        status: InviteTokenStatus | None = None,
+        created_by: str | None = None,
     ) -> int:
         """
         Count tokens with optional filtering.
@@ -407,8 +404,8 @@ class RegistrationAuditRepository:
         self,
         admin_id: str,
         invite_token: str,
-        details: Optional[dict] = None,
-        ip_address: Optional[str] = None,
+        details: dict | None = None,
+        ip_address: str | None = None,
     ) -> DakbRegistrationAudit:
         """
         Log invite token creation.
@@ -436,8 +433,8 @@ class RegistrationAuditRepository:
         self,
         agent_id: str,
         invite_token: str,
-        details: Optional[dict] = None,
-        ip_address: Optional[str] = None,
+        details: dict | None = None,
+        ip_address: str | None = None,
     ) -> DakbRegistrationAudit:
         """
         Log successful agent registration.
@@ -467,8 +464,8 @@ class RegistrationAuditRepository:
         agent_id: str,
         invite_token: str,
         error_message: str,
-        details: Optional[dict] = None,
-        ip_address: Optional[str] = None,
+        details: dict | None = None,
+        ip_address: str | None = None,
     ) -> DakbRegistrationAudit:
         """
         Log failed registration attempt.
@@ -500,8 +497,8 @@ class RegistrationAuditRepository:
         admin_id: str,
         agent_id: str,
         reason: str,
-        details: Optional[dict] = None,
-        ip_address: Optional[str] = None,
+        details: dict | None = None,
+        ip_address: str | None = None,
     ) -> DakbRegistrationAudit:
         """
         Log agent revocation.
@@ -530,8 +527,8 @@ class RegistrationAuditRepository:
         self,
         admin_id: str,
         invite_token: str,
-        reason: Optional[str] = None,
-        ip_address: Optional[str] = None,
+        reason: str | None = None,
+        ip_address: str | None = None,
     ) -> DakbRegistrationAudit:
         """
         Log invite token revocation.
@@ -558,7 +555,7 @@ class RegistrationAuditRepository:
     def find_by_agent(
         self,
         agent_id: str,
-        action: Optional[RegistrationAuditAction] = None,
+        action: RegistrationAuditAction | None = None,
         limit: int = 100,
     ) -> list[DakbRegistrationAudit]:
         """
@@ -616,7 +613,7 @@ class RegistrationAuditRepository:
 
     def find_failures(
         self,
-        since: Optional[datetime] = None,
+        since: datetime | None = None,
         limit: int = 100,
     ) -> list[DakbRegistrationAudit]:
         """
@@ -647,8 +644,8 @@ class RegistrationAuditRepository:
 
     def list_all(
         self,
-        action: Optional[RegistrationAuditAction] = None,
-        agent_id: Optional[str] = None,
+        action: RegistrationAuditAction | None = None,
+        agent_id: str | None = None,
         limit: int = 50,
         skip: int = 0,
     ) -> list[DakbRegistrationAudit]:
@@ -688,8 +685,8 @@ class RegistrationAuditRepository:
 
     def count_entries(
         self,
-        action: Optional[RegistrationAuditAction] = None,
-        agent_id: Optional[str] = None,
+        action: RegistrationAuditAction | None = None,
+        agent_id: str | None = None,
     ) -> int:
         """
         Count audit entries with optional filtering.

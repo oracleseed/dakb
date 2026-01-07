@@ -24,10 +24,8 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
-
 
 # =============================================================================
 # TIMEZONE-AWARE DATETIME HELPER
@@ -199,11 +197,11 @@ class DakbInviteToken(BaseModel):
     )
 
     # Target constraints (optional)
-    for_agent_type: Optional[AgentType] = Field(
+    for_agent_type: AgentType | None = Field(
         None,
         description="Expected agent type for validation (optional)"
     )
-    for_agent_id_hint: Optional[str] = Field(
+    for_agent_id_hint: str | None = Field(
         None,
         max_length=50,
         description="Suggested agent ID for the invitee (optional)"
@@ -226,12 +224,12 @@ class DakbInviteToken(BaseModel):
     )
 
     # Alias pre-registration (optional)
-    pre_registered_alias: Optional[str] = Field(
+    pre_registered_alias: str | None = Field(
         None,
         max_length=50,
         description="Alias to auto-register for the new agent"
     )
-    pre_registered_alias_role: Optional[str] = Field(
+    pre_registered_alias_role: str | None = Field(
         None,
         max_length=100,
         description="Role metadata for the auto-registered alias"
@@ -248,18 +246,18 @@ class DakbInviteToken(BaseModel):
     )
 
     # Usage tracking
-    used_by_agent_id: Optional[str] = Field(
+    used_by_agent_id: str | None = Field(
         None,
         max_length=100,
         description="Agent that used this token (set on registration)"
     )
-    used_at: Optional[datetime] = Field(
+    used_at: datetime | None = Field(
         None,
         description="When the token was consumed (set on registration)"
     )
 
     # Notes
-    admin_notes: Optional[str] = Field(
+    admin_notes: str | None = Field(
         None,
         max_length=500,
         description="Private notes from admin (not shared with invitee)"
@@ -343,18 +341,18 @@ class DakbRegistrationAudit(BaseModel):
         max_length=100,
         description="Agent that performed this action"
     )
-    actor_ip: Optional[str] = Field(
+    actor_ip: str | None = Field(
         None,
         max_length=45,  # IPv6 max length
         description="IP address of the actor (for security monitoring)"
     )
 
     # Target
-    target_token: Optional[str] = Field(
+    target_token: str | None = Field(
         None,
         description="Invite token involved in this action"
     )
-    target_agent_id: Optional[str] = Field(
+    target_agent_id: str | None = Field(
         None,
         max_length=100,
         description="Agent ID affected by this action"
@@ -369,7 +367,7 @@ class DakbRegistrationAudit(BaseModel):
         default=True,
         description="Whether the action succeeded"
     )
-    error_message: Optional[str] = Field(
+    error_message: str | None = Field(
         None,
         max_length=500,
         description="Error message if action failed"
@@ -411,11 +409,11 @@ class InviteTokenCreate(BaseModel):
 
     Used by POST /api/v1/register/invite endpoint.
     """
-    for_agent_type: Optional[AgentType] = Field(
+    for_agent_type: AgentType | None = Field(
         None,
         description="Expected agent type for validation"
     )
-    for_agent_id_hint: Optional[str] = Field(
+    for_agent_id_hint: str | None = Field(
         None,
         max_length=50,
         description="Suggested agent ID for the invitee"
@@ -434,12 +432,12 @@ class InviteTokenCreate(BaseModel):
         default_factory=lambda: [AccessLevel.PUBLIC],
         description="Access levels to grant"
     )
-    pre_registered_alias: Optional[str] = Field(
+    pre_registered_alias: str | None = Field(
         None,
         max_length=50,
         description="Alias to auto-register for the new agent"
     )
-    pre_registered_alias_role: Optional[str] = Field(
+    pre_registered_alias_role: str | None = Field(
         None,
         max_length=100,
         description="Role for the auto-registered alias"
@@ -450,7 +448,7 @@ class InviteTokenCreate(BaseModel):
         le=168,  # Max 7 days
         description="Token validity in hours (1-168, default: 72)"
     )
-    admin_notes: Optional[str] = Field(
+    admin_notes: str | None = Field(
         None,
         max_length=500,
         description="Private notes (not shared with invitee)"
@@ -506,12 +504,12 @@ class RegistrationRequest(BaseModel):
         max_length=500,
         description="What this agent does and why it needs DAKB access"
     )
-    alias: Optional[str] = Field(
+    alias: str | None = Field(
         None,
         max_length=50,
         description="Optional alias to register (e.g., 'Coordinator', 'Reviewer')"
     )
-    alias_role: Optional[str] = Field(
+    alias_role: str | None = Field(
         None,
         max_length=100,
         description="Role for the alias (e.g., 'orchestration', 'code_review')"
@@ -520,7 +518,7 @@ class RegistrationRequest(BaseModel):
         default_factory=list,
         description="Agent capabilities (coding, debugging, etc.)"
     )
-    model_version: Optional[str] = Field(
+    model_version: str | None = Field(
         None,
         max_length=50,
         description="LLM model version (e.g., 'claude-opus-4-5', 'gpt-5.1')"
@@ -579,11 +577,11 @@ class InviteTokenResponse(BaseModel):
     """Response for invite token creation."""
     invite_token: str
     expires_at: datetime
-    for_agent_type: Optional[str] = None
-    for_agent_id_hint: Optional[str] = None
+    for_agent_type: str | None = None
+    for_agent_id_hint: str | None = None
     granted_role: str
     granted_access_levels: list[str]
-    pre_registered_alias: Optional[str] = None
+    pre_registered_alias: str | None = None
     created_by: str
     message: str
 
@@ -596,7 +594,7 @@ class RegistrationResponse(BaseModel):
     token_expires_at: datetime
     role: str
     access_levels: list[str]
-    alias_registered: Optional[str] = None
+    alias_registered: str | None = None
     message: str
 
 
@@ -605,7 +603,7 @@ class RegistrationErrorResponse(BaseModel):
     status: str = "error"
     error: str
     message: str
-    details: Optional[dict] = None
+    details: dict | None = None
 
 
 class RevocationResponse(BaseModel):

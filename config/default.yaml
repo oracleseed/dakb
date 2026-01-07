@@ -1,0 +1,195 @@
+# DAKB Service Default Configuration
+# ==================================
+#
+# This file contains default configuration values for DAKB services.
+# Values here can be overridden by environment variables prefixed with DAKB_.
+#
+# Priority Order (highest to lowest):
+#   1. Environment variables
+#   2. config/local.yaml (git-ignored, for local overrides)
+#   3. config/default.yaml (this file)
+#
+# Version: 1.0
+# Created: 2025-12-17
+# Author: Coordinator Agent (Claude Opus 4.5)
+
+# ===========================================================================
+# Gateway Server Configuration
+# ===========================================================================
+gateway:
+  host: "0.0.0.0"           # Bind address (0.0.0.0 for all interfaces)
+  port: 3100                # Gateway port
+  debug: false              # Debug mode (verbose logging)
+  workers: 1                # Number of worker processes (uvicorn)
+
+# ===========================================================================
+# Embedding Server Configuration
+# ===========================================================================
+embedding:
+  host: "127.0.0.1"         # Loopback only for security
+  port: 3101                # Embedding service port
+  timeout: 30.0             # Request timeout in seconds
+  device: "cpu"             # Device for model inference (cpu, cuda, mps)
+  model: "all-mpnet-base-v2"  # Sentence transformer model
+
+# ===========================================================================
+# Data Storage Configuration
+# ===========================================================================
+data:
+  # FAISS vector index storage
+  # Can be absolute path or relative to project root
+  faiss_dir: "data/dakb_faiss"
+
+  # Alternative for standalone deployment:
+  # faiss_dir: "/var/lib/dakb/faiss"
+
+  # Backup settings
+  backup_enabled: true
+  backup_retention_days: 7
+
+# ===========================================================================
+# MongoDB Configuration
+# ===========================================================================
+mongodb:
+  # Connection URI (use MONGO_URI env var in production)
+  uri: "mongodb://192.168.0.12:27017"
+  database: "tradebot_db"
+
+  # Collections used by DAKB
+  collections:
+    knowledge: "dakb_knowledge"
+    messages: "dakb_messages"
+    sessions: "dakb_sessions"
+    invites: "dakb_invites"
+    agents: "dakb_agents"
+    votes: "dakb_votes"
+
+# ===========================================================================
+# Security Configuration
+# ===========================================================================
+security:
+  # JWT settings (MUST set secrets via environment variables)
+  jwt_algorithm: "HS256"
+  jwt_expiry_hours: 24
+
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests: 100           # Max requests per window
+    window_seconds: 60      # Window duration
+
+# ===========================================================================
+# CORS Configuration
+# ===========================================================================
+cors:
+  # Allowed origins for cross-origin requests
+  origins:
+    - "http://localhost:8000"
+    - "https://localhost:8000"
+    - "http://127.0.0.1:8000"
+    - "https://127.0.0.1:8000"
+  allow_credentials: true
+  allow_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  allow_headers: ["*"]
+
+# ===========================================================================
+# Logging Configuration
+# ===========================================================================
+logging:
+  level: "INFO"             # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+  # Log file settings
+  file:
+    enabled: true
+    path: "logs"            # Relative to dakb_service directory
+    max_size_mb: 10
+    backup_count: 5
+
+# ===========================================================================
+# Search Configuration
+# ===========================================================================
+search:
+  default_limit: 10         # Default number of results
+  max_limit: 100            # Maximum allowed results
+  min_similarity: 0.3       # Minimum similarity score threshold
+
+# ===========================================================================
+# MCP HTTP Transport Configuration (Phase 1+)
+# ===========================================================================
+mcp:
+  # Session management
+  session:
+    id_prefix: "mcp_"       # Prefix for session IDs
+    timeout_minutes: 30     # Session inactivity timeout
+    cleanup_interval_minutes: 5
+    max_per_agent: 10       # Max concurrent sessions per agent
+
+  # SSE (Server-Sent Events) settings
+  sse:
+    heartbeat_seconds: 30   # Keep-alive interval
+    max_connections_per_agent: 5
+    event_buffer_size: 100  # Events to buffer for resumption
+
+  # Request settings
+  request:
+    max_batch_size: 20      # Max requests per batch
+    timeout_seconds: 60     # Request timeout
+
+# ===========================================================================
+# Deployment Mode Configuration
+# ===========================================================================
+deployment:
+  # Deployment mode affects origin validation and security settings
+  # Options: local, lan, cloud
+  mode: "local"
+
+  # Mode-specific settings
+  modes:
+    local:
+      # No origin validation, localhost only
+      validate_origin: false
+      allowed_hosts: ["localhost", "127.0.0.1"]
+
+    lan:
+      # Origin validation for LAN IPs
+      validate_origin: true
+      allowed_hosts: ["localhost", "127.0.0.1", "192.168.*.*", "10.*.*.*"]
+
+    cloud:
+      # Strict origin validation required
+      validate_origin: true
+      allowed_hosts: []     # Must be configured explicitly
+      require_https: true
+
+# ===========================================================================
+# Health Check Configuration
+# ===========================================================================
+health:
+  # Health endpoints
+  liveness_path: "/health/live"
+  readiness_path: "/health/ready"
+
+  # Dependency checks for readiness
+  dependencies:
+    - name: "mongodb"
+      critical: true
+    - name: "embedding"
+      critical: true
+    - name: "faiss"
+      critical: false
+
+# ===========================================================================
+# Docker/Container Configuration
+# ===========================================================================
+docker:
+  # Container-specific paths (used when DAKB_CONTAINER=true)
+  container_paths:
+    data: "/app/data"
+    logs: "/app/logs"
+    config: "/app/config"
+
+  # Resource limits (informational, set via docker-compose)
+  limits:
+    memory: "2G"
+    cpus: 2

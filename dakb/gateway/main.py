@@ -694,7 +694,8 @@ async def general_exception_handler(request: Request, exc: Exception):
 # MAIN
 # =============================================================================
 
-if __name__ == "__main__":
+def run() -> None:
+    """Run the DAKB gateway server."""
     import uvicorn
 
     # Validate configuration
@@ -714,3 +715,7 @@ if __name__ == "__main__":
         port=settings.gateway_port,
         log_level=settings.log_level.lower()
     )
+
+
+if __name__ == "__main__":
+    run()

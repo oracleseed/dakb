@@ -21,8 +21,8 @@ Collections:
 - dakb_audit_log: Security audit trail
 
 Usage:
-    from dakb.db.schemas import KnowledgeCreate, Category, ContentType
-    from dakb.db.collections import KnowledgeCollection
+    from dakb.db import KnowledgeCreate, Category, ContentType
+    from dakb.db import get_dakb_repositories
 
     # Create knowledge entry
     entry = KnowledgeCreate(
@@ -33,7 +33,114 @@ Usage:
     )
 """
 
+# Import schemas
+from .schemas import (
+    AccessLevel,
+    AgentRegister,
+    AgentRole,
+    AgentStatus,
+    AgentType,
+    AgentUpdate,
+    AuditAction,
+    Category,
+    CodeLanguage,
+    ContentFormat,
+    ContentType,
+    DakbAgent,
+    DakbAgentAlias,
+    DakbAuditLog,
+    DakbKnowledge,
+    DakbMessage,
+    DakbSession,
+    FlagReason,
+    GitContext,
+    KnowledgeCreate,
+    KnowledgeFlag,
+    KnowledgeQuality,
+    KnowledgeResponse,
+    KnowledgeSource,
+    KnowledgeStatus,
+    KnowledgeUpdate,
+    LeaderboardEntry,
+    MessageAttachment,
+    MessageCreate,
+    MessagePriority,
+    MessageStatus,
+    MessageType,
+    ModerateAction,
+    NotificationPreferences,
+    ReputationHistory,
+    ResourceType,
+    SearchResults,
+    SessionCreate,
+    SessionUpdate,
+    TaskStatus,
+    TodoItem,
+    VoteCreate,
+    VoteDetail,
+    Votes,
+    VoteSummary,
+    VoteType,
+    generate_id,
+)
+
+# Import collections
+from .collections import (
+    get_dakb_client,
+    get_dakb_repositories,
+)
+
 __all__ = [
-    "schemas",
-    "collections",
+    # Enums
+    "AccessLevel",
+    "AgentRole",
+    "AgentStatus",
+    "AgentType",
+    "AuditAction",
+    "Category",
+    "CodeLanguage",
+    "ContentFormat",
+    "ContentType",
+    "FlagReason",
+    "KnowledgeStatus",
+    "MessagePriority",
+    "MessageStatus",
+    "MessageType",
+    "ModerateAction",
+    "ResourceType",
+    "TaskStatus",
+    "VoteType",
+    # Models
+    "AgentRegister",
+    "AgentUpdate",
+    "DakbAgent",
+    "DakbAgentAlias",
+    "DakbAuditLog",
+    "DakbKnowledge",
+    "DakbMessage",
+    "DakbSession",
+    "GitContext",
+    "KnowledgeCreate",
+    "KnowledgeFlag",
+    "KnowledgeQuality",
+    "KnowledgeResponse",
+    "KnowledgeSource",
+    "KnowledgeUpdate",
+    "LeaderboardEntry",
+    "MessageAttachment",
+    "MessageCreate",
+    "NotificationPreferences",
+    "ReputationHistory",
+    "SearchResults",
+    "SessionCreate",
+    "SessionUpdate",
+    "TodoItem",
+    "VoteCreate",
+    "VoteDetail",
+    "Votes",
+    "VoteSummary",
+    # Functions
+    "generate_id",
+    "get_dakb_client",
+    "get_dakb_repositories",
 ]

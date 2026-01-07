@@ -1,118 +1,126 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700">
   <defs>
     <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#6366f1"/>
-      <stop offset="100%" style="stop-color:#8b5cf6"/>
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
     </linearGradient>
     <linearGradient id="skillsGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#10b981"/>
-      <stop offset="100%" style="stop-color:#059669"/>
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
     </linearGradient>
     <linearGradient id="agentGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#3b82f6"/>
-      <stop offset="100%" style="stop-color:#2563eb"/>
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#2563eb"/>
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="2" dy="4" stdDeviation="4" flood-opacity="0.15"/>
-    </filter>
   </defs>
 
   <!-- Background -->
   <rect width="900" height="700" fill="#f8fafc"/>
 
   <!-- Title -->
-  <text x="450" y="40" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#1e293b">DAKB Skills Architecture</text>
-  <text x="450" y="65" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#64748b">Centralized, Searchable, Version-Controlled Agent Skills</text>
+  <text x="450" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#1e293b">DAKB Skills Architecture</text>
+  <text x="450" y="65" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Centralized, Searchable, Version-Controlled Agent Skills</text>
 
   <!-- Main DAKB Knowledge Base Box -->
-  <rect x="100" y="90" width="700" height="220" rx="16" fill="white" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="100" y="90" width="700" height="220" rx="16" fill="white" stroke="#e2e8f0" stroke-width="2"/>
   <rect x="100" y="90" width="700" height="45" rx="16" fill="url(#headerGrad)"/>
   <rect x="100" y="115" width="700" height="20" fill="url(#headerGrad)"/>
-  <text x="450" y="120" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="white">DAKB Knowledge Base</text>
+  <text x="450" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">DAKB Knowledge Base</text>
 
   <!-- Skills Collection -->
   <rect x="130" y="150" width="640" height="145" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="2"/>
-  <text x="150" y="175" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#166534">Skills Collection (content_type: pattern)</text>
+  <text x="150" y="175" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#166534">Skills Collection (content_type: pattern)</text>
 
   <!-- Skill Cards -->
-  <rect x="150" y="190" width="145" height="90" rx="8" fill="url(#skillsGrad)" filter="url(#shadow)"/>
-  <text x="222" y="220" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="white">skill-code-review</text>
-  <text x="222" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.8)">kn_20260107_xxx</text>
-  <text x="222" y="265" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="rgba(255,255,255,0.9)">v1.0 | backend</text>
+  <rect x="150" y="190" width="145" height="90" rx="8" fill="url(#skillsGrad)"/>
+  <text x="222" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">skill-code-review</text>
+  <text x="222" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="white" opacity="0.8">kn_20260107_xxx</text>
+  <text x="222" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.9">v1.0 | backend</text>
 
-  <rect x="310" y="190" width="145" height="90" rx="8" fill="url(#skillsGrad)" filter="url(#shadow)"/>
-  <text x="382" y="220" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="white">skill-data-analysis</text>
-  <text x="382" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.8)">kn_20260107_xxx</text>
-  <text x="382" y="265" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="rgba(255,255,255,0.9)">v2.0 | ml</text>
+  <rect x="310" y="190" width="145" height="90" rx="8" fill="url(#skillsGrad)"/>
+  <text x="382" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">skill-data-analysis</text>
+  <text x="382" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="white" opacity="0.8">kn_20260107_xxx</text>
+  <text x="382" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.9">v2.0 | ml</text>
 
-  <rect x="470" y="190" width="145" height="90" rx="8" fill="url(#skillsGrad)" filter="url(#shadow)"/>
-  <text x="542" y="220" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="white">skill-trading-backtest</text>
-  <text x="542" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.8)">kn_20260107_xxx</text>
-  <text x="542" y="265" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="rgba(255,255,255,0.9)">v1.5 | trading</text>
+  <rect x="470" y="190" width="145" height="90" rx="8" fill="url(#skillsGrad)"/>
+  <text x="542" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">skill-trading-backtest</text>
+  <text x="542" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="white" opacity="0.8">kn_20260107_xxx</text>
+  <text x="542" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.9">v1.5 | trading</text>
 
-  <rect x="630" y="190" width="125" height="90" rx="8" fill="url(#skillsGrad)" filter="url(#shadow)"/>
-  <text x="692" y="220" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="white">skill-drl-training</text>
-  <text x="692" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.8)">kn_20260107_xxx</text>
-  <text x="692" y="265" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="rgba(255,255,255,0.9)">v3.0 | ml</text>
+  <rect x="630" y="190" width="125" height="90" rx="8" fill="url(#skillsGrad)"/>
+  <text x="692" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">skill-drl-training</text>
+  <text x="692" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="white" opacity="0.8">kn_20260107_xxx</text>
+  <text x="692" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.9">v3.0 | ml</text>
 
   <!-- Connection arrows -->
-  <path d="M 220 310 L 220 350 L 220 390" stroke="#94a3b8" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
-  <path d="M 380 310 L 380 350 L 450 390" stroke="#94a3b8" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
-  <path d="M 540 310 L 540 350 L 450 390" stroke="#94a3b8" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
-  <path d="M 690 310 L 690 350 L 690 390" stroke="#94a3b8" stroke-width="2" fill="none" stroke-dasharray="5,5"/>
+  <line x1="220" y1="310" x2="220" y2="340" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+  <line x1="380" y1="310" x2="380" y2="340" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+  <line x1="540" y1="310" x2="540" y2="340" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+  <line x1="690" y1="310" x2="690" y2="340" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
 
   <!-- Semantic Search Layer -->
   <rect x="200" y="340" width="500" height="35" rx="8" fill="#fef3c7" stroke="#fbbf24" stroke-width="2"/>
-  <text x="450" y="363" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#92400e">Semantic Search (FAISS + Embeddings)</text>
+  <text x="450" y="363" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#92400e">Semantic Search (FAISS + Embeddings)</text>
 
-  <!-- Agents Row -->
-  <text x="450" y="410" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#475569">AI Agents (Any Machine / Any LLM)</text>
+  <!-- Connection arrows from search to agents -->
+  <line x1="300" y1="375" x2="150" y2="430" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+  <line x1="400" y1="375" x2="310" y2="430" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+  <line x1="500" y1="375" x2="470" y2="430" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+  <line x1="600" y1="375" x2="630" y2="430" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+  <line x1="650" y1="375" x2="770" y2="430" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,5"/>
+
+  <!-- Agents Row Label -->
+  <text x="450" y="415" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#475569">AI Agents (Any Machine / Any LLM)</text>
 
   <!-- Agent Cards -->
-  <rect x="80" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)" filter="url(#shadow)"/>
-  <text x="150" y="465" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="white">Backend Agent</text>
-  <text x="150" y="485" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="rgba(255,255,255,0.9)">Claude Code</text>
-  <text x="150" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.8)">dakb_search()</text>
+  <rect x="80" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)"/>
+  <text x="150" y="465" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">Backend Agent</text>
+  <text x="150" y="485" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white" opacity="0.9">Claude Code</text>
+  <text x="150" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="white" opacity="0.8">dakb_search()</text>
 
-  <rect x="240" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)" filter="url(#shadow)"/>
-  <text x="310" y="465" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="white">MLX Agent</text>
-  <text x="310" y="485" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="rgba(255,255,255,0.9)">GPT / Local LLM</text>
-  <text x="310" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.8)">dakb_search()</text>
+  <rect x="240" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)"/>
+  <text x="310" y="465" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">MLX Agent</text>
+  <text x="310" y="485" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white" opacity="0.9">GPT / Local LLM</text>
+  <text x="310" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="white" opacity="0.8">dakb_search()</text>
 
-  <rect x="400" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)" filter="url(#shadow)"/>
-  <text x="470" y="465" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="white">Quant Agent</text>
-  <text x="470" y="485" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="rgba(255,255,255,0.9)">Gemini</text>
-  <text x="470" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.8)">dakb_search()</text>
+  <rect x="400" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)"/>
+  <text x="470" y="465" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">Quant Agent</text>
+  <text x="470" y="485" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white" opacity="0.9">Gemini</text>
+  <text x="470" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="white" opacity="0.8">dakb_search()</text>
 
-  <rect x="560" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)" filter="url(#shadow)"/>
-  <text x="630" y="465" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="white">Research Agent</text>
-  <text x="630" y="485" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="rgba(255,255,255,0.9)">Grok</text>
-  <text x="630" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.8)">dakb_search()</text>
+  <rect x="560" y="430" width="140" height="100" rx="12" fill="url(#agentGrad)"/>
+  <text x="630" y="465" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">Research Agent</text>
+  <text x="630" y="485" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white" opacity="0.9">Grok</text>
+  <text x="630" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="white" opacity="0.8">dakb_search()</text>
 
-  <rect x="720" y="430" width="100" height="100" rx="12" fill="#64748b" stroke="#475569" stroke-width="2" stroke-dasharray="4,4" filter="url(#shadow)"/>
-  <text x="770" y="475" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="white">+ More</text>
-  <text x="770" y="495" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="rgba(255,255,255,0.8)">Agents</text>
+  <rect x="720" y="430" width="100" height="100" rx="12" fill="#64748b" stroke="#475569" stroke-width="2" stroke-dasharray="4,4"/>
+  <text x="770" y="475" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="500" fill="white">+ More</text>
+  <text x="770" y="495" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.8">Agents</text>
 
   <!-- Workflow Box -->
-  <rect x="100" y="555" width="700" height="130" rx="12" fill="white" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
-  <text x="450" y="580" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#1e293b">Skill Retrieval Workflow</text>
+  <rect x="100" y="555" width="700" height="130" rx="12" fill="white" stroke="#e2e8f0" stroke-width="2"/>
+  <text x="450" y="580" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#1e293b">Skill Retrieval Workflow</text>
 
   <!-- Workflow Steps -->
   <rect x="130" y="595" width="200" height="35" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1"/>
-  <text x="230" y="617" text-anchor="middle" font-family="monospace" font-size="11" fill="#1e40af">1. dakb_search("skill &lt;task&gt;")</text>
+  <text x="230" y="617" text-anchor="middle" font-family="monospace" font-size="11" fill="#1e40af">1. dakb_search("skill")</text>
 
-  <text x="345" y="612" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#94a3b8">&rarr;</text>
+  <!-- Arrow 1 -->
+  <polygon points="340,612 355,607 355,617" fill="#94a3b8"/>
+  <line x1="330" y1="612" x2="355" y2="612" stroke="#94a3b8" stroke-width="2"/>
 
   <rect x="365" y="595" width="200" height="35" rx="6" fill="#dcfce7" stroke="#22c55e" stroke-width="1"/>
-  <text x="465" y="617" text-anchor="middle" font-family="monospace" font-size="11" fill="#166534">2. dakb_get_knowledge(id)</text>
+  <text x="465" y="617" text-anchor="middle" font-family="monospace" font-size="11" fill="#166534">2. dakb_get_knowledge()</text>
 
-  <text x="580" y="612" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#94a3b8">&rarr;</text>
+  <!-- Arrow 2 -->
+  <polygon points="575,612 590,607 590,617" fill="#94a3b8"/>
+  <line x1="565" y1="612" x2="590" y2="612" stroke="#94a3b8" stroke-width="2"/>
 
   <rect x="600" y="595" width="170" height="35" rx="6" fill="#fef3c7" stroke="#eab308" stroke-width="1"/>
-  <text x="685" y="617" text-anchor="middle" font-family="monospace" font-size="11" fill="#854d0e">3. dakb_vote("helpful")</text>
+  <text x="685" y="617" text-anchor="middle" font-family="monospace" font-size="11" fill="#854d0e">3. dakb_vote()</text>
 
   <!-- Benefit indicators -->
-  <text x="230" y="655" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#64748b">Find relevant skills</text>
-  <text x="465" y="655" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#64748b">Get full content</text>
-  <text x="685" y="655" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#64748b">Feedback loop</text>
+  <text x="230" y="655" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#64748b">Find relevant skills</text>
+  <text x="465" y="655" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#64748b">Get full content</text>
+  <text x="685" y="655" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#64748b">Feedback loop</text>
 </svg>

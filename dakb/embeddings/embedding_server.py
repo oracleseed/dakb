@@ -46,7 +46,12 @@ os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
 import hashlib
 import logging
 import secrets
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .embedding_service import EmbeddingService
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -174,11 +179,11 @@ class StatsResponse(BaseModel):
 # =============================================================================
 
 # Global embedding service instance (initialized in lifespan)
-embedding_service = None
+embedding_service: "EmbeddingService | None" = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
     Lifespan context manager for FastAPI application.
     Replaces deprecated @app.on_event("startup") decorator.
@@ -193,11 +198,12 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing EmbeddingService...")
 
     # Import here to avoid circular imports and allow lazy loading
-    from .embedding_service import EmbeddingService
+    from .embedding_service import EmbeddingService as EmbeddingServiceClass
 
-    embedding_service = EmbeddingService()
+    embedding_service = EmbeddingServiceClass()
+    vector_count = embedding_service.index.ntotal if embedding_service.index else 0
     logger.info(
-        f"EmbeddingService ready with {embedding_service.index.ntotal} vectors"
+        f"EmbeddingService ready with {vector_count} vectors"
     )
 
     yield  # Application runs here
@@ -231,7 +237,7 @@ app.add_middleware(
 # SERVICE DEPENDENCY (v1.4 - Uses lifespan context manager for initialization)
 # =============================================================================
 
-def get_embedding_service():
+def get_embedding_service() -> "EmbeddingService":
     """
     Get the embedding service instance.
 
@@ -302,7 +308,8 @@ async def verify_internal_request(
     provided_hash = hashlib.sha256(x_internal_secret.encode()).hexdigest()
 
     if not secrets.compare_digest(expected_hash, provided_hash):
-        logger.warning(f"Invalid internal secret from {request.client.host}")
+        client_host = request.client.host if request.client else "unknown"
+        logger.warning(f"Invalid internal secret from {client_host}")
         raise HTTPException(
             status_code=403,
             detail="Forbidden: Invalid internal secret"

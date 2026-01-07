@@ -22,5 +22,5 @@ __all__ = ["run"]
 
 def run() -> None:
     """Run the embedding server."""
-    from dakb.embeddings.embedding_server import run_server
-    run_server()
+    from dakb.embeddings.embedding_server import main
+    main()

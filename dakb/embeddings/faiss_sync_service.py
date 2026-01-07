@@ -532,7 +532,7 @@ class FAISSMongoSyncService:
             "needs_rebuild": deletion_ratio > self.REBUILD_THRESHOLD,
         }
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """
         Cleanup resources when shutting down.
         Stops periodic sync and shuts down thread pool executor.

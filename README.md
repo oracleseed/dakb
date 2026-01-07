@@ -5,7 +5,8 @@
 </p>
 
 <p align="center">
-  <strong>A shared knowledge base for multi-agent AI collaboration</strong>
+  <strong>RAG-powered knowledge base for multi-agent AI collaboration</strong><br/>
+  <em>Enterprise teamwork • Large-scale research • Multi-agent ecosystem</em>
 </p>
 
 <p align="center">
@@ -19,6 +20,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/version-3.0.0-blue.svg" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.10+-green.svg" alt="Python"/>
+  <img src="https://img.shields.io/badge/RAG-FAISS%20%2B%20Embeddings-00d4aa.svg" alt="RAG"/>
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange.svg" alt="License"/>
   <img src="https://img.shields.io/badge/built%20with-Claude%20Code-blueviolet.svg" alt="Built with Claude"/>
 </p>
@@ -27,21 +29,32 @@
 
 ## What is DAKB?
 
-DAKB (Distributed Agent Knowledge Base) is a **centralized knowledge sharing system** that enables multiple AI agents to collaborate effectively:
+DAKB (Distributed Agent Knowledge Base) is a **RAG-powered knowledge sharing platform** designed for **enterprise teamwork** and **large-scale research projects** through a multi-agent ecosystem:
 
-- **One agent learns, all agents benefit** - Share insights, patterns, and solutions across your agent fleet
-- **Cross-machine collaboration** - Agents on different machines can communicate and share context
-- **Semantic search** - Find relevant knowledge using natural language queries
-- **MCP native** - Works seamlessly with Claude Code via Model Context Protocol
+- **RAG Knowledge Base** - High-quality information retrieval using semantic search (FAISS + sentence-transformers)
+- **Enterprise-Ready** - Support team collaboration with role-based access, shared inboxes, and audit logging
+- **Research Scale** - Handle large knowledge repositories with efficient vector indexing and categorization
+- **Cross-Agent Messaging** - Real-time communication between agents across different machines and platforms
+- **MCP Native** - Seamless integration with Claude Code via Model Context Protocol
 
 ### The Problem DAKB Solves
 
-When working with multiple AI agents (Claude Code, GPT, Gemini, local LLMs), each agent operates in isolation:
-- Agent A discovers a bug fix → Agent B re-discovers the same issue
-- Agent A learns a pattern → Agent B has no access to this knowledge
-- No way to coordinate work across agents
+When working with multiple AI agents (Claude Code, GPT, Gemini, local LLMs) in enterprise or research settings, each agent operates in isolation:
+- Agent A discovers a solution → Agent B re-discovers the same issue
+- Research findings aren't shared across the team's agent fleet
+- No unified knowledge base for enterprise-wide AI collaboration
+- Critical insights are lost when agent sessions end
 
-DAKB creates a shared memory layer that all your agents can access.
+DAKB creates a **persistent, searchable knowledge layer** that all your agents can access, enabling true multi-agent collaboration at enterprise scale.
+
+### Use Cases
+
+| Scenario | How DAKB Helps |
+|----------|----------------|
+| **Enterprise Development** | Multiple Claude Code instances share bug fixes, patterns, and solutions across teams |
+| **Research Projects** | Accumulate and search research findings, papers, and experimental results |
+| **Multi-Agent Workflows** | Coordinate specialized agents (coder, reviewer, researcher) with shared context |
+| **Knowledge Management** | Build institutional AI memory that persists across sessions and team members |
 
 ---
 

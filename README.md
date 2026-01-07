@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="#features">Features</a> •
+  <a href="#skills-architecture">Skills</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#documentation">Docs</a> •
@@ -21,6 +22,7 @@
   <img src="https://img.shields.io/badge/version-3.0.0-blue.svg" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.10+-green.svg" alt="Python"/>
   <img src="https://img.shields.io/badge/RAG-FAISS%20%2B%20Embeddings-00d4aa.svg" alt="RAG"/>
+  <img src="https://img.shields.io/badge/Skills-Shareable%20Agent%20Skills-10b981.svg" alt="Skills"/>
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange.svg" alt="License"/>
   <img src="https://img.shields.io/badge/built%20with-Claude%20Code-blueviolet.svg" alt="Built with Claude"/>
 </p>
@@ -93,6 +95,95 @@ DAKB creates a **persistent, searchable knowledge layer** that all your agents c
 | **Self-Registration** | External agents register via invite tokens |
 | **Role-Based Access** | admin, developer, researcher, viewer |
 | **Auto-Aliases** | Human-friendly names for agents |
+
+---
+
+## Skills Architecture
+
+DAKB enables **centralized, searchable, version-controlled skills** that any connected agent can discover and use. Instead of duplicating skill prompts across agent configurations, store them once in DAKB and let agents retrieve them dynamically.
+
+<p align="center">
+  <img src="docs/images/dakb-skills-architecture.svg" alt="DAKB Skills Architecture" width="800"/>
+</p>
+
+### How Skills Work
+
+Skills are stored as knowledge entries with `content_type: pattern` and special naming conventions:
+
+```python
+# Store a skill in DAKB
+dakb_store_knowledge(
+    title="Skill: Code Review",
+    content="""
+    ## Code Review Skill
+
+    When reviewing code, follow this checklist:
+    1. Check for security vulnerabilities (OWASP Top 10)
+    2. Verify error handling and edge cases
+    3. Ensure consistent code style
+    4. Look for performance issues
+    5. Validate test coverage
+
+    ## Output Format
+    Provide findings in a structured report...
+    """,
+    content_type="pattern",
+    category="backend",
+    tags=["skill", "skill-code-review", "version-1.0", "review"]
+)
+```
+
+### Skill Retrieval Pattern
+
+Any DAKB-connected agent can discover and use skills:
+
+```python
+# Step 1: Search for relevant skill
+results = dakb_search(query="skill code review")
+
+# Step 2: Get full skill content
+skill = dakb_get_knowledge(knowledge_id="kn_20260107_xxx")
+
+# Step 3: Apply skill instructions to current task
+# ... agent uses skill content as guidance ...
+
+# Step 4: Provide feedback
+dakb_vote(knowledge_id="kn_20260107_xxx", vote="helpful")
+```
+
+### Benefits of DAKB Skills
+
+| Benefit | Description |
+|---------|-------------|
+| **Centralized Updates** | Update a skill once, all agents get the latest version instantly |
+| **Version Control** | Tag skills with `version-1.0`, `version-2.0` for tracking changes |
+| **Semantic Discovery** | Agents find relevant skills via natural language search |
+| **Quality Tracking** | Voting system surfaces helpful skills and flags outdated ones |
+| **Access Control** | Make skills public, restricted (team only), or secret |
+| **Cross-Platform** | Works with Claude, GPT, Gemini, Grok, local LLMs - any DAKB-connected agent |
+
+### Skill Naming Convention
+
+```yaml
+title: "Skill: <Descriptive Name>"
+tags:
+  - "skill"              # Required: marks as skill
+  - "skill-<name>"       # Required: unique skill identifier
+  - "version-X.X"        # Recommended: version tracking
+  - "<domain-tags>"      # Optional: ml, backend, trading, etc.
+content_type: "pattern"  # Required: identifies as reusable pattern
+category: "<domain>"     # Required: database, ml, trading, etc.
+```
+
+### Example Skills
+
+| Skill Name | Purpose | Tags |
+|------------|---------|------|
+| `skill-code-review` | Comprehensive code review checklist | backend, review, version-1.0 |
+| `skill-data-analysis` | Data exploration and insights workflow | ml, analysis, version-2.0 |
+| `skill-trading-backtest` | Backtesting strategy validation | trading, backtest, version-1.5 |
+| `skill-drl-training` | DRL model training best practices | ml, drl, training, version-3.0 |
+| `skill-security-audit` | Security vulnerability assessment | security, audit, version-1.0 |
 
 ---
 

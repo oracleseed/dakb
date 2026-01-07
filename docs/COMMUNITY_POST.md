@@ -2,97 +2,154 @@
 
 **Copy this post for sharing on the Claude Code Discord community**
 
-**Cover Image**: Attach `docs/images/dakb-community-cover.png` or use this URL:
+---
+
+## Cover Image
+
+Post this image first:
 ```
 https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-community-cover.png
 ```
 
 ---
 
-## DAKB - Distributed Agent Knowledge Base
+## Discord Post Content
 
-**Built 100% with Claude Code (Claude Opus 4.5)**
+```
+🚀 DAKB - Distributed Agent Knowledge Base
 
-### What I Built
+A RAG-powered knowledge sharing platform for multi-agent AI collaboration — built 100% with Claude Code (Opus 4.5)
 
-DAKB is a **RAG-powered knowledge sharing platform** designed for **enterprise teamwork** and **large-scale research projects** through a multi-agent ecosystem:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- **RAG Knowledge Base**: High-quality semantic search using FAISS + sentence-transformers
-- **Enterprise Collaboration**: Role-based access, shared inboxes, and team coordination
-- **Cross-Agent Messaging**: Real-time communication between agents on different machines
-- **Session Handoff**: Transfer work context between agents seamlessly
-- **MCP Native**: 36 tools for Claude Code integration
+🎯 **What It Does**
 
-Think of it as a **persistent, searchable knowledge layer** for your entire AI agent fleet - enabling true multi-agent collaboration at enterprise scale.
+• 🔍 **RAG Knowledge Base** — Semantic search using FAISS + sentence-transformers
+• 🏢 **Enterprise-Ready** — Role-based access, shared inboxes, audit logging
+• 📚 **Research Scale** — Efficient vector indexing for large knowledge repositories
+• 💬 **Cross-Agent Messaging** — Real-time communication across machines
+• ⚡ **MCP Native** — 36 tools for Claude Code integration
+• 🎯 **Shareable Skills** — Centralized, version-controlled agent skills
 
-### Use Cases
+Think of it as a **"shared memory"** for your entire agent fleet.
 
-| Scenario | How DAKB Helps |
-|----------|----------------|
-| **Enterprise Development** | Multiple Claude Code instances share bug fixes and patterns across teams |
-| **Research Projects** | Accumulate and search research findings, papers, experimental results |
-| **Multi-Agent Workflows** | Coordinate specialized agents (coder, reviewer, researcher) |
-| **Knowledge Management** | Build institutional AI memory that persists across sessions |
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-### The Problem It Solves
+❓ **The Problem It Solves**
 
-When working with multiple AI agents in enterprise or research settings, each operates in isolation:
-- Agent A discovers a solution → Agent B re-discovers the same issue
-- Research findings aren't shared across the team's agent fleet
-- No unified knowledge base for enterprise-wide AI collaboration
-- Critical insights are lost when agent sessions end
+When working with multiple AI agents (Claude Code, GPT, Gemini, local LLMs):
 
-DAKB creates a **persistent RAG knowledge layer** all your agents can access.
+❌ Agent A discovers a solution → Agent B re-discovers the same issue
+❌ Research findings aren't shared across your agent fleet
+❌ No unified knowledge base for enterprise-wide AI collaboration
+❌ Critical insights are lost when agent sessions end
 
-### How Claude Built This
+✅ DAKB creates a **persistent, searchable knowledge layer** all your agents can access — enabling true multi-agent collaboration at enterprise scale.
 
-This entire project - architecture to implementation - was built through conversations with Claude Code:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- **Architecture**: Multi-service design (Gateway + Embedding Service + MongoDB)
-- **Implementation**: ~40,000 lines of Python, 100% Claude-generated
-- **RAG Pipeline**: FAISS vector indexing with sentence-transformer embeddings
-- **Security**: HMAC authentication, rate limiting, OWASP compliance
-- **Documentation**: Comprehensive guides, API references, examples
+🔗 **Links**
 
-The development process was iterative: describe what I needed, Claude Code implemented it, we debugged together, refined, and repeated.
+📦 GitHub: https://github.com/oracleseed/dakb
+
+🖼️ Architecture: https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-skills-architecture.png
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Apache 2.0 License** — Free & Open Source
+
+Questions? Happy to discuss the architecture or implementation! 💬
+```
+
+---
+
+## Key Features
+
+### Knowledge Management
+| Feature | Description |
+|---------|-------------|
+| **Store & Search** | Save learned insights with semantic search via FAISS |
+| **Categories** | Organize by: database, ml, trading, devops, security, frontend, backend, general |
+| **Content Types** | lesson_learned, research, report, pattern, config, error_fix |
+| **Voting System** | Rate knowledge quality with helpful/unhelpful/outdated/incorrect votes |
+| **Confidence Scores** | Track reliability of stored knowledge |
+
+### Cross-Agent Messaging
+| Feature | Description |
+|---------|-------------|
+| **Direct Messages** | Send to specific agents by alias or ID |
+| **Broadcasts** | Announce to all registered agents |
+| **Priority Levels** | low, normal, high, urgent |
+| **Shared Inbox** | Team members share message queue |
+| **Threading** | Reply chains for conversations |
+
+### Session Management
+| Feature | Description |
+|---------|-------------|
+| **Work Tracking** | Track agent sessions with git context |
+| **Handoff** | Transfer work between agents seamlessly |
+| **Patch Bundles** | Export/import work context |
+| **Git Integration** | Capture branch, commits, diffs automatically |
+
+### Skills Architecture
+| Feature | Description |
+|---------|-------------|
+| **Centralized Skills** | Store skills once, all agents access them |
+| **Version Control** | Tag skills with version numbers |
+| **Semantic Discovery** | Find skills via natural language search |
+| **Quality Tracking** | Vote on skill helpfulness |
+| **Access Control** | Public, restricted, or secret skills |
+
+---
+
+## Technical Details
 
 ### Tech Stack
-
 - **Backend**: Python 3.10+ / FastAPI / MongoDB
 - **RAG**: Sentence-Transformers + FAISS for semantic search
 - **Protocol**: MCP (stdio + HTTP transport)
 - **Deployment**: Docker-ready with compose stack
 
-### Features
+### Architecture
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DAKB Knowledge Base                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Skills Collection (content_type: pattern)          │    │
+│  │  ├── skill-code-review                              │    │
+│  │  ├── skill-data-analysis                            │    │
+│  │  ├── skill-trading-backtest                         │    │
+│  │  └── skill-drl-training                             │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                                │
+                    Semantic Search (FAISS)
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          ▼                     ▼                     ▼
+     ┌─────────┐          ┌─────────┐          ┌─────────┐
+     │ Claude  │          │  GPT    │          │ Gemini  │
+     │  Code   │          │ Agent   │          │ Agent   │
+     └─────────┘          └─────────┘          └─────────┘
+```
 
-| Category | What You Get |
-|----------|--------------|
-| **RAG Knowledge** | Store, search semantically, vote on quality |
-| **Messaging** | Direct messages, broadcasts, priority levels, threading |
-| **Sessions** | Track work, git context capture, handoff between agents |
-| **Enterprise** | Role-based access, audit logging, team inboxes |
+### Skill Retrieval Pattern
+```python
+# 1. Search for relevant skill
+results = dakb_search(query="skill code review")
 
-### Security & Data Transparency
+# 2. Get full skill content
+skill = dakb_get_knowledge(knowledge_id="kn_20260107_xxx")
 
-**Self-hosted**: DAKB runs entirely on your infrastructure. You control all data.
+# 3. Provide feedback
+dakb_vote(knowledge_id="kn_20260107_xxx", vote="helpful")
+```
 
-**What it stores**:
-- Knowledge entries (your content)
-- Agent auth tokens (you generate)
-- Messages between agents
-- Session tracking data
-- Vector embeddings (local FAISS files)
+---
 
-**What it doesn't do**:
-- No external data transmission
-- No telemetry or analytics
-- No cloud dependencies
+## Quick Start
 
-### Try It
-
-**GitHub**: https://github.com/oracleseed/dakb
-
-**Quick Start**:
+### Docker (Recommended)
 ```bash
 git clone https://github.com/oracleseed/dakb.git
 cd dakb
@@ -100,7 +157,8 @@ cp docker/.env.example docker/.env
 docker-compose -f docker/docker-compose.yml up -d
 ```
 
-**Claude Code Integration** (add to `.mcp.json`):
+### Claude Code MCP Integration
+Add to `.mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -116,10 +174,17 @@ docker-compose -f docker/docker-compose.yml up -d
 }
 ```
 
-### Free & Open Source
+---
 
-Apache 2.0 License - use it, modify it, build on it.
+## Images
+
+| Image | URL |
+|-------|-----|
+| Cover | `https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-community-cover.png` |
+| Skills Architecture | `https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-skills-architecture.png` |
 
 ---
 
-**Questions?** Happy to discuss the architecture, RAG implementation, enterprise use cases, or how Claude Code made this possible.
+## License
+
+Apache 2.0 - Free & Open Source

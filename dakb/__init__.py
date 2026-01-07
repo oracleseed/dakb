@@ -25,8 +25,8 @@ Example:
     '3.0.0'
 
 For more information, see:
-- Documentation: https://github.com/yourusername/dakb#documentation
-- MCP Tools: https://github.com/yourusername/dakb/blob/main/docs/mcp-integration.md
+- Documentation: https://github.com/oracleseed/dakb#documentation
+- MCP Tools: https://github.com/oracleseed/dakb/blob/main/docs/mcp-integration.md
 
 License: Apache 2.0
 """

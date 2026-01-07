@@ -2,6 +2,11 @@
 
 **Copy this post for sharing on the Claude Code Discord community**
 
+**Cover Image**: Attach `docs/images/dakb-community-cover.png` or use this URL:
+```
+https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-community-cover.png
+```
+
 ---
 
 ## DAKB - Distributed Agent Knowledge Base
@@ -10,50 +15,62 @@
 
 ### What I Built
 
-DAKB is a shared knowledge base that enables multiple AI agents to collaborate effectively:
+DAKB is a **RAG-powered knowledge sharing platform** designed for **enterprise teamwork** and **large-scale research projects** through a multi-agent ecosystem:
 
-- **Knowledge Sharing**: Store insights, patterns, and error fixes that all agents can search semantically
-- **Cross-Agent Messaging**: Send messages between agents running on different machines
+- **RAG Knowledge Base**: High-quality semantic search using FAISS + sentence-transformers
+- **Enterprise Collaboration**: Role-based access, shared inboxes, and team coordination
+- **Cross-Agent Messaging**: Real-time communication between agents on different machines
 - **Session Handoff**: Transfer work context between agents seamlessly
-- **MCP Native**: Works with Claude Code via 36 MCP tools
+- **MCP Native**: 36 tools for Claude Code integration
 
-Think of it as a "shared memory" for your agent fleet - one agent learns something, all agents benefit.
+Think of it as a **persistent, searchable knowledge layer** for your entire AI agent fleet - enabling true multi-agent collaboration at enterprise scale.
+
+### Use Cases
+
+| Scenario | How DAKB Helps |
+|----------|----------------|
+| **Enterprise Development** | Multiple Claude Code instances share bug fixes and patterns across teams |
+| **Research Projects** | Accumulate and search research findings, papers, experimental results |
+| **Multi-Agent Workflows** | Coordinate specialized agents (coder, reviewer, researcher) |
+| **Knowledge Management** | Build institutional AI memory that persists across sessions |
 
 ### The Problem It Solves
 
-When working with multiple AI agents (Claude Code on different projects, GPT for certain tasks, local LLMs), each operates in isolation:
-- Agent A discovers a fix → Agent B re-discovers the same issue
-- No way to share learned patterns across your agent setup
-- Can't coordinate work between agents on different machines
+When working with multiple AI agents in enterprise or research settings, each operates in isolation:
+- Agent A discovers a solution → Agent B re-discovers the same issue
+- Research findings aren't shared across the team's agent fleet
+- No unified knowledge base for enterprise-wide AI collaboration
+- Critical insights are lost when agent sessions end
 
-DAKB creates a persistent knowledge layer all your agents can access.
+DAKB creates a **persistent RAG knowledge layer** all your agents can access.
 
-### How Claude Helped
+### How Claude Built This
 
-This entire project - from architecture to implementation - was built through conversations with Claude Code:
+This entire project - architecture to implementation - was built through conversations with Claude Code:
 
-- **Architecture**: Designed the multi-service architecture (Gateway + Embedding + MongoDB)
-- **Implementation**: ~60,000 lines of Python code, 100% Claude-generated
+- **Architecture**: Multi-service design (Gateway + Embedding Service + MongoDB)
+- **Implementation**: ~40,000 lines of Python, 100% Claude-generated
+- **RAG Pipeline**: FAISS vector indexing with sentence-transformer embeddings
 - **Security**: HMAC authentication, rate limiting, OWASP compliance
 - **Documentation**: Comprehensive guides, API references, examples
 
-The development process was iterative: describe what I needed, Claude Code implemented it, we debugged together, refined, and repeated. No manual coding required.
+The development process was iterative: describe what I needed, Claude Code implemented it, we debugged together, refined, and repeated.
 
 ### Tech Stack
 
-- Python 3.10+ / FastAPI / MongoDB
-- Sentence-Transformers + FAISS for semantic search
-- MCP Protocol (stdio + HTTP transport)
-- Docker-ready deployment
+- **Backend**: Python 3.10+ / FastAPI / MongoDB
+- **RAG**: Sentence-Transformers + FAISS for semantic search
+- **Protocol**: MCP (stdio + HTTP transport)
+- **Deployment**: Docker-ready with compose stack
 
 ### Features
 
 | Category | What You Get |
 |----------|--------------|
-| **Knowledge** | Store, search, vote on shared insights |
-| **Messaging** | Direct messages, broadcasts, priority levels |
-| **Sessions** | Track work, handoff between agents |
-| **Security** | Token auth, rate limiting, audit logging |
+| **RAG Knowledge** | Store, search semantically, vote on quality |
+| **Messaging** | Direct messages, broadcasts, priority levels, threading |
+| **Sessions** | Track work, git context capture, handoff between agents |
+| **Enterprise** | Role-based access, audit logging, team inboxes |
 
 ### Security & Data Transparency
 
@@ -64,6 +81,7 @@ The development process was iterative: describe what I needed, Claude Code imple
 - Agent auth tokens (you generate)
 - Messages between agents
 - Session tracking data
+- Vector embeddings (local FAISS files)
 
 **What it doesn't do**:
 - No external data transmission
@@ -76,15 +94,13 @@ The development process was iterative: describe what I needed, Claude Code imple
 
 **Quick Start**:
 ```bash
-# Docker (recommended)
 git clone https://github.com/oracleseed/dakb.git
 cd dakb
 cp docker/.env.example docker/.env
-# Edit docker/.env with your settings
 docker-compose -f docker/docker-compose.yml up -d
 ```
 
-**Claude Code Integration**:
+**Claude Code Integration** (add to `.mcp.json`):
 ```json
 {
   "mcpServers": {
@@ -106,4 +122,4 @@ Apache 2.0 License - use it, modify it, build on it.
 
 ---
 
-**Questions?** Happy to discuss the architecture, implementation details, or how Claude Code made this possible.
+**Questions?** Happy to discuss the architecture, RAG implementation, enterprise use cases, or how Claude Code made this possible.

@@ -38,22 +38,20 @@ import asyncio
 import json
 import logging
 import os
-import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
-from fastapi import APIRouter, Request, Response, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from ..middleware.auth import get_current_agent, AuthenticatedAgent
 from ..mcp_session import (
-    get_session_store_async,
     MCPSession,
     SessionNotFoundError,
     SessionOwnershipError,
-    generate_session_id,
+    get_session_store_async,
 )
+from ..middleware.auth import AuthenticatedAgent, get_current_agent
 
 logger = logging.getLogger(__name__)
 
@@ -127,24 +125,24 @@ class MCPHTTPConfig:
 class JSONRPCRequest(BaseModel):
     """JSON-RPC 2.0 request."""
     jsonrpc: str = Field(default="2.0", description="JSON-RPC version")
-    id: Optional[int | str] = Field(default=None, description="Request ID")
+    id: int | str | None = Field(default=None, description="Request ID")
     method: str = Field(..., description="Method name")
-    params: Optional[dict[str, Any]] = Field(default=None, description="Method parameters")
+    params: dict[str, Any] | None = Field(default=None, description="Method parameters")
 
 
 class JSONRPCError(BaseModel):
     """JSON-RPC 2.0 error object."""
     code: int = Field(..., description="Error code")
     message: str = Field(..., description="Error message")
-    data: Optional[dict[str, Any]] = Field(default=None, description="Additional data")
+    data: dict[str, Any] | None = Field(default=None, description="Additional data")
 
 
 class JSONRPCResponse(BaseModel):
     """JSON-RPC 2.0 response."""
     jsonrpc: str = Field(default="2.0")
-    id: Optional[int | str] = Field(default=None)
-    result: Optional[dict[str, Any]] = Field(default=None)
-    error: Optional[JSONRPCError] = Field(default=None)
+    id: int | str | None = Field(default=None)
+    result: dict[str, Any] | None = Field(default=None)
+    error: JSONRPCError | None = Field(default=None)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary, excluding None values appropriately."""
@@ -326,7 +324,7 @@ async def execute_tool(
     tool_name: str,
     arguments: dict[str, Any],
     agent: AuthenticatedAgent,
-    session: Optional[MCPSession],
+    session: MCPSession | None,
 ) -> dict[str, Any]:
     """
     Execute a DAKB tool and return the result.
@@ -345,21 +343,20 @@ async def execute_tool(
     """
     # Import handlers here to avoid circular imports
     from ...mcp.handlers import (
-        handle_store_knowledge,
-        handle_search,
-        handle_get_knowledge,
-        handle_vote,
-        handle_status,
-        handle_get_stats,
-        handle_send_message,
-        handle_get_messages,
-        handle_mark_read,
-        handle_broadcast,
-        handle_get_message_stats,
         handle_advanced,
-        get_client,
+        handle_broadcast,
+        handle_get_knowledge,
+        handle_get_message_stats,
+        handle_get_messages,
+        handle_get_stats,
+        handle_mark_read,
+        handle_search,
+        handle_send_message,
+        handle_status,
+        handle_store_knowledge,
+        handle_vote,
     )
-    from ...mcp.tools import validate_tool_args, ADVANCED_TOOL_NAMES
+    from ...mcp.tools import ADVANCED_TOOL_NAMES, validate_tool_args
 
     # CRITICAL-2 FIX: Validate tool arguments against schema BEFORE execution
     # This prevents injection attacks and ensures type safety
@@ -416,7 +413,7 @@ async def execute_tool(
 # =============================================================================
 
 async def handle_initialize(
-    params: Optional[dict[str, Any]],
+    params: dict[str, Any] | None,
     agent: AuthenticatedAgent,
     request: Request,
 ) -> tuple[dict[str, Any], str]:
@@ -496,7 +493,7 @@ async def handle_initialize(
 
 
 async def handle_tools_list(
-    params: Optional[dict[str, Any]],
+    params: dict[str, Any] | None,
     agent: AuthenticatedAgent,
 ) -> dict[str, Any]:
     """
@@ -533,7 +530,7 @@ async def handle_tools_list(
 async def handle_tools_call(
     params: dict[str, Any],
     agent: AuthenticatedAgent,
-    session: Optional[MCPSession],
+    session: MCPSession | None,
 ) -> dict[str, Any]:
     """
     Handle 'tools/call' JSON-RPC method.
@@ -600,10 +597,10 @@ async def handle_tools_call(
 # =============================================================================
 
 def create_error_response(
-    request_id: Optional[int | str],
+    request_id: int | str | None,
     code: int,
     message: str,
-    data: Optional[dict[str, Any]] = None,
+    data: dict[str, Any] | None = None,
 ) -> JSONRPCResponse:
     """Create a JSON-RPC error response."""
     return JSONRPCResponse(
@@ -613,7 +610,7 @@ def create_error_response(
 
 
 def create_success_response(
-    request_id: Optional[int | str],
+    request_id: int | str | None,
     result: dict[str, Any],
 ) -> JSONRPCResponse:
     """Create a JSON-RPC success response."""
@@ -627,8 +624,8 @@ async def process_jsonrpc_request(
     rpc_request: JSONRPCRequest,
     agent: AuthenticatedAgent,
     request: Request,
-    session: Optional[MCPSession],
-) -> tuple[JSONRPCResponse, Optional[str]]:
+    session: MCPSession | None,
+) -> tuple[JSONRPCResponse, str | None]:
     """
     Process a single JSON-RPC request.
 
@@ -765,7 +762,7 @@ async def mcp_post(
     # Get or validate existing session
     # CRITICAL-1 FIX: Use async-safe session store initialization
     session_store = await get_session_store_async()
-    session: Optional[MCPSession] = None
+    session: MCPSession | None = None
     session_id = request.headers.get("Mcp-Session-Id")
 
     if session_id:
@@ -904,6 +901,7 @@ async def mcp_get_sse(
     Phase 2.5 implementation with notification bus integration.
     """
     from fastapi.responses import StreamingResponse
+
     from ..notification_bus import get_notification_bus
 
     # Validate origin and accept headers

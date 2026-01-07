@@ -27,12 +27,11 @@ Collections:
 """
 
 import logging
-from typing import Optional
 
 from pymongo import ASCENDING, DESCENDING, TEXT
 from pymongo.collection import Collection
 from pymongo.database import Database
-from pymongo.errors import PyMongoError, OperationFailure
+from pymongo.errors import OperationFailure, PyMongoError
 
 logger = logging.getLogger(__name__)
 

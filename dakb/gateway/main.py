@@ -24,33 +24,31 @@ Port: 3100 (configurable via DAKB_GATEWAY_PORT)
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
+from ..db import AccessLevel, AgentRole, get_dakb_repositories
+from ..db.collections import get_dakb_client
+from ..monitoring.metrics import get_metrics  # Phase 8: Prometheus metrics
 from .config import get_settings, validate_settings
 from .middleware.auth import (
     AuthenticatedAgent,
-    get_current_agent,
     generate_agent_token,
-    require_role,
+    get_current_agent,
     get_rate_limiter,
+    require_role,
 )
-from .routes.knowledge import router as knowledge_router
-from .routes.moderation import router as moderation_router
-from .routes.messaging import router as messaging_router
-from .routes.sessions import router as sessions_router
 from .routes.aliases import router as aliases_router
-from .routes.registration import router as registration_router
+from .routes.knowledge import router as knowledge_router
 from .routes.mcp import router as mcp_router  # Phase 1: MCP HTTP Transport
-from ..db import get_dakb_repositories, AgentRole, AccessLevel
-from ..db.collections import get_dakb_client
-from ..monitoring.metrics import get_metrics  # Phase 8: Prometheus metrics
-
+from .routes.messaging import router as messaging_router
+from .routes.moderation import router as moderation_router
+from .routes.registration import router as registration_router
+from .routes.sessions import router as sessions_router
 
 # =============================================================================
 # LOGGING CONFIGURATION
@@ -247,8 +245,8 @@ class TokenRequest(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=50)
     machine_id: str = Field(..., min_length=1, max_length=100)
     agent_type: str = Field(..., description="claude, gpt, gemini, grok, local")
-    role: Optional[str] = Field(default="developer")
-    access_levels: Optional[list[str]] = Field(default_factory=lambda: ["public"])
+    role: str | None = Field(default="developer")
+    access_levels: list[str] | None = Field(default_factory=lambda: ["public"])
 
 
 class AgentRegistrationRequest(BaseModel):
@@ -261,24 +259,24 @@ class AgentRegistrationRequest(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=50, description="Unique agent identifier")
     machine_id: str = Field(..., min_length=1, max_length=100, description="Machine identifier")
     agent_type: str = Field(..., description="Agent type: claude, gpt, gemini, grok, local")
-    display_name: Optional[str] = Field(None, max_length=100, description="Human-readable display name")
-    role: Optional[str] = Field(default="developer", description="Agent role for access control")
-    access_levels: Optional[list[str]] = Field(default_factory=lambda: ["public"])
-    capabilities: Optional[list[str]] = Field(default_factory=list, description="Agent capabilities")
-    specializations: Optional[list[str]] = Field(default_factory=list, description="Agent specializations")
+    display_name: str | None = Field(None, max_length=100, description="Human-readable display name")
+    role: str | None = Field(default="developer", description="Agent role for access control")
+    access_levels: list[str] | None = Field(default_factory=lambda: ["public"])
+    capabilities: list[str] | None = Field(default_factory=list, description="Agent capabilities")
+    specializations: list[str] | None = Field(default_factory=list, description="Agent specializations")
     # Phase 6: Alias integration
-    alias: Optional[str] = Field(
+    alias: str | None = Field(
         None,
         min_length=1,
         max_length=50,
         description="Optional alias to register (must be globally unique)"
     )
-    alias_role: Optional[str] = Field(
+    alias_role: str | None = Field(
         None,
         max_length=100,
         description="Optional role for the alias (e.g., 'orchestration', 'code_review')"
     )
-    alias_metadata: Optional[dict] = Field(
+    alias_metadata: dict | None = Field(
         default_factory=dict,
         description="Optional metadata for the alias"
     )
@@ -296,7 +294,7 @@ class AgentRegistrationResponse(BaseModel):
     agent_id: str = Field(..., description="Registered agent ID")
     messages: list[str] = Field(default_factory=list, description="Status messages")
     # Alias information
-    alias_requested: Optional[str] = Field(None, description="Alias that was requested")
+    alias_requested: str | None = Field(None, description="Alias that was requested")
     alias_registered: bool = Field(default=False, description="Whether alias was successfully registered")
     alias_conflict: bool = Field(default=False, description="Whether alias was already taken")
 
@@ -311,7 +309,7 @@ class TokenResponse(BaseModel):
 class ErrorResponse(BaseModel):
     """Standard error response."""
     detail: str
-    error_code: Optional[str] = None
+    error_code: str | None = None
 
 
 # =============================================================================

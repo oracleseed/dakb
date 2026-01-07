@@ -111,8 +111,8 @@ import json
 import logging
 import os
 import time
-from typing import Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -128,7 +128,7 @@ class DAKBClientConfig:
     """Configuration for DAKB Gateway client."""
     gateway_url: str = "http://localhost:3100"
     timeout: float = 30.0
-    auth_token: Optional[str] = None
+    auth_token: str | None = None
 
     @classmethod
     def from_env(cls) -> "DAKBClientConfig":
@@ -278,7 +278,7 @@ class DAKBGatewayClient:
     # Can be overridden when setting the token
     DEFAULT_TOKEN_LIFETIME: int = 3600
 
-    def __init__(self, config: Optional[DAKBClientConfig] = None):
+    def __init__(self, config: DAKBClientConfig | None = None):
         """
         Initialize gateway client.
 
@@ -286,12 +286,12 @@ class DAKBGatewayClient:
             config: Client configuration. If None, loads from environment.
         """
         self.config = config or DAKBClientConfig.from_env()
-        self._token: Optional[str] = self.config.auth_token
+        self._token: str | None = self.config.auth_token
         # ISS-030: Track when token was set for expiration checking
-        self._token_set_at: Optional[float] = time.time() if self._token else None
+        self._token_set_at: float | None = time.time() if self._token else None
         self._token_lifetime: int = self.DEFAULT_TOKEN_LIFETIME
         # ISS-031: Persistent HTTP client (lazy initialization)
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """
@@ -324,7 +324,7 @@ class DAKBGatewayClient:
             self._http_client = None
             logger.debug("DAKB Gateway HTTP client closed")
 
-    def set_token(self, token: str, lifetime_seconds: Optional[int] = None) -> None:
+    def set_token(self, token: str, lifetime_seconds: int | None = None) -> None:
         """
         Set the authentication token.
 
@@ -363,7 +363,7 @@ class DAKBGatewayClient:
 
         return is_valid
 
-    def get_token_age_seconds(self) -> Optional[float]:
+    def get_token_age_seconds(self) -> float | None:
         """
         Get the age of the current token in seconds.
 
@@ -403,9 +403,9 @@ class DAKBGatewayClient:
         self,
         method: str,
         endpoint: str,
-        data: Optional[dict[str, Any]] = None,
-        params: Optional[dict[str, Any]] = None,
-        timeout: Optional[float] = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> dict[str, Any]:
         """
         Make HTTP request to gateway.
@@ -506,9 +506,9 @@ class DAKBGatewayClient:
         content: str,
         content_type: str,
         category: str,
-        tags: Optional[list[str]] = None,
+        tags: list[str] | None = None,
         access_level: str = "public",
-        related_files: Optional[list[str]] = None,
+        related_files: list[str] | None = None,
         confidence: float = 0.8,
     ) -> dict[str, Any]:
         """
@@ -544,8 +544,8 @@ class DAKBGatewayClient:
         self,
         query: str,
         limit: int = 5,
-        category: Optional[str] = None,
-        min_score: Optional[float] = None,
+        category: str | None = None,
+        min_score: float | None = None,
     ) -> dict[str, Any]:
         """
         Semantic search across knowledge base.
@@ -589,8 +589,8 @@ class DAKBGatewayClient:
         self,
         knowledge_id: str,
         vote: str,
-        comment: Optional[str] = None,
-        used_successfully: Optional[bool] = None,
+        comment: str | None = None,
+        used_successfully: bool | None = None,
     ) -> dict[str, Any]:
         """
         Vote on knowledge quality.
@@ -775,7 +775,7 @@ class DAKBGatewayClient:
 
     async def get_agent_reputation(
         self,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Get reputation metrics for an agent.
@@ -836,7 +836,7 @@ class DAKBGatewayClient:
         self,
         knowledge_id: str,
         reason: str,
-        details: Optional[str] = None,
+        details: str | None = None,
     ) -> dict[str, Any]:
         """
         Flag knowledge for moderation review.
@@ -866,7 +866,7 @@ class DAKBGatewayClient:
         self,
         knowledge_id: str,
         action: str,
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ) -> dict[str, Any]:
         """
         Take moderation action on knowledge.
@@ -902,10 +902,10 @@ class DAKBGatewayClient:
         subject: str,
         content: str,
         priority: str = "normal",
-        thread_id: Optional[str] = None,
-        reply_to_id: Optional[str] = None,
+        thread_id: str | None = None,
+        reply_to_id: str | None = None,
         expires_in_hours: int = 168,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Send a direct message to another agent.
@@ -943,9 +943,9 @@ class DAKBGatewayClient:
 
     async def get_messages(
         self,
-        status: Optional[str] = None,
-        priority: Optional[str] = None,
-        sender_id: Optional[str] = None,
+        status: str | None = None,
+        priority: str | None = None,
+        sender_id: str | None = None,
         include_broadcasts: bool = True,
         page: int = 1,
         page_size: int = 20,
@@ -981,8 +981,8 @@ class DAKBGatewayClient:
 
     async def mark_read(
         self,
-        message_id: Optional[str] = None,
-        message_ids: Optional[list[str]] = None,
+        message_id: str | None = None,
+        message_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         Mark one or more messages as read.
@@ -1014,7 +1014,7 @@ class DAKBGatewayClient:
         content: str,
         priority: str = "normal",
         expires_in_hours: int = 168,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Send a broadcast message to all agents.
@@ -1056,9 +1056,9 @@ class DAKBGatewayClient:
         self,
         project_path: str,
         task_description: str,
-        objectives: Optional[list[str]] = None,
+        objectives: list[str] | None = None,
         auto_timeout_minutes: int = 30,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Start a new session.
@@ -1104,8 +1104,8 @@ class DAKBGatewayClient:
     async def end_session(
         self,
         session_id: str,
-        summary: Optional[str] = None,
-        files_modified: Optional[list[str]] = None,
+        summary: str | None = None,
+        files_modified: list[str] | None = None,
         capture_final_context: bool = True,
     ) -> dict[str, Any]:
         """
@@ -1140,8 +1140,8 @@ class DAKBGatewayClient:
         include_git_context: bool = True,
         include_patch_bundle: bool = True,
         include_stash: bool = False,
-        reason: Optional[str] = None,
-        notes: Optional[str] = None,
+        reason: str | None = None,
+        notes: str | None = None,
         store_on_server: bool = False,
     ) -> dict[str, Any]:
         """
@@ -1183,9 +1183,9 @@ class DAKBGatewayClient:
 
     async def import_session(
         self,
-        package_json: Optional[str] = None,
-        handoff_id: Optional[str] = None,
-        target_path: Optional[str] = None,
+        package_json: str | None = None,
+        handoff_id: str | None = None,
+        target_path: str | None = None,
         apply_patch: bool = False,
     ) -> dict[str, Any]:
         """
@@ -1251,8 +1251,8 @@ class DAKBGatewayClient:
     async def register_alias(
         self,
         alias: str,
-        role: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        role: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Register a new alias for the current token.
@@ -1331,7 +1331,7 @@ class DAKBGatewayClient:
 
 # ISS-029: Thread-safe global client with async lock
 # Using double-check locking pattern for efficiency
-_client: Optional[DAKBGatewayClient] = None
+_client: DAKBGatewayClient | None = None
 _client_lock: asyncio.Lock = asyncio.Lock()
 
 
@@ -1356,7 +1356,7 @@ async def get_client() -> DAKBGatewayClient:
     return _client
 
 
-async def set_client_token(token: str, lifetime_seconds: Optional[int] = None) -> None:
+async def set_client_token(token: str, lifetime_seconds: int | None = None) -> None:
     """
     Set authentication token on the global client.
 
@@ -3172,7 +3172,6 @@ async def handle_session_export(args: dict[str, Any]) -> ToolResponse:
         # Auto-write to file if package is large (>100KB) to prevent truncation
         if package_size > 100 * 1024:  # 100KB threshold
             import os
-            import tempfile
             # Auto-generate file path in .claude/handoffs/
             handoffs_dir = os.path.join(
                 os.getcwd(), ".claude", "handoffs"
@@ -3314,7 +3313,7 @@ async def handle_session_import(args: dict[str, Any]) -> ToolResponse:
                         error_code="NOT_FOUND"
                     )
 
-                with open(package_file, 'r', encoding='utf-8') as f:
+                with open(package_file, encoding='utf-8') as f:
                     package_json = f.read()
                 logger.info(f"Read package_json from file: {package_file} ({len(package_json)} bytes)")
 
@@ -3628,7 +3627,7 @@ async def handle_deactivate_alias(args: dict[str, Any]) -> ToolResponse:
             error=f"{e.message}. Please re-authenticate.",
             error_code=e.code
         )
-    except DAKBAuthError as e:
+    except DAKBAuthError:
         # Handle 403 Forbidden (not owner of alias)
         return ToolResponse(
             success=False,

@@ -21,26 +21,23 @@ Access Control:
 """
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-from ..config import get_settings
-from ..middleware.auth import (
-    AuthenticatedAgent,
-    get_current_agent,
-    check_rate_limit,
-)
 from ...db import (
-    # Schemas
     DakbAgentAlias,
-    AliasCreate,
     # Repositories
     get_dakb_repositories,
 )
 from ...db.collections import get_dakb_client
+from ..config import get_settings
+from ..middleware.auth import (
+    AuthenticatedAgent,
+    check_rate_limit,
+    get_current_agent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +65,7 @@ class RegisterAliasRequest(BaseModel):
         max_length=50,
         description="Alias name (must be globally unique)"
     )
-    role: Optional[str] = Field(
+    role: str | None = Field(
         None,
         max_length=100,
         description="Optional role for the alias (e.g., 'orchestration', 'code_review')"
@@ -84,7 +81,7 @@ class RegisterAliasResponse(BaseModel):
     alias_id: str = Field(..., description="Unique alias identifier")
     token_id: str = Field(..., description="Owning token identity")
     alias: str = Field(..., description="Registered alias name")
-    role: Optional[str] = Field(None, description="Associated role")
+    role: str | None = Field(None, description="Associated role")
     is_active: bool = Field(..., description="Whether alias is active")
     message: str = Field(..., description="Status message")
 

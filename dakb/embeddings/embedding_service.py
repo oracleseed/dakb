@@ -28,13 +28,12 @@ Index Type Selection:
 | > 100K      | IndexHNSWFlat  | < 20ms      | No (graph-based)  |
 """
 
+import logging
 import os
 import pickle
-import logging
-import threading
 import shutil
+import threading
 from datetime import datetime
-from typing import Optional
 
 # Set environment variables BEFORE importing torch/transformers
 # These fix semaphore leaks and multiprocessing issues on macOS
@@ -74,7 +73,7 @@ class EmbeddingService:
     MODEL_NAME = "all-mpnet-base-v2"
     EMBEDDING_DIMENSION = 768
 
-    def __init__(self, data_dir: Optional[str] = None, device: str = "cpu"):
+    def __init__(self, data_dir: str | None = None, device: str = "cpu"):
         """
         Initialize the EmbeddingService.
 
@@ -106,8 +105,8 @@ class EmbeddingService:
         self.dimension = self.EMBEDDING_DIMENSION
 
         # Index and mappings
-        self.index: Optional[faiss.Index] = None
-        self.id_map: dict[int, Optional[str]] = {}           # idx -> knowledge_id (None if deleted)
+        self.index: faiss.Index | None = None
+        self.id_map: dict[int, str | None] = {}           # idx -> knowledge_id (None if deleted)
         self.reverse_map: dict[str, int] = {}                 # knowledge_id -> idx (for fast lookup)
         self.vector_store: list[np.ndarray] = []              # Keep vectors for index upgrade/rebuild
 

@@ -16,15 +16,14 @@ Features:
 - Configurable auto-timeout (default 30 minutes)
 """
 
+import base64
+import gzip
+import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, Any, List
-import uuid
-import gzip
-import base64
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-
 
 # =============================================================================
 # ENUMS
@@ -118,7 +117,7 @@ class GitFileChange(BaseModel):
     """Individual file change in git working tree."""
     file_path: str = Field(..., description="Path to changed file")
     change_type: GitChangeType = Field(..., description="Type of change")
-    old_path: Optional[str] = Field(None, description="Original path if renamed/copied")
+    old_path: str | None = Field(None, description="Original path if renamed/copied")
     additions: int = Field(default=0, ge=0, description="Lines added")
     deletions: int = Field(default=0, ge=0, description="Lines deleted")
     is_binary: bool = Field(default=False, description="Whether file is binary")
@@ -143,26 +142,26 @@ class GitContextSnapshot(BaseModel):
     # Repository info
     repository_name: str = Field(..., description="Repository name")
     repository_path: str = Field(..., description="Full path to repository root")
-    remote_url: Optional[str] = Field(None, description="Git remote URL")
+    remote_url: str | None = Field(None, description="Git remote URL")
 
     # Current state
     branch: str = Field(..., description="Current branch name")
     commit_hash: str = Field(..., description="Current HEAD commit hash")
-    commit_message: Optional[str] = Field(None, description="Current commit message")
-    commit_author: Optional[str] = Field(None, description="Commit author")
-    commit_date: Optional[datetime] = Field(None, description="Commit date")
+    commit_message: str | None = Field(None, description="Current commit message")
+    commit_author: str | None = Field(None, description="Commit author")
+    commit_date: datetime | None = Field(None, description="Commit date")
 
     # Remote tracking
-    tracking_branch: Optional[str] = Field(None, description="Upstream tracking branch")
+    tracking_branch: str | None = Field(None, description="Upstream tracking branch")
     ahead_count: int = Field(default=0, ge=0, description="Commits ahead of remote")
     behind_count: int = Field(default=0, ge=0, description="Commits behind remote")
 
     # Working tree state
     has_uncommitted_changes: bool = Field(default=False)
     is_clean: bool = Field(default=True, description="True if working tree is clean")
-    staged_changes: List[GitFileChange] = Field(default_factory=list)
-    unstaged_changes: List[GitFileChange] = Field(default_factory=list)
-    untracked_files: List[str] = Field(default_factory=list)
+    staged_changes: list[GitFileChange] = Field(default_factory=list)
+    unstaged_changes: list[GitFileChange] = Field(default_factory=list)
+    untracked_files: list[str] = Field(default_factory=list)
 
     # Summary counts
     staged_count: int = Field(default=0, ge=0)
@@ -171,12 +170,12 @@ class GitContextSnapshot(BaseModel):
     untracked_count: int = Field(default=0, ge=0)
 
     # Stash info
-    stash_list: List[GitStashEntry] = Field(default_factory=list)
+    stash_list: list[GitStashEntry] = Field(default_factory=list)
     has_stash: bool = Field(default=False)
 
     # Capture metadata
     captured_at: datetime = Field(default_factory=datetime.utcnow)
-    capture_duration_ms: Optional[float] = Field(None, description="Time to capture context")
+    capture_duration_ms: float | None = Field(None, description="Time to capture context")
 
     @model_validator(mode='after')
     def update_summary_counts(self) -> 'GitContextSnapshot':
@@ -238,7 +237,7 @@ class PatchBundle(BaseModel):
 
     # File summary
     files_count: int = Field(default=0, ge=0, description="Number of files in patch")
-    files_changed: List[str] = Field(default_factory=list, description="List of changed files")
+    files_changed: list[str] = Field(default_factory=list, description="List of changed files")
     additions_total: int = Field(default=0, ge=0, description="Total lines added")
     deletions_total: int = Field(default=0, ge=0, description="Total lines deleted")
 
@@ -248,13 +247,13 @@ class PatchBundle(BaseModel):
 
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    description: Optional[str] = Field(None, max_length=500, description="Patch description")
-    author: Optional[str] = Field(None, description="Patch author")
+    description: str | None = Field(None, max_length=500, description="Patch description")
+    author: str | None = Field(None, description="Patch author")
 
     # Validation
     is_valid: bool = Field(default=True, description="Whether patch passed validation")
-    validation_warnings: List[str] = Field(default_factory=list)
-    can_apply_cleanly: Optional[bool] = Field(None, description="Whether patch can apply cleanly")
+    validation_warnings: list[str] = Field(default_factory=list)
+    can_apply_cleanly: bool | None = Field(None, description="Whether patch can apply cleanly")
 
     @field_validator('original_size_bytes')
     @classmethod
@@ -291,11 +290,11 @@ class PatchBundle(BaseModel):
 class SessionMetadata(BaseModel):
     """Session metadata for context preservation."""
     working_directory: str = Field(..., description="Current working directory")
-    task_description: Optional[str] = Field(None, max_length=500, description="Task being worked on")
-    loaded_contexts: List[str] = Field(default_factory=list, description="Loaded context files")
-    working_files: List[str] = Field(default_factory=list, description="Files being edited")
-    current_step: Optional[str] = Field(None, description="Current step in task")
-    todo_items: List[str] = Field(default_factory=list, description="Pending todo items")
+    task_description: str | None = Field(None, max_length=500, description="Task being worked on")
+    loaded_contexts: list[str] = Field(default_factory=list, description="Loaded context files")
+    working_files: list[str] = Field(default_factory=list, description="Files being edited")
+    current_step: str | None = Field(None, description="Current step in task")
+    todo_items: list[str] = Field(default_factory=list, description="Pending todo items")
     environment_vars: dict[str, str] = Field(default_factory=dict, description="Relevant env vars")
     custom_data: dict[str, Any] = Field(default_factory=dict, description="Agent-specific data")
 
@@ -307,8 +306,8 @@ class SessionChainEntry(BaseModel):
     machine_id: str = Field(..., description="Machine for this session")
     status: SessionStatus = Field(..., description="Status when handed off")
     started_at: datetime = Field(..., description="When session started")
-    ended_at: Optional[datetime] = Field(None, description="When session ended/handed off")
-    handoff_notes: Optional[str] = Field(None, description="Notes from handoff")
+    ended_at: datetime | None = Field(None, description="When session ended/handed off")
+    handoff_notes: str | None = Field(None, description="Notes from handoff")
 
 
 class Session(BaseModel):
@@ -326,7 +325,7 @@ class Session(BaseModel):
     # Agent/Machine identity
     agent_id: str = Field(..., description="Agent running the session")
     machine_id: str = Field(..., description="Machine running the session")
-    agent_type: Optional[str] = Field(None, description="Type of agent (claude, gpt, etc.)")
+    agent_type: str | None = Field(None, description="Type of agent (claude, gpt, etc.)")
 
     # Session state
     status: SessionStatus = Field(
@@ -337,9 +336,9 @@ class Session(BaseModel):
     # Timing
     started_at: datetime = Field(default_factory=datetime.utcnow)
     last_active_at: datetime = Field(default_factory=datetime.utcnow)
-    paused_at: Optional[datetime] = Field(None, description="When session was paused")
-    resumed_at: Optional[datetime] = Field(None, description="When session was resumed")
-    ended_at: Optional[datetime] = Field(None, description="When session ended")
+    paused_at: datetime | None = Field(None, description="When session was paused")
+    resumed_at: datetime | None = Field(None, description="When session was resumed")
+    ended_at: datetime | None = Field(None, description="When session ended")
 
     # Timeout configuration (minutes)
     timeout_minutes: int = Field(default=30, ge=1, le=1440, description="Auto-timeout in minutes")
@@ -351,40 +350,40 @@ class Session(BaseModel):
     )
 
     # Git context (optional)
-    git_context: Optional[GitContextSnapshot] = Field(
+    git_context: GitContextSnapshot | None = Field(
         None,
         description="Git state at last capture"
     )
-    git_context_captured_at: Optional[datetime] = Field(None)
+    git_context_captured_at: datetime | None = Field(None)
 
     # Patch bundle (optional, for handoff)
-    patch_bundle: Optional[PatchBundle] = Field(
+    patch_bundle: PatchBundle | None = Field(
         None,
         description="Patch bundle for changes"
     )
 
     # Session chain (handoff history)
-    session_chain: List[SessionChainEntry] = Field(
+    session_chain: list[SessionChainEntry] = Field(
         default_factory=list,
         description="Chain of sessions (original -> transferred -> ...)"
     )
-    original_session_id: Optional[str] = Field(
+    original_session_id: str | None = Field(
         None,
         description="Original session ID if this is a handoff continuation"
     )
-    parent_session_id: Optional[str] = Field(
+    parent_session_id: str | None = Field(
         None,
         description="Immediate parent session ID"
     )
 
     # Handoff tracking
-    handed_off_to_agent: Optional[str] = Field(None, description="Agent session was handed to")
-    handed_off_to_machine: Optional[str] = Field(None, description="Machine session was handed to")
-    handoff_timestamp: Optional[datetime] = Field(None)
-    handoff_notes: Optional[str] = Field(None, max_length=1000)
+    handed_off_to_agent: str | None = Field(None, description="Agent session was handed to")
+    handed_off_to_machine: str | None = Field(None, description="Machine session was handed to")
+    handoff_timestamp: datetime | None = Field(None)
+    handoff_notes: str | None = Field(None, max_length=1000)
 
     # Knowledge generated
-    knowledge_ids: List[str] = Field(
+    knowledge_ids: list[str] = Field(
         default_factory=list,
         description="Knowledge entries created in this session"
     )
@@ -453,8 +452,8 @@ class HandoffRequest(BaseModel):
     source_machine_id: str = Field(..., description="Machine initiating handoff")
 
     # Target
-    target_agent_id: Optional[str] = Field(None, description="Target agent (None = any)")
-    target_machine_id: Optional[str] = Field(None, description="Target machine (None = any)")
+    target_agent_id: str | None = Field(None, description="Target agent (None = any)")
+    target_machine_id: str | None = Field(None, description="Target machine (None = any)")
 
     # Content
     include_git_context: bool = Field(default=True, description="Include git context")
@@ -462,8 +461,8 @@ class HandoffRequest(BaseModel):
     include_stash: bool = Field(default=False, description="Include stash in patch")
 
     # Handoff metadata
-    reason: Optional[str] = Field(None, max_length=500, description="Reason for handoff")
-    notes: Optional[str] = Field(None, max_length=1000, description="Notes for target")
+    reason: str | None = Field(None, max_length=500, description="Reason for handoff")
+    notes: str | None = Field(None, max_length=1000, description="Notes for target")
     priority: str = Field(default="normal", description="Handoff priority")
 
     # Status
@@ -475,15 +474,15 @@ class HandoffRequest(BaseModel):
         default_factory=lambda: datetime.utcnow() + timedelta(hours=24),
         description="Handoff expires after 24 hours"
     )
-    accepted_at: Optional[datetime] = Field(None)
-    applied_at: Optional[datetime] = Field(None)
+    accepted_at: datetime | None = Field(None)
+    applied_at: datetime | None = Field(None)
 
     # Result
-    result_session_id: Optional[str] = Field(
+    result_session_id: str | None = Field(
         None,
         description="New session ID if handoff succeeded"
     )
-    error_message: Optional[str] = Field(None, description="Error if handoff failed")
+    error_message: str | None = Field(None, description="Error if handoff failed")
 
 
 class HandoffPackage(BaseModel):
@@ -498,23 +497,23 @@ class HandoffPackage(BaseModel):
     session: Session = Field(..., description="Session to transfer")
 
     # Git context (optional)
-    git_context: Optional[GitContextSnapshot] = Field(
+    git_context: GitContextSnapshot | None = Field(
         None,
         description="Git state snapshot"
     )
 
     # Patch bundle (optional)
-    patch_bundle: Optional[PatchBundle] = Field(
+    patch_bundle: PatchBundle | None = Field(
         None,
         description="Patch bundle for changes"
     )
 
     # Application instructions
-    apply_instructions: List[str] = Field(
+    apply_instructions: list[str] = Field(
         default_factory=list,
         description="Steps to apply handoff"
     )
-    conflict_hints: List[str] = Field(
+    conflict_hints: list[str] = Field(
         default_factory=list,
         description="Hints for resolving conflicts"
     )
@@ -522,7 +521,7 @@ class HandoffPackage(BaseModel):
     # Validation
     package_size_bytes: int = Field(default=0, ge=0)
     is_valid: bool = Field(default=True)
-    validation_errors: List[str] = Field(default_factory=list)
+    validation_errors: list[str] = Field(default_factory=list)
 
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -537,32 +536,32 @@ class SessionCreate(BaseModel):
     """Schema for creating new sessions."""
     agent_id: str = Field(..., description="Agent identifier")
     machine_id: str = Field(..., description="Machine identifier")
-    agent_type: Optional[str] = Field(None, description="Agent type")
+    agent_type: str | None = Field(None, description="Agent type")
 
     # Initial metadata
     working_directory: str = Field(..., description="Working directory path")
-    task_description: Optional[str] = Field(None, max_length=500)
+    task_description: str | None = Field(None, max_length=500)
     timeout_minutes: int = Field(default=30, ge=1, le=1440)
 
     # Optional initial context
-    loaded_contexts: List[str] = Field(default_factory=list)
-    working_files: List[str] = Field(default_factory=list)
+    loaded_contexts: list[str] = Field(default_factory=list)
+    working_files: list[str] = Field(default_factory=list)
 
     # Optional parent session (for continuation)
-    parent_session_id: Optional[str] = Field(None)
+    parent_session_id: str | None = Field(None)
 
 
 class SessionUpdate(BaseModel):
     """Schema for updating session information."""
-    status: Optional[SessionStatus] = Field(None)
-    task_description: Optional[str] = Field(None, max_length=500)
-    current_step: Optional[str] = Field(None)
-    working_files: Optional[List[str]] = Field(None)
-    loaded_contexts: Optional[List[str]] = Field(None)
-    todo_items: Optional[List[str]] = Field(None)
-    custom_data: Optional[dict[str, Any]] = Field(None)
-    knowledge_ids: Optional[List[str]] = Field(None)
-    timeout_minutes: Optional[int] = Field(None, ge=1, le=1440)
+    status: SessionStatus | None = Field(None)
+    task_description: str | None = Field(None, max_length=500)
+    current_step: str | None = Field(None)
+    working_files: list[str] | None = Field(None)
+    loaded_contexts: list[str] | None = Field(None)
+    todo_items: list[str] | None = Field(None)
+    custom_data: dict[str, Any] | None = Field(None)
+    knowledge_ids: list[str] | None = Field(None)
+    timeout_minutes: int | None = Field(None, ge=1, le=1440)
 
 
 class GitContextRequest(BaseModel):
@@ -577,17 +576,17 @@ class PatchBundleCreate(BaseModel):
     """Request to create a patch bundle."""
     session_id: str = Field(..., description="Session to create patch for")
     include_stash: bool = Field(default=False)
-    description: Optional[str] = Field(None, max_length=500)
+    description: str | None = Field(None, max_length=500)
     compress: bool = Field(default=True)
 
 
 class HandoffCreate(BaseModel):
     """Request to initiate session handoff."""
     source_session_id: str = Field(..., description="Session to hand off")
-    target_agent_id: Optional[str] = Field(None, description="Target agent")
-    target_machine_id: Optional[str] = Field(None, description="Target machine")
-    reason: Optional[str] = Field(None, max_length=500)
-    notes: Optional[str] = Field(None, max_length=1000)
+    target_agent_id: str | None = Field(None, description="Target agent")
+    target_machine_id: str | None = Field(None, description="Target machine")
+    reason: str | None = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=1000)
     include_git_context: bool = Field(default=True)
     include_patch_bundle: bool = Field(default=True)
     include_stash: bool = Field(default=False)
@@ -599,7 +598,7 @@ class HandoffAccept(BaseModel):
     agent_id: str = Field(..., description="Accepting agent")
     machine_id: str = Field(..., description="Accepting machine")
     apply_patch: bool = Field(default=True, description="Whether to apply patch")
-    target_directory: Optional[str] = Field(None, description="Override target directory")
+    target_directory: str | None = Field(None, description="Override target directory")
 
 
 # =============================================================================
@@ -609,44 +608,44 @@ class HandoffAccept(BaseModel):
 class SessionResponse(BaseModel):
     """Response wrapper for single session."""
     success: bool = Field(default=True)
-    session: Optional[Session] = Field(None)
-    error: Optional[str] = Field(None)
+    session: Session | None = Field(None)
+    error: str | None = Field(None)
 
 
 class SessionListResponse(BaseModel):
     """Response wrapper for session list queries."""
     success: bool = Field(default=True)
-    sessions: List[Session] = Field(default_factory=list)
+    sessions: list[Session] = Field(default_factory=list)
     total: int = Field(default=0)
     page: int = Field(default=1)
     page_size: int = Field(default=20)
     has_more: bool = Field(default=False)
-    error: Optional[str] = Field(None)
+    error: str | None = Field(None)
 
 
 class GitContextResponse(BaseModel):
     """Response for git context capture."""
     success: bool = Field(default=True)
-    git_context: Optional[GitContextSnapshot] = Field(None)
-    capture_time_ms: Optional[float] = Field(None)
-    error: Optional[str] = Field(None)
+    git_context: GitContextSnapshot | None = Field(None)
+    capture_time_ms: float | None = Field(None)
+    error: str | None = Field(None)
 
 
 class PatchBundleResponse(BaseModel):
     """Response for patch bundle creation."""
     success: bool = Field(default=True)
-    patch_bundle: Optional[PatchBundle] = Field(None)
-    warnings: List[str] = Field(default_factory=list)
-    error: Optional[str] = Field(None)
+    patch_bundle: PatchBundle | None = Field(None)
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = Field(None)
 
 
 class HandoffResponse(BaseModel):
     """Response for handoff operations."""
     success: bool = Field(default=True)
-    handoff_id: Optional[str] = Field(None)
-    status: Optional[HandoffStatus] = Field(None)
-    new_session_id: Optional[str] = Field(None, description="New session if applied")
-    error: Optional[str] = Field(None)
+    handoff_id: str | None = Field(None)
+    status: HandoffStatus | None = Field(None)
+    new_session_id: str | None = Field(None, description="New session if applied")
+    error: str | None = Field(None)
 
 
 class SessionStats(BaseModel):

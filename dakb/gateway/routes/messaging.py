@@ -26,12 +26,9 @@ Endpoints:
 import logging
 import time
 from collections import defaultdict
-from datetime import datetime
-from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-
 
 # =============================================================================
 # RATE LIMITING (ISS-064 Fix)
@@ -98,23 +95,20 @@ def rate_limit_broadcast(agent_id: str) -> None:
             detail=f"Rate limit exceeded: max {RATE_LIMIT_BROADCASTS_PER_MINUTE} broadcasts per minute"
         )
 
-from ..middleware.auth import AuthenticatedAgent, get_current_agent
 from ...db.collections import get_dakb_client
 from ...messaging import (
-    MessageRepository,
-    MessageQueue,
-    NotificationService,
-    Message,
-    MessageCreate,
-    MessageFilter,
-    MessageType,
-    MessagePriority,
-    MessageStatus,
-    MessageResponse,
-    MessageListResponse,
     BroadcastResponse,
+    MessageCreate,
+    MessageListResponse,
+    MessagePriority,
+    MessageQueue,
+    MessageRepository,
+    MessageResponse,
     MessageStats,
+    MessageStatus,
+    MessageType,
 )
+from ..middleware.auth import AuthenticatedAgent, get_current_agent
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +121,7 @@ router = APIRouter(prefix="/api/v1/messages", tags=["Messaging"])
 
 class SendMessageRequest(BaseModel):
     """Request model for sending a message."""
-    recipient_id: Optional[str] = Field(
+    recipient_id: str | None = Field(
         None,
         description="Target agent ID (None for broadcast)"
     )
@@ -141,8 +135,8 @@ class SendMessageRequest(BaseModel):
     )
     subject: str = Field(..., max_length=200, description="Message subject")
     content: str = Field(..., description="Message body")
-    thread_id: Optional[str] = Field(None, description="Thread to add message to")
-    reply_to_id: Optional[str] = Field(None, description="Message being replied to")
+    thread_id: str | None = Field(None, description="Thread to add message to")
+    reply_to_id: str | None = Field(None, description="Message being replied to")
     expires_in_hours: int = Field(
         default=168,
         ge=1,
@@ -166,7 +160,7 @@ class BroadcastRequest(BaseModel):
 
 class MarkReadRequest(BaseModel):
     """Request model for marking messages as read."""
-    message_ids: Optional[List[str]] = Field(
+    message_ids: list[str] | None = Field(
         None,
         description="Message IDs to mark read (if batch operation)"
     )
@@ -174,10 +168,10 @@ class MarkReadRequest(BaseModel):
 
 class MessageQueryParams(BaseModel):
     """Query parameters for message filtering."""
-    status: Optional[MessageStatus] = None
-    priority: Optional[MessagePriority] = None
-    sender_id: Optional[str] = None
-    thread_id: Optional[str] = None
+    status: MessageStatus | None = None
+    priority: MessagePriority | None = None
+    sender_id: str | None = None
+    thread_id: str | None = None
     include_broadcasts: bool = True
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
@@ -299,8 +293,9 @@ async def send_message(
         # Phase 2.5: Send SSE notification to recipient
         if request.recipient_id:
             try:
-                from ..notification_bus import notify_message_received
                 import asyncio
+
+                from ..notification_bus import notify_message_received
                 asyncio.create_task(notify_message_received(
                     recipient_agent_id=request.recipient_id,
                     message_id=message.message_id,
@@ -374,8 +369,9 @@ async def send_broadcast(
 
         # Phase 2.5: Send SSE notification for broadcast
         try:
-            from ..notification_bus import notify_message_broadcast
             import asyncio
+
+            from ..notification_bus import notify_message_broadcast
             asyncio.create_task(notify_message_broadcast(
                 sender_id=agent.agent_id,
                 message_id=message.message_id,
@@ -409,10 +405,10 @@ async def send_broadcast(
     description="Get messages for the authenticated agent (inbox)."
 )
 async def get_messages(
-    status: Optional[MessageStatus] = Query(None, description="Filter by status"),
-    priority: Optional[MessagePriority] = Query(None, description="Filter by priority"),
-    sender_id: Optional[str] = Query(None, description="Filter by sender"),
-    thread_id: Optional[str] = Query(None, description="Filter by thread"),
+    status: MessageStatus | None = Query(None, description="Filter by status"),
+    priority: MessagePriority | None = Query(None, description="Filter by priority"),
+    sender_id: str | None = Query(None, description="Filter by sender"),
+    thread_id: str | None = Query(None, description="Filter by thread"),
     include_broadcasts: bool = Query(True, description="Include broadcast messages"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),

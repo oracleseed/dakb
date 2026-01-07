@@ -17,23 +17,19 @@ Features:
 - Dry-run application testing
 """
 
-import gzip
 import base64
+import gzip
 import logging
+import os
 import subprocess
 import tempfile
-import os
-from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Tuple
 
+from .git_context import GitContextCapture
 from .models import (
     PatchBundle,
-    GitContextSnapshot,
-    compress_content,
     decompress_content,
 )
-from .git_context import GitContextCapture, GitContextCaptureError
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +67,10 @@ class PatchBundleBuilder:
 
     def _run_git_command(
         self,
-        args: List[str],
+        args: list[str],
         timeout: int = 60,
         check: bool = True,
-    ) -> Tuple[str, str, int]:
+    ) -> tuple[str, str, int]:
         """
         Run a git command and return output.
 
@@ -118,7 +114,7 @@ class PatchBundleBuilder:
         agent_id: str,
         machine_id: str,
         include_stash: bool = False,
-        description: Optional[str] = None,
+        description: str | None = None,
         compress: bool = True,
     ) -> PatchBundle:
         """
@@ -292,7 +288,7 @@ class PatchBundleBuilder:
             full_path = self.repository_path / file_path
             if full_path.is_file():
                 try:
-                    with open(full_path, 'r', encoding='utf-8') as f:
+                    with open(full_path, encoding='utf-8') as f:
                         content = f.read()
 
                     # Generate diff header for new file
@@ -307,7 +303,7 @@ class PatchBundleBuilder:
                     diff_lines.extend([f"+{line}" for line in lines])
                     patches.append("\n".join(diff_lines))
 
-                except (IOError, UnicodeDecodeError):
+                except (OSError, UnicodeDecodeError):
                     # Binary or unreadable file
                     patches.append(
                         f"# Binary file: {file_path}\n"
@@ -316,7 +312,7 @@ class PatchBundleBuilder:
 
         return "\n\n".join(patches)
 
-    def _get_stash_patches(self) -> List[str]:
+    def _get_stash_patches(self) -> list[str]:
         """Get patch content for all stash entries."""
         patches = []
 
@@ -357,7 +353,7 @@ class PatchBundleBuilder:
 
         return patches
 
-    def _get_changed_files(self) -> List[str]:
+    def _get_changed_files(self) -> list[str]:
         """Get list of all changed files."""
         files = set()
 
@@ -384,7 +380,7 @@ class PatchBundleBuilder:
 
         return sorted(list(files))
 
-    def _get_total_stats(self) -> Tuple[int, int]:
+    def _get_total_stats(self) -> tuple[int, int]:
         """Get total additions and deletions."""
         additions = 0
         deletions = 0
@@ -409,7 +405,7 @@ class PatchBundleBuilder:
 
         return additions, deletions
 
-    def _parse_shortstat(self, stat_output: str) -> Tuple[int, int]:
+    def _parse_shortstat(self, stat_output: str) -> tuple[int, int]:
         """Parse shortstat output to get additions and deletions."""
         additions = 0
         deletions = 0
@@ -430,7 +426,7 @@ class PatchBundleBuilder:
 
         return additions, deletions
 
-    def _test_patch_application(self, patch_content: str) -> Optional[bool]:
+    def _test_patch_application(self, patch_content: str) -> bool | None:
         """
         Test if patch can be applied cleanly.
 
@@ -484,10 +480,10 @@ class PatchBundleApplier:
 
     def _run_git_command(
         self,
-        args: List[str],
+        args: list[str],
         timeout: int = 60,
         check: bool = True,
-    ) -> Tuple[str, str, int]:
+    ) -> tuple[str, str, int]:
         """Run a git command."""
         cmd = ["git"] + args
 
@@ -513,7 +509,7 @@ class PatchBundleApplier:
         except FileNotFoundError:
             raise PatchBundleError("Git executable not found")
 
-    def validate_bundle(self, bundle: PatchBundle) -> Tuple[bool, List[str]]:
+    def validate_bundle(self, bundle: PatchBundle) -> tuple[bool, list[str]]:
         """
         Validate a patch bundle before application.
 
@@ -561,7 +557,7 @@ class PatchBundleApplier:
         self,
         bundle: PatchBundle,
         dry_run: bool = False,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """
         Apply a patch bundle.
 
@@ -631,7 +627,7 @@ class PatchBundleApplier:
         finally:
             os.unlink(temp_path)
 
-    def get_conflict_hints(self, bundle: PatchBundle) -> List[str]:
+    def get_conflict_hints(self, bundle: PatchBundle) -> list[str]:
         """
         Get hints for resolving conflicts.
 
@@ -688,7 +684,7 @@ def create_patch_bundle(
     agent_id: str,
     machine_id: str,
     include_stash: bool = False,
-    description: Optional[str] = None,
+    description: str | None = None,
 ) -> PatchBundle:
     """
     Convenience function to create a patch bundle.
@@ -718,7 +714,7 @@ def apply_patch_bundle(
     repository_path: str,
     bundle: PatchBundle,
     dry_run: bool = False,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """
     Convenience function to apply a patch bundle.
 

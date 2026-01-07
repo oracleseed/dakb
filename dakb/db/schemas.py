@@ -16,13 +16,12 @@ Collections:
 - dakb_audit_log: Audit trail
 """
 
+import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, Any
-import uuid
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
 
 # =============================================================================
 # ENUMS
@@ -202,16 +201,16 @@ class KnowledgeSource(BaseModel):
     agent_id: str = Field(..., description="Agent that created this knowledge")
     agent_type: AgentType = Field(..., description="Type of AI agent")
     machine_id: str = Field(..., description="Machine identifier")
-    session_id: Optional[str] = Field(None, description="Session identifier")
-    context: Optional[str] = Field(None, description="Context when knowledge was created")
+    session_id: str | None = Field(None, description="Session identifier")
+    context: str | None = Field(None, description="Context when knowledge was created")
 
 
 class VoteDetail(BaseModel):
     """Detailed vote record with agent information."""
     agent_id: str = Field(..., description="Agent that cast the vote")
     vote: VoteType = Field(..., description="Type of vote")
-    comment: Optional[str] = Field(None, max_length=500, description="Optional comment")
-    used_successfully: Optional[bool] = Field(None, description="Whether knowledge was used successfully")
+    comment: str | None = Field(None, max_length=500, description="Optional comment")
+    used_successfully: bool | None = Field(None, description="Whether knowledge was used successfully")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -244,24 +243,24 @@ class GitContext(BaseModel):
     repository: str = Field(..., description="Repository name")
     branch: str = Field(..., description="Current branch")
     commit_hash: str = Field(..., description="Last commit hash")
-    commit_message: Optional[str] = Field(None, description="Last commit message")
+    commit_message: str | None = Field(None, description="Last commit message")
     has_uncommitted_changes: bool = Field(default=False)
     uncommitted_files: list[str] = Field(default_factory=list)
     staged_files: list[str] = Field(default_factory=list)
-    diff_summary: Optional[str] = Field(None, description="Summary of changes")
-    stash_id: Optional[str] = Field(None, description="Stash ID if changes were stashed")
-    remote_status: Optional[str] = Field(None, description="Status relative to remote")
+    diff_summary: str | None = Field(None, description="Summary of changes")
+    stash_id: str | None = Field(None, description="Stash ID if changes were stashed")
+    remote_status: str | None = Field(None, description="Status relative to remote")
 
     # v1.2: Full content for cross-machine reconstruction
-    full_diff: Optional[str] = Field(None, description="Human-readable diff")
-    patch_bundle: Optional[str] = Field(None, description="Base64-encoded git patch")
-    patch_size_bytes: Optional[int] = Field(None, ge=0, description="Patch size for validation")
-    patch_files_count: Optional[int] = Field(None, ge=0, description="Number of files in patch")
-    can_apply_cleanly: Optional[bool] = Field(None, description="Whether patch can apply cleanly")
+    full_diff: str | None = Field(None, description="Human-readable diff")
+    patch_bundle: str | None = Field(None, description="Base64-encoded git patch")
+    patch_size_bytes: int | None = Field(None, ge=0, description="Patch size for validation")
+    patch_files_count: int | None = Field(None, ge=0, description="Number of files in patch")
+    can_apply_cleanly: bool | None = Field(None, description="Whether patch can apply cleanly")
 
     @field_validator('patch_size_bytes')
     @classmethod
-    def validate_patch_size(cls, v: Optional[int]) -> Optional[int]:
+    def validate_patch_size(cls, v: int | None) -> int | None:
         """Validate patch size does not exceed 10MB limit."""
         if v is not None and v > 10 * 1024 * 1024:  # 10MB limit
             raise ValueError("Patch size exceeds 10MB limit")
@@ -297,7 +296,7 @@ class DakbKnowledge(BaseModel):
     content: str = Field(..., description="The knowledge content (markdown supported)")
     content_type: ContentType = Field(..., description="Type of knowledge")
     format: ContentFormat = Field(default=ContentFormat.MARKDOWN, description="Content format")
-    code_language: Optional[CodeLanguage] = Field(
+    code_language: CodeLanguage | None = Field(
         None,
         description="Programming language (required if format is 'code')"
     )
@@ -333,23 +332,23 @@ class DakbKnowledge(BaseModel):
 
     # Validation & Quality
     status: KnowledgeStatus = Field(default=KnowledgeStatus.DRAFT)
-    validated_by: Optional[str] = Field(None, description="Agent that validated")
-    validation_date: Optional[datetime] = Field(None)
+    validated_by: str | None = Field(None, description="Agent that validated")
+    validation_date: datetime | None = Field(None)
     confidence_score: float = Field(default=0.8, ge=0.0, le=1.0)
 
     # Versioning
     version: int = Field(default=1, ge=1)
-    previous_version_id: Optional[str] = Field(None)
+    previous_version_id: str | None = Field(None)
 
     # Lifecycle
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    expires_at: Optional[datetime] = Field(None, description="None = never expires")
+    expires_at: datetime | None = Field(None, description="None = never expires")
 
     # Usage Analytics & Voting
     access_count: int = Field(default=0, ge=0)
-    last_accessed_at: Optional[datetime] = Field(None)
-    last_accessed_by: Optional[str] = Field(None)
+    last_accessed_at: datetime | None = Field(None)
+    last_accessed_by: str | None = Field(None)
     votes: Votes = Field(default_factory=Votes)
     vote_details: list[VoteDetail] = Field(default_factory=list)
 
@@ -409,8 +408,8 @@ class DakbMessage(BaseModel):
     # Routing
     from_agent: str = Field(..., description="Sender agent ID")
     from_machine: str = Field(..., description="Sender machine ID")
-    to_agent: Optional[str] = Field(None, description="Target agent (null = broadcast)")
-    to_topic: Optional[str] = Field(None, description="Topic for pub/sub")
+    to_agent: str | None = Field(None, description="Target agent (null = broadcast)")
+    to_topic: str | None = Field(None, description="Topic for pub/sub")
 
     # Content
     message_type: MessageType = Field(default=MessageType.NOTIFICATION)
@@ -421,20 +420,20 @@ class DakbMessage(BaseModel):
 
     # Delivery Status
     status: MessageStatus = Field(default=MessageStatus.PENDING)
-    delivered_at: Optional[datetime] = Field(None)
-    read_at: Optional[datetime] = Field(None)
+    delivered_at: datetime | None = Field(None)
+    read_at: datetime | None = Field(None)
     read_by: list[str] = Field(default_factory=list)
 
     # Lifecycle
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    expires_at: Optional[datetime] = Field(
+    expires_at: datetime | None = Field(
         None,
         description="Messages auto-expire (default 7 days)"
     )
 
     # Threading
-    thread_id: Optional[str] = Field(None, description="Thread identifier")
-    reply_to: Optional[str] = Field(None, description="Message ID being replied to")
+    thread_id: str | None = Field(None, description="Thread identifier")
+    reply_to: str | None = Field(None, description="Message ID being replied to")
 
     class Config:
         json_schema_extra = {
@@ -476,13 +475,13 @@ class DakbAgent(BaseModel):
     # Identity
     display_name: str = Field(..., max_length=100)
     agent_type: AgentType = Field(...)
-    model_version: Optional[str] = Field(None, description="LLM model version")
+    model_version: str | None = Field(None, description="LLM model version")
 
     # Location
     machine_id: str = Field(..., description="Machine identifier")
-    machine_name: Optional[str] = Field(None, description="Human-readable machine name")
-    ip_address: Optional[str] = Field(None, description="For direct communication")
-    endpoint_url: Optional[str] = Field(None, description="REST endpoint if available")
+    machine_name: str | None = Field(None, description="Human-readable machine name")
+    ip_address: str | None = Field(None, description="For direct communication")
+    endpoint_url: str | None = Field(None, description="REST endpoint if available")
 
     # Capabilities
     capabilities: list[str] = Field(
@@ -496,15 +495,15 @@ class DakbAgent(BaseModel):
 
     # Access Control
     role: AgentRole = Field(default=AgentRole.DEVELOPER)
-    api_key_hash: Optional[str] = Field(None, description="Hashed API key")
+    api_key_hash: str | None = Field(None, description="Hashed API key")
     allowed_access_levels: list[AccessLevel] = Field(
         default_factory=lambda: [AccessLevel.PUBLIC]
     )
 
     # Status
     status: AgentStatus = Field(default=AgentStatus.OFFLINE)
-    last_seen: Optional[datetime] = Field(None)
-    last_activity: Optional[str] = Field(None, description="Description of last activity")
+    last_seen: datetime | None = Field(None)
+    last_activity: str | None = Field(None, description="Description of last activity")
 
     # Subscriptions
     subscribed_topics: list[str] = Field(default_factory=list)
@@ -537,7 +536,7 @@ class DakbSession(BaseModel):
     machine_id: str = Field(..., description="Machine running the session")
 
     # Task Context
-    task_description: Optional[str] = Field(None, description="Current task being worked on")
+    task_description: str | None = Field(None, description="Current task being worked on")
     task_status: TaskStatus = Field(default=TaskStatus.IN_PROGRESS)
 
     # Context Preservation
@@ -549,11 +548,11 @@ class DakbSession(BaseModel):
         default_factory=list,
         description="Files currently being worked on"
     )
-    current_step: Optional[str] = Field(None, description="Current step in task")
+    current_step: str | None = Field(None, description="Current step in task")
     todo_list: list[TodoItem] = Field(default_factory=list)
 
     # Git Context (v1.2)
-    git_context: Optional[GitContext] = Field(
+    git_context: GitContext | None = Field(
         None,
         description="Full git context for session handoff"
     )
@@ -565,13 +564,13 @@ class DakbSession(BaseModel):
     )
 
     # Handoff Support
-    handed_off_to: Optional[str] = Field(None, description="Agent ID if handed off")
-    handoff_notes: Optional[str] = Field(None)
-    handoff_timestamp: Optional[datetime] = Field(None)
+    handed_off_to: str | None = Field(None, description="Agent ID if handed off")
+    handoff_notes: str | None = Field(None)
+    handoff_timestamp: datetime | None = Field(None)
 
     started_at: datetime = Field(default_factory=datetime.utcnow)
     last_activity: datetime = Field(default_factory=datetime.utcnow)
-    ended_at: Optional[datetime] = Field(None)
+    ended_at: datetime | None = Field(None)
 
     class Config:
         json_schema_extra = {
@@ -601,8 +600,8 @@ class DakbAuditLog(BaseModel):
 
     # Actor
     agent_id: str = Field(..., description="Agent that performed the action")
-    machine_id: Optional[str] = Field(None)
-    session_id: Optional[str] = Field(None)
+    machine_id: str | None = Field(None)
+    session_id: str | None = Field(None)
 
     # Action
     action: AuditAction = Field(..., description="Type of action performed")
@@ -616,10 +615,10 @@ class DakbAuditLog(BaseModel):
     )
 
     # Security
-    ip_address: Optional[str] = Field(None)
-    access_level_required: Optional[AccessLevel] = Field(None)
+    ip_address: str | None = Field(None)
+    access_level_required: AccessLevel | None = Field(None)
     access_granted: bool = Field(default=True)
-    denial_reason: Optional[str] = Field(None)
+    denial_reason: str | None = Field(None)
 
     # TTL - 90 days expiry
     expires_at: datetime = Field(
@@ -650,11 +649,11 @@ class KnowledgeCreate(BaseModel):
     content_type: ContentType
     category: Category
     format: ContentFormat = ContentFormat.MARKDOWN
-    code_language: Optional[CodeLanguage] = None
+    code_language: CodeLanguage | None = None
     tags: list[str] = Field(default_factory=list, max_length=10)
     access_level: AccessLevel = AccessLevel.PUBLIC
     related_files: list[str] = Field(default_factory=list)
-    expires_in_days: Optional[int] = Field(None, ge=1)
+    expires_in_days: int | None = Field(None, ge=1)
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
 
     @model_validator(mode='after')
@@ -667,36 +666,36 @@ class KnowledgeCreate(BaseModel):
 
 class KnowledgeUpdate(BaseModel):
     """Schema for updating existing knowledge entries."""
-    title: Optional[str] = Field(None, max_length=100)
-    content: Optional[str] = None
-    content_type: Optional[ContentType] = None
-    category: Optional[Category] = None
-    format: Optional[ContentFormat] = None
-    code_language: Optional[CodeLanguage] = None
-    tags: Optional[list[str]] = None
-    access_level: Optional[AccessLevel] = None
-    status: Optional[KnowledgeStatus] = None
-    confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    title: str | None = Field(None, max_length=100)
+    content: str | None = None
+    content_type: ContentType | None = None
+    category: Category | None = None
+    format: ContentFormat | None = None
+    code_language: CodeLanguage | None = None
+    tags: list[str] | None = None
+    access_level: AccessLevel | None = None
+    status: KnowledgeStatus | None = None
+    confidence_score: float | None = Field(None, ge=0.0, le=1.0)
 
 
 class VoteCreate(BaseModel):
     """Schema for voting on knowledge."""
     vote: VoteType
-    comment: Optional[str] = Field(None, max_length=500)
-    used_successfully: Optional[bool] = None
+    comment: str | None = Field(None, max_length=500)
+    used_successfully: bool | None = None
 
 
 class MessageCreate(BaseModel):
     """Schema for creating new messages."""
-    to_agent: Optional[str] = None
-    to_topic: Optional[str] = None
+    to_agent: str | None = None
+    to_topic: str | None = None
     message_type: MessageType = MessageType.NOTIFICATION
     priority: MessagePriority = MessagePriority.NORMAL
     subject: str = Field(..., max_length=200)
     body: str
     attachments: list[MessageAttachment] = Field(default_factory=list)
-    thread_id: Optional[str] = None
-    reply_to: Optional[str] = None
+    thread_id: str | None = None
+    reply_to: str | None = None
     expires_in_days: int = Field(default=7, ge=1, le=365)
 
 
@@ -707,9 +706,9 @@ class AgentRegister(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=50)
     display_name: str = Field(..., max_length=100)
     agent_type: AgentType
-    model_version: Optional[str] = None
+    model_version: str | None = None
     machine_id: str
-    machine_name: Optional[str] = None
+    machine_name: str | None = None
     capabilities: list[str] = Field(default_factory=list)
     specializations: list[str] = Field(default_factory=list)
 
@@ -718,29 +717,29 @@ class AgentUpdate(BaseModel):
     """Schema for updating agent information."""
     model_config = ConfigDict(protected_namespaces=())
 
-    display_name: Optional[str] = Field(None, max_length=100)
-    model_version: Optional[str] = None
-    status: Optional[AgentStatus] = None
-    capabilities: Optional[list[str]] = None
-    specializations: Optional[list[str]] = None
-    subscribed_topics: Optional[list[str]] = None
-    notification_preferences: Optional[NotificationPreferences] = None
+    display_name: str | None = Field(None, max_length=100)
+    model_version: str | None = None
+    status: AgentStatus | None = None
+    capabilities: list[str] | None = None
+    specializations: list[str] | None = None
+    subscribed_topics: list[str] | None = None
+    notification_preferences: NotificationPreferences | None = None
 
 
 class SessionCreate(BaseModel):
     """Schema for creating new sessions."""
-    task_description: Optional[str] = None
+    task_description: str | None = None
     loaded_contexts: list[str] = Field(default_factory=list)
     working_files: list[str] = Field(default_factory=list)
 
 
 class SessionUpdate(BaseModel):
     """Schema for updating session information."""
-    task_description: Optional[str] = None
-    task_status: Optional[TaskStatus] = None
-    current_step: Optional[str] = None
-    working_files: Optional[list[str]] = None
-    git_context: Optional[GitContext] = None
+    task_description: str | None = None
+    task_status: TaskStatus | None = None
+    current_step: str | None = None
+    working_files: list[str] | None = None
+    git_context: GitContext | None = None
 
 
 # =============================================================================
@@ -750,7 +749,7 @@ class SessionUpdate(BaseModel):
 class KnowledgeResponse(BaseModel):
     """Response model for knowledge queries."""
     knowledge: DakbKnowledge
-    similarity_score: Optional[float] = Field(None, description="Similarity score from search")
+    similarity_score: float | None = Field(None, description="Similarity score from search")
 
 
 class SearchResults(BaseModel):
@@ -771,7 +770,7 @@ class ReputationHistory(BaseModel):
     previous_score: float = Field(..., description="Score before change")
     new_score: float = Field(..., description="Score after change")
     change_reason: str = Field(..., description="Reason for change")
-    change_source: Optional[str] = Field(None, description="Knowledge ID or event that caused change")
+    change_source: str | None = Field(None, description="Knowledge ID or event that caused change")
 
 
 class AgentReputation(BaseModel):
@@ -809,8 +808,8 @@ class AgentReputation(BaseModel):
     )
 
     # Timestamps
-    first_contribution_at: Optional[datetime] = Field(None, description="When agent first contributed")
-    last_contribution_at: Optional[datetime] = Field(None, description="Most recent contribution")
+    first_contribution_at: datetime | None = Field(None, description="When agent first contributed")
+    last_contribution_at: datetime | None = Field(None, description="Most recent contribution")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     def calculate_vote_weight(self) -> float:
@@ -950,11 +949,11 @@ class KnowledgeFlag(BaseModel):
     knowledge_id: str = Field(..., description="Flagged knowledge ID")
     flagged_by: str = Field(..., description="Agent who flagged")
     reason: FlagReason = Field(..., description="Reason for flagging")
-    details: Optional[str] = Field(None, max_length=500, description="Additional details")
+    details: str | None = Field(None, max_length=500, description="Additional details")
     status: str = Field(default="pending", description="Flag status: pending, reviewed, resolved")
-    reviewed_by: Optional[str] = Field(None, description="Moderator who reviewed")
-    reviewed_at: Optional[datetime] = Field(None)
-    resolution: Optional[str] = Field(None, description="Resolution action taken")
+    reviewed_by: str | None = Field(None, description="Moderator who reviewed")
+    reviewed_at: datetime | None = Field(None)
+    resolution: str | None = Field(None, description="Resolution action taken")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -985,7 +984,7 @@ class AgentContributions(BaseModel):
     votes_cast: list[dict] = Field(default_factory=list, description="Votes cast by agent")
     reputation_history: list[ReputationHistory] = Field(default_factory=list)
     reputation_score: float = Field(default=0.0)
-    rank: Optional[int] = Field(None, description="Current rank")
+    rank: int | None = Field(None, description="Current rank")
     total_knowledge: int = Field(default=0)
     total_votes: int = Field(default=0)
 
@@ -1032,7 +1031,7 @@ class DakbAgentAlias(BaseModel):
         max_length=50,
         description="Alias name (globally unique across all tokens)"
     )
-    role: Optional[str] = Field(
+    role: str | None = Field(
         None,
         max_length=100,
         description="Optional role metadata (e.g., 'orchestration', 'code_review')"
@@ -1092,7 +1091,7 @@ class AliasCreate(BaseModel):
         max_length=50,
         description="Alias name (must be globally unique)"
     )
-    role: Optional[str] = Field(
+    role: str | None = Field(
         None,
         max_length=100,
         description="Optional role for the alias"
@@ -1105,6 +1104,6 @@ class AliasCreate(BaseModel):
 
 class AliasUpdate(BaseModel):
     """Schema for updating an existing alias."""
-    role: Optional[str] = Field(None, max_length=100)
-    is_active: Optional[bool] = None
-    metadata: Optional[dict] = None
+    role: str | None = Field(None, max_length=100)
+    is_active: bool | None = None
+    metadata: dict | None = None

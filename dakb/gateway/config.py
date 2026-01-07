@@ -24,13 +24,11 @@ Environment Variables:
 """
 
 import os
-from typing import Optional
-from functools import lru_cache
 
 from pydantic import BaseModel, Field, field_validator
 
 
-def _get_env(key: str, default: Optional[str] = None) -> Optional[str]:
+def _get_env(key: str, default: str | None = None) -> str | None:
     """Get environment variable with optional default."""
     return os.getenv(key, default)
 
@@ -150,7 +148,7 @@ class DAKBGatewaySettings(BaseModel):
     # MongoDB Settings
     # ==========================================================================
 
-    mongo_uri: Optional[str] = Field(
+    mongo_uri: str | None = Field(
         default=None,
         description="MongoDB connection URI (falls back to project settings)"
     )
@@ -332,7 +330,7 @@ def _load_settings_from_env() -> DAKBGatewaySettings:
 
 
 # Cached settings instance
-_settings: Optional[DAKBGatewaySettings] = None
+_settings: DAKBGatewaySettings | None = None
 
 
 def get_settings() -> DAKBGatewaySettings:

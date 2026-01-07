@@ -33,49 +33,40 @@ Endpoints:
 
 import logging
 from datetime import datetime
-from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..middleware.auth import AuthenticatedAgent, get_current_agent
 from ...db.collections import get_dakb_client
 from ...sessions import (
-    # Models
-    Session,
-    SessionStatus,
-    SessionCreate,
-    SessionUpdate,
-    SessionResponse,
-    SessionListResponse,
-    SessionStats,
-    GitContextSnapshot,
-    GitContextResponse,
-    PatchBundle,
-    PatchBundleResponse,
-    PatchBundleCreate,
-    HandoffRequest,
-    HandoffPackage,
-    HandoffResponse,
-    HandoffCreate,
-    HandoffAccept,
-    HandoffStatus,
-    # Repository
-    SessionRepository,
-    HandoffRepository,
     # Git Context
     GitContextCapture,
     GitContextCaptureError,
-    find_repository_root,
-    # Patch Bundle
+    GitContextResponse,
+    HandoffAccept,
+    HandoffError,
+    HandoffRepository,
+    HandoffResponse,
+    HandoffStatus,
     PatchBundleBuilder,
     PatchBundleError,
+    PatchBundleResponse,
+    # Models
+    SessionCreate,
     # Handoff
     SessionHandoffManager,
-    HandoffError,
-    serialize_handoff_package,
+    SessionListResponse,
+    # Repository
+    SessionRepository,
+    SessionResponse,
+    SessionStats,
+    SessionStatus,
+    SessionUpdate,
     deserialize_handoff_package,
+    find_repository_root,
+    serialize_handoff_package,
 )
+from ..middleware.auth import AuthenticatedAgent, get_current_agent
 
 logger = logging.getLogger(__name__)
 
@@ -92,29 +83,29 @@ ADMIN_AGENT_TYPES = frozenset(["coordinator", "admin", "manager", "system"])
 class CreateSessionRequest(BaseModel):
     """Request model for creating a new session."""
     working_directory: str = Field(..., description="Working directory path")
-    task_description: Optional[str] = Field(None, max_length=500)
+    task_description: str | None = Field(None, max_length=500)
     timeout_minutes: int = Field(default=30, ge=1, le=1440)
-    loaded_contexts: List[str] = Field(default_factory=list)
-    working_files: List[str] = Field(default_factory=list)
-    parent_session_id: Optional[str] = Field(None, description="Parent session for continuation")
+    loaded_contexts: list[str] = Field(default_factory=list)
+    working_files: list[str] = Field(default_factory=list)
+    parent_session_id: str | None = Field(None, description="Parent session for continuation")
 
 
 class UpdateSessionRequest(BaseModel):
     """Request model for updating a session."""
-    status: Optional[SessionStatus] = None
-    task_description: Optional[str] = Field(None, max_length=500)
-    current_step: Optional[str] = None
-    working_files: Optional[List[str]] = None
-    loaded_contexts: Optional[List[str]] = None
-    todo_items: Optional[List[str]] = None
-    custom_data: Optional[dict] = None
-    knowledge_ids: Optional[List[str]] = None
-    timeout_minutes: Optional[int] = Field(None, ge=1, le=1440)
+    status: SessionStatus | None = None
+    task_description: str | None = Field(None, max_length=500)
+    current_step: str | None = None
+    working_files: list[str] | None = None
+    loaded_contexts: list[str] | None = None
+    todo_items: list[str] | None = None
+    custom_data: dict | None = None
+    knowledge_ids: list[str] | None = None
+    timeout_minutes: int | None = Field(None, ge=1, le=1440)
 
 
 class GitContextCaptureRequest(BaseModel):
     """Request model for capturing git context."""
-    repository_path: Optional[str] = Field(
+    repository_path: str | None = Field(
         None,
         description="Path to repository (defaults to session working directory)"
     )
@@ -125,19 +116,19 @@ class GitContextCaptureRequest(BaseModel):
 class CreatePatchBundleRequest(BaseModel):
     """Request model for creating a patch bundle."""
     include_stash: bool = Field(default=False, description="Include git stash")
-    description: Optional[str] = Field(None, max_length=500)
+    description: str | None = Field(None, max_length=500)
     compress: bool = Field(default=True)
 
 
 class ExportSessionRequest(BaseModel):
     """Request model for exporting a session for handoff."""
-    target_agent_id: Optional[str] = Field(None, description="Target agent (None = any)")
-    target_machine_id: Optional[str] = Field(None, description="Target machine (None = any)")
+    target_agent_id: str | None = Field(None, description="Target agent (None = any)")
+    target_machine_id: str | None = Field(None, description="Target machine (None = any)")
     include_git_context: bool = Field(default=True)
     include_patch_bundle: bool = Field(default=True)
     include_stash: bool = Field(default=False)
-    reason: Optional[str] = Field(None, max_length=500)
-    notes: Optional[str] = Field(None, max_length=1000)
+    reason: str | None = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=1000)
     store_on_server: bool = Field(
         default=False,
         description="Store package on server for remote agent retrieval. "
@@ -147,28 +138,28 @@ class ExportSessionRequest(BaseModel):
 
 class ImportSessionRequest(BaseModel):
     """Request model for importing a session from handoff."""
-    package_json: Optional[str] = Field(
+    package_json: str | None = Field(
         None,
         description="JSON-serialized handoff package. Not required if handoff_id is provided."
     )
-    handoff_id: Optional[str] = Field(
+    handoff_id: str | None = Field(
         None,
         description="Handoff ID to fetch package from server (for remote agents). "
                     "Takes precedence over package_json."
     )
     apply_patch: bool = Field(default=True, description="Apply patch bundle")
-    target_directory: Optional[str] = Field(None, description="Override working directory")
+    target_directory: str | None = Field(None, description="Override working directory")
 
 
 class AcceptHandoffRequest(BaseModel):
     """Request model for accepting a handoff."""
     apply_patch: bool = Field(default=True)
-    target_directory: Optional[str] = Field(None)
+    target_directory: str | None = Field(None)
 
 
 class RejectHandoffRequest(BaseModel):
     """Request model for rejecting a handoff."""
-    reason: Optional[str] = Field(None, max_length=500)
+    reason: str | None = Field(None, max_length=500)
 
 
 class EndSessionRequest(BaseModel):
@@ -260,7 +251,7 @@ async def create_session(
     description="List sessions for the authenticated agent or all sessions."
 )
 async def list_sessions(
-    status: Optional[SessionStatus] = Query(None, description="Filter by status"),
+    status: SessionStatus | None = Query(None, description="Filter by status"),
     all_agents: bool = Query(False, description="Include all agents (admin only)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),

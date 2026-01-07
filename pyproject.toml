@@ -86,11 +86,11 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/dakb"
-Documentation = "https://github.com/yourusername/dakb#documentation"
-Repository = "https://github.com/yourusername/dakb"
-Issues = "https://github.com/yourusername/dakb/issues"
-Changelog = "https://github.com/yourusername/dakb/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/oracleseed/dakb"
+Documentation = "https://github.com/oracleseed/dakb#documentation"
+Repository = "https://github.com/oracleseed/dakb"
+Issues = "https://github.com/oracleseed/dakb/issues"
+Changelog = "https://github.com/oracleseed/dakb/blob/main/CHANGELOG.md"
 
 [project.scripts]
 dakb = "dakb.cli:main"
@@ -139,9 +139,20 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "E402",   # module level import not at top (often needed for path setup)
+    "E741",   # ambiguous variable name
     "B008",   # do not perform function calls in argument defaults
     "B904",   # raise without from inside except
+    "B905",   # zip without strict parameter
     "ARG001", # unused function argument
+    "ARG002", # unused method argument
+    "C401",   # unnecessary generator
+    "C414",   # unnecessary list in sorted
+    "F841",   # local variable assigned but never used (often for side effects)
+    "SIM102", # nested if statements (readability preference)
+    "SIM103", # return condition directly
+    "SIM105", # contextlib.suppress suggestion
+    "SIM108", # ternary operator suggestion
 ]
 
 [tool.ruff.lint.per-file-ignores]

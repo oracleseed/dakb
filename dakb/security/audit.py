@@ -30,20 +30,17 @@ Usage:
 """
 
 import asyncio
-import hashlib
 import html
 import logging
 import os
 import re
-import secrets
 import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Pattern, Set, Tuple, Union
-
-from pydantic import BaseModel, Field, field_validator
+from re import Pattern
+from typing import Any
 
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(
@@ -98,10 +95,10 @@ class SecurityIssue:
     recommendation: str = ""
     code_location: str = ""
     detected_at: datetime = field(default_factory=datetime.utcnow)
-    fixed_at: Optional[datetime] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    fixed_at: datetime | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "issue_id": self.issue_id,
@@ -133,18 +130,18 @@ class InputSanitizer:
     """
 
     # Dangerous patterns for various attack types
-    SQL_INJECTION_PATTERNS: List[Pattern] = [
+    SQL_INJECTION_PATTERNS: list[Pattern] = [
         re.compile(r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|TRUNCATE)\b)", re.I),
         re.compile(r"(--|;|/\*|\*/|@@|@)", re.I),
         re.compile(r"(\bOR\b\s+\d+\s*=\s*\d+|\bAND\b\s+\d+\s*=\s*\d+)", re.I),
     ]
 
-    NOSQL_INJECTION_PATTERNS: List[Pattern] = [
+    NOSQL_INJECTION_PATTERNS: list[Pattern] = [
         re.compile(r"\$where|\$regex|\$gt|\$lt|\$ne|\$in|\$nin|\$or|\$and", re.I),
         re.compile(r"\{\s*['\"]?\$", re.I),  # JSON with MongoDB operators
     ]
 
-    XSS_PATTERNS: List[Pattern] = [
+    XSS_PATTERNS: list[Pattern] = [
         re.compile(r"<\s*script[^>]*>", re.I),
         re.compile(r"javascript\s*:", re.I),
         re.compile(r"on\w+\s*=", re.I),  # Event handlers
@@ -153,13 +150,13 @@ class InputSanitizer:
         re.compile(r"<\s*embed[^>]*>", re.I),
     ]
 
-    PATH_TRAVERSAL_PATTERNS: List[Pattern] = [
+    PATH_TRAVERSAL_PATTERNS: list[Pattern] = [
         re.compile(r"\.\./|\.\.\\", re.I),
         re.compile(r"%2e%2e%2f|%2e%2e/|\.\.%2f", re.I),
         re.compile(r"~|%7e", re.I),
     ]
 
-    COMMAND_INJECTION_PATTERNS: List[Pattern] = [
+    COMMAND_INJECTION_PATTERNS: list[Pattern] = [
         re.compile(r"[;&|`$]", re.I),
         re.compile(r"\$\(|\)\s*;", re.I),
     ]
@@ -204,7 +201,7 @@ class InputSanitizer:
         return value
 
     @classmethod
-    def detect_sql_injection(cls, value: str) -> Tuple[bool, List[str]]:
+    def detect_sql_injection(cls, value: str) -> tuple[bool, list[str]]:
         """
         Detect potential SQL injection attempts.
 
@@ -221,7 +218,7 @@ class InputSanitizer:
         return len(matches) > 0, matches
 
     @classmethod
-    def detect_nosql_injection(cls, value: str) -> Tuple[bool, List[str]]:
+    def detect_nosql_injection(cls, value: str) -> tuple[bool, list[str]]:
         """
         Detect potential NoSQL/MongoDB injection attempts.
 
@@ -238,7 +235,7 @@ class InputSanitizer:
         return len(matches) > 0, matches
 
     @classmethod
-    def detect_xss(cls, value: str) -> Tuple[bool, List[str]]:
+    def detect_xss(cls, value: str) -> tuple[bool, list[str]]:
         """
         Detect potential XSS attempts.
 
@@ -255,7 +252,7 @@ class InputSanitizer:
         return len(matches) > 0, matches
 
     @classmethod
-    def detect_path_traversal(cls, value: str) -> Tuple[bool, List[str]]:
+    def detect_path_traversal(cls, value: str) -> tuple[bool, list[str]]:
         """
         Detect potential path traversal attempts.
 
@@ -272,7 +269,7 @@ class InputSanitizer:
         return len(matches) > 0, matches
 
     @classmethod
-    def detect_command_injection(cls, value: str) -> Tuple[bool, List[str]]:
+    def detect_command_injection(cls, value: str) -> tuple[bool, list[str]]:
         """
         Detect potential command injection attempts.
 
@@ -373,7 +370,7 @@ class InputSanitizer:
         check_path: bool = False,
         check_cmd: bool = False,
         raise_on_suspicious: bool = False,
-    ) -> Tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """
         Comprehensive validation and sanitization.
 
@@ -441,7 +438,7 @@ class TokenSecurityValidator:
     """
 
     @staticmethod
-    def parse_token_expiry(token: str) -> Optional[datetime]:
+    def parse_token_expiry(token: str) -> datetime | None:
         """
         Parse token expiry from JWT without verifying signature.
 
@@ -483,7 +480,7 @@ class TokenSecurityValidator:
             return None
 
     @staticmethod
-    def validate_token_format(token: str) -> Tuple[bool, Optional[str]]:
+    def validate_token_format(token: str) -> tuple[bool, str | None]:
         """
         Validate JWT token format without verification.
 
@@ -532,7 +529,7 @@ class TokenSecurityValidator:
         return token[:10] + "..." + token[-5:]
 
     @staticmethod
-    def check_token_strength(token: str) -> List[str]:
+    def check_token_strength(token: str) -> list[str]:
         """
         Check token for security weaknesses.
 
@@ -586,16 +583,16 @@ class RateLimitBypassDetector:
     def __init__(self, window_seconds: int = 60, threshold: int = 100):
         self.window_seconds = window_seconds
         self.threshold = threshold
-        self._requests: Dict[str, List[float]] = {}  # identifier -> timestamps
-        self._suspicious_patterns: List[Dict[str, Any]] = []
+        self._requests: dict[str, list[float]] = {}  # identifier -> timestamps
+        self._suspicious_patterns: list[dict[str, Any]] = []
 
     def record_request(
         self,
         client_ip: str,
-        token_hash: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Tuple[bool, Optional[str]]:
+        token_hash: str | None = None,
+        user_agent: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[bool, str | None]:
         """
         Record a request and check for bypass attempts.
 
@@ -662,7 +659,7 @@ class RateLimitBypassDetector:
             if not self._requests[identifier]:
                 del self._requests[identifier]
 
-    def get_suspicious_patterns(self) -> List[Dict[str, Any]]:
+    def get_suspicious_patterns(self) -> list[dict[str, Any]]:
         """Get recorded suspicious patterns."""
         return self._suspicious_patterns.copy()
 
@@ -679,17 +676,17 @@ class AuditLogger:
     Logs sensitive operations with context for security analysis.
     """
 
-    def __init__(self, log_file: Optional[str] = None):
+    def __init__(self, log_file: str | None = None):
         self.log_file = log_file
-        self._entries: List[Dict[str, Any]] = []
+        self._entries: list[dict[str, Any]] = []
 
     def log_auth_attempt(
         self,
         success: bool,
-        agent_id: Optional[str],
+        agent_id: str | None,
         ip_address: str,
         method: str = "jwt",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Log authentication attempt."""
         entry = {
@@ -740,7 +737,7 @@ class AuditLogger:
         agent_id: str,
         resource_id: str,
         ip_address: str,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Log sensitive operation."""
         entry = {
@@ -759,7 +756,7 @@ class AuditLogger:
         event_type: str,
         severity: IssueSeverity,
         description: str,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Log security event."""
         entry = {
@@ -777,7 +774,7 @@ class AuditLogger:
         else:
             logger.warning(f"Security event [{severity.value}]: {description}")
 
-    def _record(self, entry: Dict[str, Any]) -> None:
+    def _record(self, entry: dict[str, Any]) -> None:
         """Record log entry."""
         self._entries.append(entry)
 
@@ -793,10 +790,10 @@ class AuditLogger:
 
     def get_entries(
         self,
-        event_type: Optional[str] = None,
-        since: Optional[datetime] = None,
+        event_type: str | None = None,
+        since: datetime | None = None,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get audit log entries."""
         entries = self._entries
 
@@ -827,7 +824,7 @@ class SecurityAudit:
     """
 
     def __init__(self):
-        self.issues: List[SecurityIssue] = []
+        self.issues: list[SecurityIssue] = []
         self.audit_logger = AuditLogger()
 
     def _add_issue(
@@ -851,7 +848,7 @@ class SecurityAudit:
         self.issues.append(issue)
         logger.info(f"Security issue found: [{severity.value}] {issue_id}: {title}")
 
-    async def run_full_audit(self) -> List[SecurityIssue]:
+    async def run_full_audit(self) -> list[SecurityIssue]:
         """
         Run comprehensive security audit.
 
@@ -1083,7 +1080,7 @@ class SecurityAudit:
                     recommendation="Set .env permissions to 600 (owner read/write only)",
                 )
 
-    def get_report(self) -> Dict[str, Any]:
+    def get_report(self) -> dict[str, Any]:
         """Generate audit report."""
         by_severity = {}
         for issue in self.issues:
@@ -1141,7 +1138,7 @@ class SecurityAudit:
 # =============================================================================
 
 
-async def run_security_audit() -> List[SecurityIssue]:
+async def run_security_audit() -> list[SecurityIssue]:
     """
     Run security audit and return issues.
 

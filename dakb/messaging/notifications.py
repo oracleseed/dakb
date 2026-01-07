@@ -22,8 +22,8 @@ import hmac
 import ipaddress
 import json
 import logging
-from datetime import datetime, timedelta
-from typing import Optional, List, Any, Callable
+from datetime import datetime
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -32,10 +32,10 @@ from pymongo.collection import Collection
 from .models import (
     Message,
     MessagePriority,
+    NotificationPreferences,
     NotificationType,
     WebhookConfig,
     WebhookPayload,
-    NotificationPreferences,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ class WebhookManager:
             collection: MongoDB collection for webhook configs
         """
         self.collection = collection
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -164,8 +164,8 @@ class WebhookManager:
         self,
         agent_id: str,
         url: str,
-        secret: Optional[str] = None,
-        events: Optional[List[str]] = None,
+        secret: str | None = None,
+        events: list[str] | None = None,
     ) -> WebhookConfig:
         """
         Register a webhook for an agent.
@@ -205,7 +205,7 @@ class WebhookManager:
         logger.info(f"Webhook registered for {agent_id}: {url}")
         return webhook
 
-    def get_webhooks(self, agent_id: str) -> List[WebhookConfig]:
+    def get_webhooks(self, agent_id: str) -> list[WebhookConfig]:
         """
         Get all webhooks for an agent.
 
@@ -227,7 +227,7 @@ class WebhookManager:
 
         return webhooks
 
-    def get_webhook_by_id(self, webhook_id: str) -> Optional[WebhookConfig]:
+    def get_webhook_by_id(self, webhook_id: str) -> WebhookConfig | None:
         """
         Get webhook by ID.
 
@@ -440,7 +440,7 @@ class WebhookManager:
             }
         )
 
-    def _record_failure(self, webhook_id: str, error: Optional[str]) -> None:
+    def _record_failure(self, webhook_id: str, error: str | None) -> None:
         """Record failed webhook delivery and potentially disable."""
         result = self.collection.find_one_and_update(
             {"webhook_id": webhook_id},
@@ -592,10 +592,10 @@ class PollingService:
     def poll_messages(
         self,
         agent_id: str,
-        since: Optional[datetime] = None,
+        since: datetime | None = None,
         limit: int = POLLING_DEFAULT_LIMIT,
-        priority_filter: Optional[MessagePriority] = None,
-    ) -> List[Message]:
+        priority_filter: MessagePriority | None = None,
+    ) -> list[Message]:
         """
         Poll for new messages for an agent.
 
@@ -608,7 +608,7 @@ class PollingService:
         Returns:
             List of messages
         """
-        from .models import MessageType, MessageStatus
+        from .models import MessageStatus, MessageType
 
         # Build query
         query: dict[str, Any] = {
@@ -716,7 +716,7 @@ class PollingService:
     def get_acknowledgments(
         self,
         message_id: str,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """
         Get all acknowledgments for a message.
 
@@ -748,7 +748,7 @@ class PollingService:
         Returns:
             Count of unacknowledged messages
         """
-        from .models import MessageType, MessageStatus
+        from .models import MessageStatus, MessageType
 
         # Get acknowledged message IDs for this agent
         ack_cursor = self.acks.find(
@@ -846,7 +846,7 @@ class NotificationService:
     async def notify_broadcast(
         self,
         message: Message,
-        agent_ids: List[str],
+        agent_ids: list[str],
     ) -> dict[str, Any]:
         """
         Send notifications for a broadcast message to multiple agents.

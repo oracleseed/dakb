@@ -18,26 +18,24 @@ Features:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, List, Any
+from typing import Any
 
 from pymongo.collection import Collection
-from pymongo.errors import PyMongoError, DuplicateKeyError
 
 from .models import (
-    Session,
-    SessionCreate,
-    SessionUpdate,
-    SessionStatus,
-    SessionMetadata,
-    SessionChainEntry,
-    SessionStats,
     GitContextSnapshot,
-    PatchBundle,
     HandoffRequest,
-    HandoffPackage,
     HandoffStatus,
-    generate_session_id,
+    PatchBundle,
+    Session,
+    SessionChainEntry,
+    SessionCreate,
+    SessionMetadata,
+    SessionStats,
+    SessionStatus,
+    SessionUpdate,
     generate_handoff_id,
+    generate_session_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,7 +131,7 @@ class SessionRepository:
     # READ OPERATIONS
     # =========================================================================
 
-    def get_by_id(self, session_id: str) -> Optional[Session]:
+    def get_by_id(self, session_id: str) -> Session | None:
         """
         Get a session by ID.
 
@@ -151,11 +149,11 @@ class SessionRepository:
 
     def get_active_sessions(
         self,
-        agent_id: Optional[str] = None,
-        machine_id: Optional[str] = None,
+        agent_id: str | None = None,
+        machine_id: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[List[Session], int]:
+    ) -> tuple[list[Session], int]:
         """
         Get active sessions with optional filtering.
 
@@ -194,10 +192,10 @@ class SessionRepository:
     def get_sessions_by_status(
         self,
         status: SessionStatus,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[List[Session], int]:
+    ) -> tuple[list[Session], int]:
         """
         Get sessions by status.
 
@@ -229,7 +227,7 @@ class SessionRepository:
 
         return sessions, total
 
-    def get_session_chain(self, session_id: str) -> List[Session]:
+    def get_session_chain(self, session_id: str) -> list[Session]:
         """
         Get the full session chain for a session.
 
@@ -272,7 +270,7 @@ class SessionRepository:
         self,
         session_id: str,
         data: SessionUpdate,
-    ) -> Optional[Session]:
+    ) -> Session | None:
         """
         Update session information.
 
@@ -332,7 +330,7 @@ class SessionRepository:
             return Session(**result)
         return None
 
-    def update_activity(self, session_id: str) -> Optional[Session]:
+    def update_activity(self, session_id: str) -> Session | None:
         """
         Update session activity timestamp (heartbeat).
 
@@ -353,7 +351,7 @@ class SessionRepository:
             return Session(**result)
         return None
 
-    def pause_session(self, session_id: str) -> Optional[Session]:
+    def pause_session(self, session_id: str) -> Session | None:
         """
         Pause a session.
 
@@ -386,7 +384,7 @@ class SessionRepository:
             return Session(**result)
         return None
 
-    def resume_session(self, session_id: str) -> Optional[Session]:
+    def resume_session(self, session_id: str) -> Session | None:
         """
         Resume a paused session.
 
@@ -422,7 +420,7 @@ class SessionRepository:
         self,
         session_id: str,
         status: SessionStatus = SessionStatus.COMPLETED,
-    ) -> Optional[Session]:
+    ) -> Session | None:
         """
         End a session.
 
@@ -475,7 +473,7 @@ class SessionRepository:
         self,
         session_id: str,
         git_context: GitContextSnapshot,
-    ) -> Optional[Session]:
+    ) -> Session | None:
         """
         Save git context snapshot to session.
 
@@ -508,7 +506,7 @@ class SessionRepository:
         self,
         session_id: str,
         patch_bundle: PatchBundle,
-    ) -> Optional[Session]:
+    ) -> Session | None:
         """
         Save patch bundle to session.
 
@@ -545,8 +543,8 @@ class SessionRepository:
         session_id: str,
         target_agent_id: str,
         target_machine_id: str,
-        notes: Optional[str] = None,
-    ) -> Optional[Session]:
+        notes: str | None = None,
+    ) -> Session | None:
         """
         Mark a session as handed off.
 
@@ -599,7 +597,7 @@ class SessionRepository:
         self,
         session_id: str,
         knowledge_id: str,
-    ) -> Optional[Session]:
+    ) -> Session | None:
         """
         Add a knowledge ID to session's generated knowledge list.
 
@@ -631,7 +629,7 @@ class SessionRepository:
     def find_expired_sessions(
         self,
         include_paused: bool = False,
-    ) -> List[Session]:
+    ) -> list[Session]:
         """
         Find sessions that have timed out.
 
@@ -686,7 +684,7 @@ class SessionRepository:
 
     def get_stats(
         self,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
     ) -> SessionStats:
         """
         Get session statistics.
@@ -825,7 +823,7 @@ class HandoffRepository:
     def get_handoff_request(
         self,
         handoff_id: str,
-    ) -> Optional[HandoffRequest]:
+    ) -> HandoffRequest | None:
         """
         Get a handoff request by ID.
 
@@ -848,9 +846,9 @@ class HandoffRepository:
         self,
         handoff_id: str,
         status: HandoffStatus,
-        result_session_id: Optional[str] = None,
-        error_message: Optional[str] = None,
-    ) -> Optional[HandoffRequest]:
+        result_session_id: str | None = None,
+        error_message: str | None = None,
+    ) -> HandoffRequest | None:
         """
         Update handoff request status.
 
@@ -889,9 +887,9 @@ class HandoffRepository:
 
     def get_pending_handoffs(
         self,
-        target_agent_id: Optional[str] = None,
-        target_machine_id: Optional[str] = None,
-    ) -> List[HandoffRequest]:
+        target_agent_id: str | None = None,
+        target_machine_id: str | None = None,
+    ) -> list[HandoffRequest]:
         """
         Get pending handoff requests for a target.
 

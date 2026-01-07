@@ -16,33 +16,28 @@ Features:
 - Handoff package serialization
 """
 
-import logging
-from datetime import datetime
-from typing import Optional, List, Tuple, Any
 import json
+import logging
 
+from .git_context import GitContextCapture, GitContextCaptureError, find_repository_root
 from .models import (
+    GitContextSnapshot,
+    HandoffAccept,
+    HandoffPackage,
+    HandoffRequest,
+    HandoffStatus,
+    PatchBundle,
     Session,
     SessionCreate,
     SessionStatus,
-    SessionMetadata,
-    SessionChainEntry,
-    GitContextSnapshot,
-    PatchBundle,
-    HandoffRequest,
-    HandoffPackage,
-    HandoffStatus,
-    HandoffCreate,
-    HandoffAccept,
     generate_handoff_id,
 )
-from .repository import SessionRepository, HandoffRepository
-from .git_context import GitContextCapture, GitContextCaptureError, find_repository_root
 from .patch_bundle import (
-    PatchBundleBuilder,
     PatchBundleApplier,
+    PatchBundleBuilder,
     PatchBundleError,
 )
+from .repository import HandoffRepository, SessionRepository
 
 logger = logging.getLogger(__name__)
 
@@ -82,13 +77,13 @@ class SessionHandoffManager:
     def export_session(
         self,
         session_id: str,
-        target_agent_id: Optional[str] = None,
-        target_machine_id: Optional[str] = None,
+        target_agent_id: str | None = None,
+        target_machine_id: str | None = None,
         include_git_context: bool = True,
         include_patch_bundle: bool = True,
         include_stash: bool = False,
-        reason: Optional[str] = None,
-        notes: Optional[str] = None,
+        reason: str | None = None,
+        notes: str | None = None,
     ) -> HandoffPackage:
         """
         Export a session for handoff.
@@ -219,9 +214,9 @@ class SessionHandoffManager:
     def _generate_apply_instructions(
         self,
         session: Session,
-        git_context: Optional[GitContextSnapshot],
-        patch_bundle: Optional[PatchBundle],
-    ) -> List[str]:
+        git_context: GitContextSnapshot | None,
+        patch_bundle: PatchBundle | None,
+    ) -> list[str]:
         """Generate step-by-step instructions for applying handoff."""
         instructions = []
 
@@ -267,9 +262,9 @@ class SessionHandoffManager:
 
     def _generate_conflict_hints(
         self,
-        git_context: Optional[GitContextSnapshot],
-        patch_bundle: Optional[PatchBundle],
-    ) -> List[str]:
+        git_context: GitContextSnapshot | None,
+        patch_bundle: PatchBundle | None,
+    ) -> list[str]:
         """Generate hints for potential conflicts."""
         hints = []
 
@@ -301,8 +296,8 @@ class SessionHandoffManager:
     def _calculate_package_size(
         self,
         session: Session,
-        git_context: Optional[GitContextSnapshot],
-        patch_bundle: Optional[PatchBundle],
+        git_context: GitContextSnapshot | None,
+        patch_bundle: PatchBundle | None,
     ) -> int:
         """Calculate total package size in bytes."""
         size = len(session.model_dump_json().encode('utf-8'))
@@ -325,7 +320,7 @@ class SessionHandoffManager:
         agent_id: str,
         machine_id: str,
         apply_patch: bool = True,
-        target_directory: Optional[str] = None,
+        target_directory: str | None = None,
     ) -> Session:
         """
         Import a session from a handoff package.
@@ -427,7 +422,7 @@ class SessionHandoffManager:
     def accept_handoff(
         self,
         accept: HandoffAccept,
-    ) -> Tuple[bool, str, Optional[Session]]:
+    ) -> tuple[bool, str, Session | None]:
         """
         Accept a pending handoff request.
 
@@ -483,7 +478,7 @@ class SessionHandoffManager:
     def reject_handoff(
         self,
         handoff_id: str,
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ) -> bool:
         """
         Reject a pending handoff.
@@ -538,8 +533,8 @@ class SessionHandoffManager:
     def get_pending_handoffs_for_agent(
         self,
         agent_id: str,
-        machine_id: Optional[str] = None,
-    ) -> List[HandoffRequest]:
+        machine_id: str | None = None,
+    ) -> list[HandoffRequest]:
         """
         Get pending handoffs for an agent.
 
@@ -555,7 +550,7 @@ class SessionHandoffManager:
             target_machine_id=machine_id,
         )
 
-    def get_session_chain(self, session_id: str) -> List[Session]:
+    def get_session_chain(self, session_id: str) -> list[Session]:
         """
         Get the full session chain.
 
@@ -628,5 +623,5 @@ def import_package_from_file(file_path: str) -> HandoffPackage:
         FileNotFoundError: If file not found
         ValueError: If deserialization fails
     """
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, encoding='utf-8') as f:
         return deserialize_handoff_package(f.read())

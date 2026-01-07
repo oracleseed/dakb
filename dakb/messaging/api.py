@@ -21,23 +21,23 @@ Features:
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Optional, List, Any, Callable
+from typing import Any
 
 from pymongo.collection import Collection
-from pymongo.errors import PyMongoError
 
 from .models import (
+    DeliveryReceipt,
     Message,
     MessageCreate,
     MessageFilter,
-    MessageType,
     MessagePriority,
-    MessageStatus,
-    NotificationType,
-    DeliveryReceipt,
-    ReadReceipt,
     MessageStats,
+    MessageStatus,
+    MessageType,
+    NotificationType,
+    ReadReceipt,
     generate_message_id,
     generate_thread_id,
 )
@@ -66,8 +66,8 @@ class MessageRepository:
     def __init__(
         self,
         collection: Collection,
-        alias_resolver: Optional[Callable[[str], Optional[str]]] = None,
-        alias_lister: Optional[Callable[[str], List[str]]] = None
+        alias_resolver: Callable[[str], str | None] | None = None,
+        alias_lister: Callable[[str], list[str]] | None = None
     ):
         """
         Initialize message repository.
@@ -86,7 +86,7 @@ class MessageRepository:
         self._alias_resolver = alias_resolver
         self._alias_lister = alias_lister
 
-    def set_alias_resolver(self, resolver: Callable[[str], Optional[str]]) -> None:
+    def set_alias_resolver(self, resolver: Callable[[str], str | None]) -> None:
         """
         Set or update the alias resolver callback.
 
@@ -99,7 +99,7 @@ class MessageRepository:
         self._alias_resolver = resolver
         logger.debug("Alias resolver set for MessageRepository")
 
-    def set_alias_lister(self, lister: Callable[[str], List[str]]) -> None:
+    def set_alias_lister(self, lister: Callable[[str], list[str]]) -> None:
         """
         Set or update the alias lister callback.
 
@@ -113,7 +113,7 @@ class MessageRepository:
         self._alias_lister = lister
         logger.debug("Alias lister set for MessageRepository")
 
-    def _get_aliases_for_token(self, token_id: str) -> List[str]:
+    def _get_aliases_for_token(self, token_id: str) -> list[str]:
         """
         Get all alias names for a token_id.
 
@@ -143,7 +143,7 @@ class MessageRepository:
             )
             return []
 
-    def _resolve_recipient(self, recipient_id: str) -> tuple[str, Optional[str]]:
+    def _resolve_recipient(self, recipient_id: str) -> tuple[str, str | None]:
         """
         Resolve a recipient ID, checking if it's an alias.
 
@@ -283,7 +283,7 @@ class MessageRepository:
         content: str,
         priority: MessagePriority = MessagePriority.NORMAL,
         expires_in_hours: int = 168,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> Message:
         """
         Send a broadcast message to all agents.
@@ -345,7 +345,7 @@ class MessageRepository:
     # RETRIEVE OPERATIONS
     # =========================================================================
 
-    def get_by_id(self, message_id: str) -> Optional[Message]:
+    def get_by_id(self, message_id: str) -> Message | None:
         """
         Get a message by ID.
 
@@ -366,7 +366,7 @@ class MessageRepository:
         filter_criteria: MessageFilter,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[List[Message], int]:
+    ) -> tuple[list[Message], int]:
         """
         Get messages with filtering and pagination.
 
@@ -403,12 +403,12 @@ class MessageRepository:
     def get_inbox(
         self,
         agent_id: str,
-        status: Optional[MessageStatus] = None,
-        priority: Optional[MessagePriority] = None,
+        status: MessageStatus | None = None,
+        priority: MessagePriority | None = None,
         include_broadcasts: bool = True,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[List[Message], int]:
+    ) -> tuple[list[Message], int]:
         """
         Get messages for an agent's inbox.
 
@@ -487,7 +487,7 @@ class MessageRepository:
         agent_id: str,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[List[Message], int]:
+    ) -> tuple[list[Message], int]:
         """
         Get messages sent by an agent.
 
@@ -520,7 +520,7 @@ class MessageRepository:
         thread_id: str,
         page: int = 1,
         page_size: int = 50,
-    ) -> tuple[List[Message], int]:
+    ) -> tuple[list[Message], int]:
         """
         Get all messages in a thread.
 
@@ -585,7 +585,7 @@ class MessageRepository:
         message_id: str,
         agent_id: str,
         method: NotificationType = NotificationType.POLLING,
-    ) -> Optional[Message]:
+    ) -> Message | None:
         """
         Mark a message as delivered to an agent.
 
@@ -627,7 +627,7 @@ class MessageRepository:
         self,
         message_id: str,
         agent_id: str,
-    ) -> Optional[Message]:
+    ) -> Message | None:
         """
         Mark a message as read by an agent.
 
@@ -665,7 +665,7 @@ class MessageRepository:
 
     def mark_multiple_read(
         self,
-        message_ids: List[str],
+        message_ids: list[str],
         agent_id: str,
     ) -> int:
         """
@@ -879,7 +879,7 @@ class MessageRepository:
             by_type=by_type,
         )
 
-    def cleanup_expired(self, before: Optional[datetime] = None) -> int:
+    def cleanup_expired(self, before: datetime | None = None) -> int:
         """
         Mark expired messages.
 

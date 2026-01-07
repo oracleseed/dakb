@@ -131,34 +131,28 @@ import logging
 import re
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
+from ...db.collections import get_dakb_client
+from ...db.registration_schemas.registration import (
+    AgentType,
+    DakbInviteToken,
+    DakbRegistrationAudit,
+    InviteTokenStatus,
+    RegistrationAuditAction,
+    generate_invite_token,
+    utcnow,
+)
+from ...db.schemas import AccessLevel, AgentRole, AgentStatus
 from ..config import get_settings
 from ..middleware.auth import (
     AuthenticatedAgent,
-    get_current_agent,
-    require_role,
-    RateLimiter,
     TokenHandler,
-    generate_agent_token,
+    get_current_agent,
 )
-from ...db.schemas import AgentRole, AccessLevel, AgentStatus, AgentType as SchemaAgentType
-from ...db.registration_schemas.registration import (
-    AgentType,
-    InviteTokenStatus,
-    RegistrationAuditAction,
-    DakbInviteToken,
-    DakbRegistrationAudit,
-    InviteTokenCreate,
-    InviteTokenResponse,
-    utcnow,
-    generate_invite_token,
-)
-from ...db.collections import get_dakb_client
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +218,7 @@ class InviteRateLimiter:
 
         return max(0, self.max_invites - len(active))
 
-    def get_reset_time(self, agent_id: str) -> Optional[float]:
+    def get_reset_time(self, agent_id: str) -> float | None:
         """Get seconds until rate limit resets."""
         timestamps = self._buckets.get(agent_id, [])
         if not timestamps:
@@ -238,7 +232,7 @@ class InviteRateLimiter:
 
 
 # Global invite rate limiter instance
-_invite_rate_limiter: Optional[InviteRateLimiter] = None
+_invite_rate_limiter: InviteRateLimiter | None = None
 
 
 def get_invite_rate_limiter() -> InviteRateLimiter:
@@ -356,12 +350,12 @@ class RegistrationSchemaResponse(BaseModel):
 
 class CreateInviteRequest(BaseModel):
     """Request model for creating invite tokens (simplified for Phase 2)."""
-    target_agent_id: Optional[str] = Field(
+    target_agent_id: str | None = Field(
         None,
         max_length=50,
         description="Optional hint for target agent ID"
     )
-    target_agent_type: Optional[str] = Field(
+    target_agent_type: str | None = Field(
         None,
         description="Optional expected agent type"
     )
@@ -377,7 +371,7 @@ class CreateInviteRequest(BaseModel):
         le=10,
         description="Maximum uses for this token (1-10, default: 1)"
     )
-    created_by_note: Optional[str] = Field(
+    created_by_note: str | None = Field(
         None,
         max_length=500,
         description="Optional note about why this invite was created"
@@ -408,36 +402,36 @@ class RegistrationRequest(BaseModel):
         ...,
         description="Invite token from admin (format: inv_YYYYMMDD_xxxxxxxxxxxx)"
     )
-    display_name: Optional[str] = Field(
+    display_name: str | None = Field(
         None,
         max_length=100,
         description="Human-readable display name"
     )
-    alias: Optional[str] = Field(
+    alias: str | None = Field(
         None,
         max_length=50,
         description="Optional alias to register"
     )
-    alias_role: Optional[str] = Field(
+    alias_role: str | None = Field(
         None,
         max_length=100,
         description="Role for the alias"
     )
-    callback_url: Optional[str] = Field(
+    callback_url: str | None = Field(
         None,
         max_length=500,
         description="Optional callback URL for notifications"
     )
-    machine_id: Optional[str] = Field(
+    machine_id: str | None = Field(
         None,
         max_length=100,
         description="Machine identifier"
     )
-    capabilities: Optional[list[str]] = Field(
+    capabilities: list[str] | None = Field(
         None,
         description="Agent capabilities"
     )
-    model_version: Optional[str] = Field(
+    model_version: str | None = Field(
         None,
         max_length=50,
         description="LLM model version"
@@ -486,7 +480,7 @@ class RegistrationResponse(BaseModel):
     expires_at: datetime = Field(..., description="Token expiration time")
     role: str = Field(..., description="Assigned role")
     access_levels: list[str] = Field(..., description="Granted access levels")
-    alias_registered: Optional[str] = Field(None, description="Registered alias if provided")
+    alias_registered: str | None = Field(None, description="Registered alias if provided")
     message: str = Field(..., description="Status message")
     # Documentation links for new agents
     documentation: dict = Field(
@@ -523,12 +517,12 @@ class AuditEntryResponse(BaseModel):
     timestamp: datetime = Field(..., description="Event timestamp")
     action: str = Field(..., description="Action type")
     actor_agent_id: str = Field(..., description="Agent that performed the action")
-    actor_ip: Optional[str] = Field(None, description="IP address of actor")
-    target_token: Optional[str] = Field(None, description="Related invite token")
-    target_agent_id: Optional[str] = Field(None, description="Affected agent ID")
+    actor_ip: str | None = Field(None, description="IP address of actor")
+    target_token: str | None = Field(None, description="Related invite token")
+    target_agent_id: str | None = Field(None, description="Affected agent ID")
     details: dict = Field(default_factory=dict, description="Additional details")
     success: bool = Field(..., description="Whether action succeeded")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    error_message: str | None = Field(None, description="Error message if failed")
 
 
 class AuditListResponse(BaseModel):
@@ -546,11 +540,11 @@ class InviteTokenListItem(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     expires_at: datetime = Field(..., description="Expiration timestamp")
     status: str = Field(..., description="Token status")
-    for_agent_type: Optional[str] = Field(None, description="Expected agent type")
-    for_agent_id_hint: Optional[str] = Field(None, description="Suggested agent ID")
+    for_agent_type: str | None = Field(None, description="Expected agent type")
+    for_agent_id_hint: str | None = Field(None, description="Suggested agent ID")
     purpose: str = Field(..., description="Purpose description")
-    used_by_agent_id: Optional[str] = Field(None, description="Agent that used token")
-    used_at: Optional[datetime] = Field(None, description="Usage timestamp")
+    used_by_agent_id: str | None = Field(None, description="Agent that used token")
+    used_at: datetime | None = Field(None, description="Usage timestamp")
 
 
 class InviteListResponse(BaseModel):
@@ -607,7 +601,7 @@ class RegistrationRateLimiter:
         active = [ts for ts in timestamps if ts > window_start]
         return max(0, self.max_attempts - len(active))
 
-    def get_reset_time(self, ip_address: str) -> Optional[float]:
+    def get_reset_time(self, ip_address: str) -> float | None:
         """Get seconds until rate limit resets."""
         timestamps = self._buckets.get(ip_address, [])
         if not timestamps:
@@ -619,7 +613,7 @@ class RegistrationRateLimiter:
 
 
 # Global registration rate limiter instance
-_registration_rate_limiter: Optional[RegistrationRateLimiter] = None
+_registration_rate_limiter: RegistrationRateLimiter | None = None
 
 
 def get_registration_rate_limiter() -> RegistrationRateLimiter:
@@ -696,7 +690,7 @@ async def create_audit_entry(audit_doc: dict) -> bool:
     return await asyncio.to_thread(_sync_create_audit_entry, audit_doc)
 
 
-def _sync_validate_and_consume_token(invite_token: str, agent_id: str) -> tuple[Optional[dict], Optional[str]]:
+def _sync_validate_and_consume_token(invite_token: str, agent_id: str) -> tuple[dict | None, str | None]:
     """
     Synchronous atomic token validation and consumption.
 
@@ -762,7 +756,7 @@ def _sync_validate_and_consume_token(invite_token: str, agent_id: str) -> tuple[
         return None, f"internal_error:{str(e)}"
 
 
-async def validate_and_consume_token(invite_token: str, agent_id: str) -> tuple[Optional[dict], Optional[str]]:
+async def validate_and_consume_token(invite_token: str, agent_id: str) -> tuple[dict | None, str | None]:
     """
     Atomically validate and consume an invite token (async wrapper).
 
@@ -885,7 +879,7 @@ async def create_alias(alias_doc: dict) -> bool:
 # PHASE 4 HELPER FUNCTIONS
 # =============================================================================
 
-def _sync_get_agent(agent_id: str) -> Optional[dict]:
+def _sync_get_agent(agent_id: str) -> dict | None:
     """Get agent document from database."""
     db = get_db()
     try:
@@ -898,7 +892,7 @@ def _sync_get_agent(agent_id: str) -> Optional[dict]:
         return None
 
 
-async def get_agent(agent_id: str) -> Optional[dict]:
+async def get_agent(agent_id: str) -> dict | None:
     """Get agent document (async wrapper)."""
     return await asyncio.to_thread(_sync_get_agent, agent_id)
 
@@ -975,10 +969,10 @@ async def deactivate_agent_aliases(agent_id: str) -> list[str]:
 
 
 def _sync_get_audit_entries(
-    agent_id: Optional[str] = None,
-    action: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+    agent_id: str | None = None,
+    action: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     skip: int = 0,
     limit: int = 50
 ) -> tuple[list[dict], int]:
@@ -1034,10 +1028,10 @@ def _sync_get_audit_entries(
 
 
 async def get_audit_entries(
-    agent_id: Optional[str] = None,
-    action: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+    agent_id: str | None = None,
+    action: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     skip: int = 0,
     limit: int = 50
 ) -> tuple[list[dict], int]:
@@ -1049,8 +1043,8 @@ async def get_audit_entries(
 
 
 def _sync_get_invite_tokens(
-    status: Optional[str] = None,
-    created_by: Optional[str] = None,
+    status: str | None = None,
+    created_by: str | None = None,
     skip: int = 0,
     limit: int = 20
 ) -> tuple[list[dict], int]:
@@ -1097,8 +1091,8 @@ def _sync_get_invite_tokens(
 
 
 async def get_invite_tokens(
-    status: Optional[str] = None,
-    created_by: Optional[str] = None,
+    status: str | None = None,
+    created_by: str | None = None,
     skip: int = 0,
     limit: int = 20
 ) -> tuple[list[dict], int]:
@@ -1356,7 +1350,7 @@ async def create_invite_token(
             status_code=429,
             detail={
                 "error": "rate_limit_exceeded",
-                "message": f"Invite rate limit exceeded. You have created 10 invites in the past hour.",
+                "message": "Invite rate limit exceeded. You have created 10 invites in the past hour.",
                 "retry_after_seconds": int(reset_time) if reset_time else 3600,
                 "remaining_invites": remaining
             },
@@ -1704,7 +1698,7 @@ async def register_agent(
                 status_code=400,
                 detail={
                     "error": "token_already_used",
-                    "message": f"Invite token has already been used by another agent. "
+                    "message": "Invite token has already been used by another agent. "
                               "Please request a new invite from an admin."
                 }
             )
@@ -1722,7 +1716,7 @@ async def register_agent(
                 status_code=400,
                 detail={
                     "error": "token_expired",
-                    "message": f"Invite token has expired. "
+                    "message": "Invite token has expired. "
                               "Please request a new invite from an admin."
                 }
             )
@@ -2150,10 +2144,10 @@ Retrieve registration audit log entries with filtering.
     }
 )
 async def get_audit_log(
-    agent_id: Optional[str] = None,
-    action: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    agent_id: str | None = None,
+    action: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     skip: int = 0,
     limit: int = 50,
     admin: AuthenticatedAgent = Depends(require_admin)
@@ -2293,8 +2287,8 @@ List invite tokens with filtering.
     }
 )
 async def list_invite_tokens(
-    status: Optional[str] = None,
-    created_by: Optional[str] = None,
+    status: str | None = None,
+    created_by: str | None = None,
     skip: int = 0,
     limit: int = 20,
     admin: AuthenticatedAgent = Depends(require_admin)

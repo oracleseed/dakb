@@ -13,10 +13,10 @@ Author: Backend Agent (Claude Opus 4.5)
 """
 
 from .audit import (
-    SecurityAudit,
-    SecurityIssue,
     IssueSeverity,
     IssueStatus,
+    SecurityAudit,
+    SecurityIssue,
     run_security_audit,
 )
 

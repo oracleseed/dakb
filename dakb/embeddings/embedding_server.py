@@ -31,6 +31,7 @@ Port: 3101 (internal only)
 # CRITICAL: Set multiprocessing start method BEFORE any imports
 # This fixes semaphore leaks on MPS (Apple Silicon) devices
 import multiprocessing
+
 try:
     multiprocessing.set_start_method('spawn', force=True)
 except RuntimeError:
@@ -42,13 +43,12 @@ import os
 os.environ.setdefault('PYTORCH_ENABLE_MPS_FALLBACK', '1')
 os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
 
-import secrets
 import hashlib
 import logging
+import secrets
 from contextlib import asynccontextmanager
-from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Header, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
@@ -254,7 +254,7 @@ def get_embedding_service():
 # =============================================================================
 
 # Internal secret for gateway -> embedding service communication
-INTERNAL_SECRET: Optional[str] = os.getenv("DAKB_INTERNAL_SECRET")
+INTERNAL_SECRET: str | None = os.getenv("DAKB_INTERNAL_SECRET")
 
 
 def get_internal_secret() -> str:

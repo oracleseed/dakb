@@ -30,43 +30,40 @@ Endpoints (Parametric Routes - defined after static routes):
 - GET    /api/v1/knowledge              - List knowledge (with filters)
 """
 
-import time
 import logging
-from datetime import datetime
-from typing import Optional, Any
+import time
+from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..config import get_settings
-from ..middleware.auth import (
-    AuthenticatedAgent,
-    get_current_agent,
-    check_rate_limit,
-    AccessChecker,
-)
 from ...db import (
+    # Enums
+    AccessLevel,
+    AgentType,
+    AuditAction,
+    Category,
+    ContentType,
     # Schemas
     DakbKnowledge,
     KnowledgeCreate,
-    KnowledgeUpdate,
-    VoteCreate,
     KnowledgeSource,
-    KnowledgeResponse,
-    SearchResults,
-    # Enums
-    AccessLevel,
     KnowledgeStatus,
-    Category,
-    ContentType,
-    AuditAction,
+    KnowledgeUpdate,
     ResourceType,
-    AgentType,
+    VoteCreate,
     # Repositories
     get_dakb_repositories,
 )
 from ...db.collections import get_dakb_client
+from ..config import get_settings
+from ..middleware.auth import (
+    AccessChecker,
+    AuthenticatedAgent,
+    check_rate_limit,
+    get_current_agent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,18 +91,18 @@ class CreateKnowledgeRequest(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=10)
     access_level: AccessLevel = Field(default=AccessLevel.PUBLIC)
     related_files: list[str] = Field(default_factory=list)
-    expires_in_days: Optional[int] = Field(None, ge=1, le=3650)
+    expires_in_days: int | None = Field(None, ge=1, le=3650)
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
 
 
 class UpdateKnowledgeRequest(BaseModel):
     """Request model for updating knowledge."""
-    title: Optional[str] = Field(None, max_length=100)
-    content: Optional[str] = None
-    tags: Optional[list[str]] = None
-    access_level: Optional[AccessLevel] = None
-    status: Optional[KnowledgeStatus] = None
-    confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    title: str | None = Field(None, max_length=100)
+    content: str | None = None
+    tags: list[str] | None = None
+    access_level: AccessLevel | None = None
+    status: KnowledgeStatus | None = None
+    confidence_score: float | None = Field(None, ge=0.0, le=1.0)
 
 
 class VoteRequest(BaseModel):
@@ -114,17 +111,17 @@ class VoteRequest(BaseModel):
         ...,
         description="Vote type: helpful, unhelpful, outdated, incorrect"
     )
-    comment: Optional[str] = Field(None, max_length=500)
-    used_successfully: Optional[bool] = None
+    comment: str | None = Field(None, max_length=500)
+    used_successfully: bool | None = None
 
 
 class SearchRequest(BaseModel):
     """Request model for semantic search."""
     query: str = Field(..., min_length=1, description="Search query")
     k: int = Field(default=10, ge=1, le=100, description="Number of results")
-    category: Optional[Category] = None
-    tags: Optional[list[str]] = None
-    min_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    category: Category | None = None
+    tags: list[str] | None = None
+    min_score: float | None = Field(None, ge=0.0, le=1.0)
 
 
 class KnowledgeListResponse(BaseModel):
@@ -409,8 +406,8 @@ async def create_knowledge(
 async def search_knowledge(
     query: str = Query(..., min_length=1, description="Search query"),
     k: int = Query(default=10, ge=1, le=100, description="Number of results"),
-    category: Optional[Category] = Query(None, description="Filter by category"),
-    min_score: Optional[float] = Query(None, ge=0.0, le=1.0),
+    category: Category | None = Query(None, description="Filter by category"),
+    min_score: float | None = Query(None, ge=0.0, le=1.0),
     agent: AuthenticatedAgent = Depends(get_current_agent)
 ) -> SearchResponse:
     """
@@ -1137,8 +1134,8 @@ async def vote_on_knowledge(
     description="List knowledge entries with optional filtering."
 )
 async def list_knowledge(
-    category: Optional[Category] = Query(None),
-    tags: Optional[str] = Query(None, description="Comma-separated tags"),
+    category: Category | None = Query(None),
+    tags: str | None = Query(None, description="Comma-separated tags"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent)

@@ -18,9 +18,10 @@ Features:
 
 import asyncio
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, List, Callable, Any
-from dataclasses import dataclass, field
+from typing import Any
 
 from pymongo.collection import Collection
 
@@ -28,9 +29,9 @@ from .models import (
     Message,
     MessagePriority,
     MessageStatus,
+    NotificationType,
     QueuedMessage,
     QueueStats,
-    NotificationType,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,11 +71,11 @@ class QueueItem:
     priority: MessagePriority
     priority_score: int
     created_at: datetime
-    recipient_id: Optional[str]
+    recipient_id: str | None
     is_broadcast: bool
     attempts: int = 0
-    next_attempt_at: Optional[datetime] = None
-    last_error: Optional[str] = None
+    next_attempt_at: datetime | None = None
+    last_error: str | None = None
 
     def __lt__(self, other: 'QueueItem') -> bool:
         """Compare by priority score (higher first) then by age (older first)."""
@@ -110,7 +111,7 @@ class MessageQueue:
         self.messages = messages_collection
         self.queue = queue_collection
         self._running = False
-        self._processing_task: Optional[asyncio.Task] = None
+        self._processing_task: asyncio.Task | None = None
 
     # =========================================================================
     # QUEUE OPERATIONS
@@ -147,7 +148,7 @@ class MessageQueue:
 
         return queued
 
-    def dequeue(self, batch_size: int = 10) -> List[QueuedMessage]:
+    def dequeue(self, batch_size: int = 10) -> list[QueuedMessage]:
         """
         Get the next batch of messages ready for processing.
 
@@ -181,7 +182,7 @@ class MessageQueue:
 
         return items
 
-    def peek(self, count: int = 5) -> List[QueuedMessage]:
+    def peek(self, count: int = 5) -> list[QueuedMessage]:
         """
         Peek at the top items in the queue without removing them.
 
@@ -222,8 +223,8 @@ class MessageQueue:
     def retry(
         self,
         message_id: str,
-        error: Optional[str] = None,
-    ) -> Optional[QueuedMessage]:
+        error: str | None = None,
+    ) -> QueuedMessage | None:
         """
         Schedule a message for retry after failed delivery.
 
@@ -289,7 +290,7 @@ class MessageQueue:
     # BROADCAST HANDLING
     # =========================================================================
 
-    def get_broadcast_recipients(self, exclude_sender: str) -> List[str]:
+    def get_broadcast_recipients(self, exclude_sender: str) -> list[str]:
         """
         Get list of all registered agents for broadcast delivery.
 
@@ -480,7 +481,7 @@ class AsyncQueueProcessor:
     def __init__(
         self,
         queue: MessageQueue,
-        delivery_callback: Optional[Callable[[Message, str], bool]] = None,
+        delivery_callback: Callable[[Message, str], bool] | None = None,
         batch_size: int = 10,
         poll_interval_seconds: float = 1.0,
     ):
@@ -498,7 +499,7 @@ class AsyncQueueProcessor:
         self.batch_size = batch_size
         self.poll_interval = poll_interval_seconds
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._processed_count = 0
         self._error_count = 0
 
@@ -545,7 +546,7 @@ class AsyncQueueProcessor:
                 self._error_count += 1
                 await asyncio.sleep(self.poll_interval)
 
-    async def _process_batch(self, items: List[QueuedMessage]) -> None:
+    async def _process_batch(self, items: list[QueuedMessage]) -> None:
         """
         Process a batch of queued messages.
 

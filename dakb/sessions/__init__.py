@@ -27,79 +27,78 @@ Usage:
 """
 
 # Models
-from .models import (
-    # Enums
-    SessionStatus,
-    GitChangeType,
-    HandoffStatus,
-    # Git context models
-    GitFileChange,
-    GitStashEntry,
-    GitContextSnapshot,
-    # Patch bundle models
-    PatchBundle,
-    # Session models
-    SessionMetadata,
-    SessionChainEntry,
-    Session,
-    # Handoff models
-    HandoffRequest,
-    HandoffPackage,
-    # Create/Update schemas
-    SessionCreate,
-    SessionUpdate,
-    GitContextRequest,
-    PatchBundleCreate,
-    HandoffCreate,
-    HandoffAccept,
-    # Response models
-    SessionResponse,
-    SessionListResponse,
-    GitContextResponse,
-    PatchBundleResponse,
-    HandoffResponse,
-    SessionStats,
-    # Helpers
-    generate_session_id,
-    generate_handoff_id,
-    compress_content,
-    decompress_content,
-)
-
-# Repository
-from .repository import (
-    SessionRepository,
-    HandoffRepository,
-)
-
 # Git context capture
 from .git_context import (
     GitContextCapture,
     GitContextCaptureError,
     capture_git_context,
-    is_git_repository,
     find_repository_root,
-)
-
-# Patch bundle operations
-from .patch_bundle import (
-    PatchBundleBuilder,
-    PatchBundleApplier,
-    PatchBundleError,
-    create_patch_bundle,
-    apply_patch_bundle,
-    SIZE_WARNING_BYTES,
-    SIZE_LIMIT_BYTES,
+    is_git_repository,
 )
 
 # Handoff operations
 from .handoff import (
-    SessionHandoffManager,
     HandoffError,
-    serialize_handoff_package,
+    SessionHandoffManager,
     deserialize_handoff_package,
     export_package_to_file,
     import_package_from_file,
+    serialize_handoff_package,
+)
+from .models import (
+    GitChangeType,
+    GitContextRequest,
+    GitContextResponse,
+    GitContextSnapshot,
+    # Git context models
+    GitFileChange,
+    GitStashEntry,
+    HandoffAccept,
+    HandoffCreate,
+    HandoffPackage,
+    # Handoff models
+    HandoffRequest,
+    HandoffResponse,
+    HandoffStatus,
+    # Patch bundle models
+    PatchBundle,
+    PatchBundleCreate,
+    PatchBundleResponse,
+    Session,
+    SessionChainEntry,
+    # Create/Update schemas
+    SessionCreate,
+    SessionListResponse,
+    # Session models
+    SessionMetadata,
+    # Response models
+    SessionResponse,
+    SessionStats,
+    # Enums
+    SessionStatus,
+    SessionUpdate,
+    compress_content,
+    decompress_content,
+    generate_handoff_id,
+    # Helpers
+    generate_session_id,
+)
+
+# Patch bundle operations
+from .patch_bundle import (
+    SIZE_LIMIT_BYTES,
+    SIZE_WARNING_BYTES,
+    PatchBundleApplier,
+    PatchBundleBuilder,
+    PatchBundleError,
+    apply_patch_bundle,
+    create_patch_bundle,
+)
+
+# Repository
+from .repository import (
+    HandoffRepository,
+    SessionRepository,
 )
 
 __all__ = [

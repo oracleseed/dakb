@@ -20,25 +20,25 @@ Usage:
 """
 
 from .auth import (
-    # Models
-    TokenPayload,
-    AuthenticatedAgent,
-    # Rate limiting
-    RateLimiter,
-    get_rate_limiter,
-    # JWT
-    JWTHandler,
-    TokenHandler,
-    # FastAPI dependencies
-    bearer_scheme,
-    get_current_agent,
-    check_rate_limit,
     # Access control
     AccessChecker,
-    require_role,
-    require_access_level,
+    AuthenticatedAgent,
+    # JWT
+    JWTHandler,
+    # Rate limiting
+    RateLimiter,
+    TokenHandler,
+    # Models
+    TokenPayload,
+    # FastAPI dependencies
+    bearer_scheme,
+    check_rate_limit,
     # Utilities
     generate_agent_token,
+    get_current_agent,
+    get_rate_limiter,
+    require_access_level,
+    require_role,
 )
 
 __all__ = [

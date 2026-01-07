@@ -25,18 +25,18 @@ import base64
 import hashlib
 import hmac
 import json
-import time
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+import time
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from fastapi import Request, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from ..config import get_settings
 from ...db.schemas import AccessLevel, AgentRole
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ class RateLimiter:
 
         return max(0, self.requests_per_window - len(active))
 
-    def get_reset_time(self, agent_id: str) -> Optional[float]:
+    def get_reset_time(self, agent_id: str) -> float | None:
         """
         Get time until rate limit resets.
 
@@ -161,7 +161,7 @@ class RateLimiter:
 
 
 # Global rate limiter instance (initialized lazily)
-_rate_limiter: Optional[RateLimiter] = None
+_rate_limiter: RateLimiter | None = None
 
 
 def get_rate_limiter() -> RateLimiter:
@@ -207,7 +207,7 @@ class TokenHandler:
         machine_id: str,
         agent_type: str,
         role: AgentRole = AgentRole.DEVELOPER,
-        access_levels: Optional[list[AccessLevel]] = None,
+        access_levels: list[AccessLevel] | None = None,
         expires_in_hours: int = 24
     ) -> str:
         """
@@ -462,8 +462,8 @@ class AccessChecker:
     def can_access(
         agent: AuthenticatedAgent,
         required_level: AccessLevel,
-        allowed_agents: Optional[list[str]] = None,
-        allowed_roles: Optional[list[AgentRole]] = None
+        allowed_agents: list[str] | None = None,
+        allowed_roles: list[AgentRole] | None = None
     ) -> bool:
         """
         Check if agent can access a resource.
@@ -508,8 +508,8 @@ class AccessChecker:
         agent: AuthenticatedAgent,
         required_level: AccessLevel,
         resource_id: str,
-        allowed_agents: Optional[list[str]] = None,
-        allowed_roles: Optional[list[AgentRole]] = None
+        allowed_agents: list[str] | None = None,
+        allowed_roles: list[AgentRole] | None = None
     ) -> None:
         """
         Require access or raise HTTPException.
@@ -606,7 +606,7 @@ def generate_agent_token(
     machine_id: str,
     agent_type: str,
     role: AgentRole = AgentRole.DEVELOPER,
-    access_levels: Optional[list[AccessLevel]] = None,
+    access_levels: list[AccessLevel] | None = None,
 ) -> str:
     """
     Generate a token for an agent.

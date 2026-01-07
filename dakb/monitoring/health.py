@@ -26,9 +26,9 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -61,12 +61,12 @@ class ComponentHealth:
 
     name: str
     status: HealthStatus
-    latency_ms: Optional[float] = None
-    message: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    latency_ms: float | None = None
+    message: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
     checked_at: datetime = field(default_factory=datetime.utcnow)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "name": self.name,
@@ -83,12 +83,12 @@ class SystemHealth:
     """Overall system health status."""
 
     status: HealthStatus
-    components: List[ComponentHealth]
+    components: list[ComponentHealth]
     uptime_seconds: float
     version: str = "1.0.0"
     checked_at: datetime = field(default_factory=datetime.utcnow)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "status": self.status.value,
@@ -126,13 +126,13 @@ class HealthChecker:
         self,
         gateway_url: str = "http://localhost:3100",
         embedding_url: str = "http://127.0.0.1:3101",
-        mongo_uri: Optional[str] = None,
+        mongo_uri: str | None = None,
     ):
         self.gateway_url = gateway_url
         self.embedding_url = embedding_url
         self.mongo_uri = mongo_uri or os.getenv("MONGO_URI")
         self._start_time = time.time()
-        self._health_history: List[SystemHealth] = []
+        self._health_history: list[SystemHealth] = []
         self._max_history = 100
 
     async def check_all(self) -> SystemHealth:
@@ -445,8 +445,8 @@ class HealthChecker:
     def get_history(
         self,
         limit: int = 10,
-        status_filter: Optional[HealthStatus] = None,
-    ) -> List[Dict[str, Any]]:
+        status_filter: HealthStatus | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Get health check history.
 
@@ -504,7 +504,7 @@ class ProbeChecker:
     def __init__(self, health_checker: HealthChecker):
         self.health_checker = health_checker
 
-    async def liveness(self) -> Dict[str, Any]:
+    async def liveness(self) -> dict[str, Any]:
         """
         Liveness probe - basic check if service is alive.
 
@@ -517,7 +517,7 @@ class ProbeChecker:
             "uptime_seconds": self.health_checker.get_uptime(),
         }
 
-    async def readiness(self) -> Dict[str, Any]:
+    async def readiness(self) -> dict[str, Any]:
         """
         Readiness probe - check if service is ready for traffic.
 
@@ -542,12 +542,12 @@ class ProbeChecker:
 # GLOBAL HEALTH CHECKER
 # =============================================================================
 
-_health_checker: Optional[HealthChecker] = None
+_health_checker: HealthChecker | None = None
 
 
 def get_health_checker(
-    gateway_url: Optional[str] = None,
-    embedding_url: Optional[str] = None,
+    gateway_url: str | None = None,
+    embedding_url: str | None = None,
 ) -> HealthChecker:
     """
     Get global health checker instance.

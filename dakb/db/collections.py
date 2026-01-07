@@ -18,69 +18,56 @@ Collections:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Any
+from typing import Any
 
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
-from .schemas import (
-    # Main schemas
-    DakbKnowledge,
-    DakbMessage,
-    DakbAgent,
-    DakbSession,
-    DakbAuditLog,
-    # Create/Update schemas
-    KnowledgeCreate,
-    KnowledgeUpdate,
-    VoteCreate,
-    MessageCreate,
-    AgentRegister,
-    AgentUpdate,
-    SessionCreate,
-    SessionUpdate,
-    # Embedded models
-    KnowledgeSource,
-    VoteDetail,
-    Votes,
-    # Enums
-    AccessLevel,
-    KnowledgeStatus,
-    AgentStatus,
-    MessageStatus,
-    TaskStatus,
-    AuditAction,
-    ResourceType,
-    VoteType,
-    # Reputation & Voting (Step 2.3)
-    AgentReputation,
-    KnowledgeQuality,
-    KnowledgeFlag,
-    VoteSummary,
-    LeaderboardEntry,
-    AgentContributions,
-    ReputationHistory,
-    FlagReason,
-    ModerateAction,
-    # Agent Alias System (Token Team)
-    DakbAgentAlias,
-    AliasCreate,
-    AliasUpdate,
-)
-
 # Import registration schemas and repositories (Self-Registration v1.0)
-from .registration_schemas.registration import (
-    DakbInviteToken,
-    DakbRegistrationAudit,
-    InviteTokenCreate,
-    InviteTokenStatus,
-    RegistrationAuditAction,
-)
 from .repositories.registration import (
     InviteTokenRepository,
     RegistrationAuditRepository,
+)
+from .schemas import (
+    # Enums
+    AccessLevel,
+    AgentRegister,
+    # Reputation & Voting (Step 2.3)
+    AgentReputation,
+    AgentStatus,
+    AgentUpdate,
+    AliasUpdate,
+    AuditAction,
+    DakbAgent,
+    # Agent Alias System (Token Team)
+    DakbAgentAlias,
+    DakbAuditLog,
+    # Main schemas
+    DakbKnowledge,
+    DakbMessage,
+    DakbSession,
+    FlagReason,
+    # Create/Update schemas
+    KnowledgeCreate,
+    KnowledgeFlag,
+    KnowledgeQuality,
+    # Embedded models
+    KnowledgeSource,
+    KnowledgeStatus,
+    KnowledgeUpdate,
+    LeaderboardEntry,
+    MessageCreate,
+    MessageStatus,
+    ReputationHistory,
+    ResourceType,
+    SessionCreate,
+    SessionUpdate,
+    TaskStatus,
+    VoteCreate,
+    VoteDetail,
+    VoteType,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,6 +93,7 @@ def get_dakb_client():
         >>> knowledge = repos["knowledge"].get_by_id("kn_20251207_abc123")
     """
     import os
+
     from pymongo import MongoClient
 
     mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/dakb')
@@ -324,7 +312,7 @@ class KnowledgeRepository:
         logger.info(f"Created knowledge: {knowledge.knowledge_id} - {knowledge.title}")
         return knowledge
 
-    def get_by_id(self, knowledge_id: str) -> Optional[DakbKnowledge]:
+    def get_by_id(self, knowledge_id: str) -> DakbKnowledge | None:
         """
         Get knowledge entry by ID.
 
@@ -365,8 +353,8 @@ class KnowledgeRepository:
         self,
         knowledge_id: str,
         data: KnowledgeUpdate,
-        updated_by: Optional[str] = None,
-    ) -> Optional[DakbKnowledge]:
+        updated_by: str | None = None,
+    ) -> DakbKnowledge | None:
         """
         Update an existing knowledge entry.
 
@@ -435,7 +423,7 @@ class KnowledgeRepository:
         knowledge_id: str,
         agent_id: str,
         vote_data: VoteCreate,
-    ) -> Optional[DakbKnowledge]:
+    ) -> DakbKnowledge | None:
         """
         Cast a vote on a knowledge entry.
 
@@ -572,7 +560,7 @@ class KnowledgeRepository:
     def find_by_category(
         self,
         category: str,
-        access_level: Optional[AccessLevel] = None,
+        access_level: AccessLevel | None = None,
         limit: int = 100,
         skip: int = 0,
     ) -> list[DakbKnowledge]:
@@ -633,7 +621,7 @@ class KnowledgeRepository:
             results.append(DakbKnowledge(**doc))
         return results
 
-    def find_expired(self, before: Optional[datetime] = None) -> list[str]:
+    def find_expired(self, before: datetime | None = None) -> list[str]:
         """
         Find expired knowledge IDs.
 
@@ -817,7 +805,7 @@ class MessageRepository:
         logger.info(f"Message sent: {message.message_id} from {from_agent} to {data.to_agent or data.to_topic}")
         return message
 
-    def get_by_id(self, message_id: str) -> Optional[DakbMessage]:
+    def get_by_id(self, message_id: str) -> DakbMessage | None:
         """Get message by ID."""
         doc = self.collection.find_one({"message_id": message_id})
         if doc:
@@ -828,7 +816,7 @@ class MessageRepository:
     def get_inbox(
         self,
         agent_id: str,
-        status: Optional[MessageStatus] = None,
+        status: MessageStatus | None = None,
         limit: int = 50,
     ) -> list[DakbMessage]:
         """
@@ -860,7 +848,7 @@ class MessageRepository:
     def get_by_topic(
         self,
         topic: str,
-        since: Optional[datetime] = None,
+        since: datetime | None = None,
         limit: int = 50,
     ) -> list[DakbMessage]:
         """
@@ -964,7 +952,7 @@ class AgentRepository:
         logger.info(f"Agent registered: {agent.agent_id} ({agent.agent_type.value})")
         return agent
 
-    def get_by_id(self, agent_id: str) -> Optional[DakbAgent]:
+    def get_by_id(self, agent_id: str) -> DakbAgent | None:
         """Get agent by ID."""
         doc = self.collection.find_one({"agent_id": agent_id})
         if doc:
@@ -972,7 +960,7 @@ class AgentRepository:
             return DakbAgent(**doc)
         return None
 
-    def update(self, agent_id: str, data: AgentUpdate) -> Optional[DakbAgent]:
+    def update(self, agent_id: str, data: AgentUpdate) -> DakbAgent | None:
         """Update agent information."""
         update_fields = data.model_dump(exclude_unset=True)
         if not update_fields:
@@ -991,7 +979,7 @@ class AgentRepository:
             return DakbAgent(**result)
         return None
 
-    def heartbeat(self, agent_id: str, activity: Optional[str] = None) -> bool:
+    def heartbeat(self, agent_id: str, activity: str | None = None) -> bool:
         """
         Update agent heartbeat (last_seen).
 
@@ -1097,7 +1085,7 @@ class SessionRepository:
         self,
         agent_id: str,
         machine_id: str,
-        data: Optional[SessionCreate] = None,
+        data: SessionCreate | None = None,
     ) -> DakbSession:
         """
         Create a new session.
@@ -1124,7 +1112,7 @@ class SessionRepository:
         logger.info(f"Session created: {session.session_id} for {agent_id}")
         return session
 
-    def get_by_id(self, session_id: str) -> Optional[DakbSession]:
+    def get_by_id(self, session_id: str) -> DakbSession | None:
         """Get session by ID."""
         doc = self.collection.find_one({"session_id": session_id})
         if doc:
@@ -1132,7 +1120,7 @@ class SessionRepository:
             return DakbSession(**doc)
         return None
 
-    def get_active_for_agent(self, agent_id: str) -> Optional[DakbSession]:
+    def get_active_for_agent(self, agent_id: str) -> DakbSession | None:
         """Get active session for an agent."""
         doc = self.collection.find_one({
             "agent_id": agent_id,
@@ -1144,7 +1132,7 @@ class SessionRepository:
             return DakbSession(**doc)
         return None
 
-    def update(self, session_id: str, data: SessionUpdate) -> Optional[DakbSession]:
+    def update(self, session_id: str, data: SessionUpdate) -> DakbSession | None:
         """Update session information."""
         update_fields = data.model_dump(exclude_unset=True)
         if not update_fields:
@@ -1195,7 +1183,7 @@ class SessionRepository:
         self,
         session_id: str,
         to_agent: str,
-        notes: Optional[str] = None,
+        notes: str | None = None,
     ) -> bool:
         """
         Hand off a session to another agent.
@@ -1243,13 +1231,13 @@ class AuditRepository:
         action: AuditAction,
         resource_type: ResourceType,
         resource_id: str,
-        details: Optional[dict] = None,
-        machine_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
-        access_level_required: Optional[AccessLevel] = None,
+        details: dict | None = None,
+        machine_id: str | None = None,
+        session_id: str | None = None,
+        ip_address: str | None = None,
+        access_level_required: AccessLevel | None = None,
         access_granted: bool = True,
-        denial_reason: Optional[str] = None,
+        denial_reason: str | None = None,
     ) -> DakbAuditLog:
         """
         Create an audit log entry.
@@ -1297,8 +1285,8 @@ class AuditRepository:
     def find_by_agent(
         self,
         agent_id: str,
-        action: Optional[AuditAction] = None,
-        since: Optional[datetime] = None,
+        action: AuditAction | None = None,
+        since: datetime | None = None,
         limit: int = 100,
     ) -> list[DakbAuditLog]:
         """Find audit logs by agent."""
@@ -1336,7 +1324,7 @@ class AuditRepository:
 
     def find_access_denials(
         self,
-        since: Optional[datetime] = None,
+        since: datetime | None = None,
         limit: int = 100,
     ) -> list[DakbAuditLog]:
         """Find access denial events for security monitoring."""
@@ -1354,9 +1342,9 @@ class AuditRepository:
 
     def count_actions(
         self,
-        agent_id: Optional[str] = None,
-        action: Optional[AuditAction] = None,
-        since: Optional[datetime] = None,
+        agent_id: str | None = None,
+        action: AuditAction | None = None,
+        since: datetime | None = None,
     ) -> int:
         """Count audit log entries matching criteria."""
         query: dict[str, Any] = {}
@@ -1410,7 +1398,7 @@ class ReputationRepository:
         logger.info(f"Created reputation record for agent: {agent_id}")
         return reputation
 
-    def get_by_id(self, agent_id: str) -> Optional[AgentReputation]:
+    def get_by_id(self, agent_id: str) -> AgentReputation | None:
         """Get reputation by agent ID."""
         doc = self.collection.find_one({"agent_id": agent_id})
         if doc:
@@ -1677,7 +1665,7 @@ class ReputationRepository:
 
         return entries
 
-    def get_agent_rank(self, agent_id: str, metric: str = "reputation") -> Optional[int]:
+    def get_agent_rank(self, agent_id: str, metric: str = "reputation") -> int | None:
         """
         Get an agent's rank for a specific metric.
 
@@ -1759,7 +1747,7 @@ class QualityRepository:
         logger.info(f"Created quality record for knowledge: {knowledge_id}")
         return quality
 
-    def get_by_id(self, knowledge_id: str) -> Optional[KnowledgeQuality]:
+    def get_by_id(self, knowledge_id: str) -> KnowledgeQuality | None:
         """Get quality by knowledge ID."""
         doc = self.collection.find_one({"knowledge_id": knowledge_id})
         if doc:
@@ -1792,7 +1780,7 @@ class QualityRepository:
         knowledge_id: str,
         vote_type: VoteType,
         vote_weight: float = 1.0,
-        agent_id: Optional[str] = None
+        agent_id: str | None = None
     ) -> KnowledgeQuality:
         """
         Record a weighted vote on knowledge quality.
@@ -1967,7 +1955,7 @@ class FlagRepository:
         knowledge_id: str,
         flagged_by: str,
         reason: FlagReason,
-        details: Optional[str] = None
+        details: str | None = None
     ) -> KnowledgeFlag:
         """
         Flag knowledge for review.
@@ -1992,7 +1980,7 @@ class FlagRepository:
         logger.info(f"Knowledge {knowledge_id} flagged for {reason.value} by {flagged_by}")
         return flag
 
-    def get_by_id(self, flag_id: str) -> Optional[KnowledgeFlag]:
+    def get_by_id(self, flag_id: str) -> KnowledgeFlag | None:
         """Get flag by ID."""
         doc = self.collection.find_one({"flag_id": flag_id})
         if doc:
@@ -2045,7 +2033,7 @@ class FlagRepository:
         flag_id: str,
         reviewed_by: str,
         resolution: str
-    ) -> Optional[KnowledgeFlag]:
+    ) -> KnowledgeFlag | None:
         """
         Resolve a flag.
 
@@ -2099,7 +2087,7 @@ class AliasRepository:
     - Active/inactive alias lifecycle management
     """
 
-    def __init__(self, collection: Collection, agents_collection: Optional[Collection] = None):
+    def __init__(self, collection: Collection, agents_collection: Collection | None = None):
         """
         Initialize alias repository.
 
@@ -2114,8 +2102,8 @@ class AliasRepository:
         self,
         token_id: str,
         alias: str,
-        role: Optional[str] = None,
-        metadata: Optional[dict] = None
+        role: str | None = None,
+        metadata: dict | None = None
     ) -> DakbAgentAlias:
         """
         Register a new alias for a token.
@@ -2185,7 +2173,7 @@ class AliasRepository:
 
         return results
 
-    def resolve_alias(self, alias_or_agent_id: str) -> Optional[str]:
+    def resolve_alias(self, alias_or_agent_id: str) -> str | None:
         """
         Resolve an alias or agent_id to its owning token_id.
 
@@ -2290,7 +2278,7 @@ class AliasRepository:
 
         return available
 
-    def get_by_id(self, alias_id: str) -> Optional[DakbAgentAlias]:
+    def get_by_id(self, alias_id: str) -> DakbAgentAlias | None:
         """
         Get alias by its unique alias_id.
 
@@ -2306,7 +2294,7 @@ class AliasRepository:
             return DakbAgentAlias(**doc)
         return None
 
-    def get_by_alias(self, alias: str) -> Optional[DakbAgentAlias]:
+    def get_by_alias(self, alias: str) -> DakbAgentAlias | None:
         """
         Get alias record by alias name.
 
@@ -2330,7 +2318,7 @@ class AliasRepository:
         token_id: str,
         alias: str,
         data: AliasUpdate
-    ) -> Optional[DakbAgentAlias]:
+    ) -> DakbAgentAlias | None:
         """
         Update an alias's metadata.
 

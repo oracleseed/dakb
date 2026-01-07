@@ -30,14 +30,13 @@ import re
 import subprocess
 import time
 from datetime import datetime
-from typing import Optional, List, Tuple
 from pathlib import Path
 
 from .models import (
+    GitChangeType,
     GitContextSnapshot,
     GitFileChange,
     GitStashEntry,
-    GitChangeType,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,6 @@ SAFE_GIT_ARG_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\./@{}:=\s]+$')
 # Configure via DAKB_ALLOWED_PATHS environment variable (colon-separated)
 def _get_allowed_base_paths() -> list:
     """Get allowed base paths from environment or use defaults."""
-    import os
     custom = os.getenv("DAKB_ALLOWED_PATHS", "")
     if custom:
         return [Path(p) for p in custom.split(":") if p]
@@ -207,10 +205,10 @@ class GitContextCapture:
 
     def _run_git_command(
         self,
-        args: List[str],
+        args: list[str],
         timeout: int = 30,
         check: bool = True,
-    ) -> Tuple[str, str, int]:
+    ) -> tuple[str, str, int]:
         """
         Run a git command and return output.
 
@@ -324,7 +322,7 @@ class GitContextCapture:
             logger.error(f"Failed to capture git context: {sanitized_msg}")
             raise GitContextCaptureError(f"Failed to capture git context: {sanitized_msg}")
 
-    def _get_remote_url(self) -> Optional[str]:
+    def _get_remote_url(self) -> str | None:
         """Get remote origin URL."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -349,7 +347,7 @@ class GitContextCapture:
         )
         return stdout
 
-    def _get_head_commit_message(self) -> Optional[str]:
+    def _get_head_commit_message(self) -> str | None:
         """Get HEAD commit message (first line)."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -360,7 +358,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return None
 
-    def _get_head_commit_author(self) -> Optional[str]:
+    def _get_head_commit_author(self) -> str | None:
         """Get HEAD commit author."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -371,7 +369,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return None
 
-    def _get_head_commit_date(self) -> Optional[datetime]:
+    def _get_head_commit_date(self) -> datetime | None:
         """Get HEAD commit date."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -387,7 +385,7 @@ class GitContextCapture:
             pass
         return None
 
-    def _get_tracking_branch(self) -> Optional[str]:
+    def _get_tracking_branch(self) -> str | None:
         """Get upstream tracking branch."""
         try:
             stdout, _, returncode = self._run_git_command(
@@ -398,7 +396,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return None
 
-    def _get_ahead_behind(self) -> Tuple[int, int]:
+    def _get_ahead_behind(self) -> tuple[int, int]:
         """Get commits ahead/behind remote."""
         try:
             stdout, _, returncode = self._run_git_command(
@@ -414,7 +412,7 @@ class GitContextCapture:
             pass
         return 0, 0
 
-    def _get_staged_changes(self) -> List[GitFileChange]:
+    def _get_staged_changes(self) -> list[GitFileChange]:
         """Get list of staged changes."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -434,7 +432,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return []
 
-    def _get_unstaged_changes(self) -> List[GitFileChange]:
+    def _get_unstaged_changes(self) -> list[GitFileChange]:
         """Get list of unstaged changes."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -454,7 +452,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return []
 
-    def _get_untracked_files(self) -> List[str]:
+    def _get_untracked_files(self) -> list[str]:
         """Get list of untracked files."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -466,7 +464,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return []
 
-    def _parse_status_line(self, line: str) -> Optional[GitFileChange]:
+    def _parse_status_line(self, line: str) -> GitFileChange | None:
         """
         Parse a git status line.
 
@@ -510,7 +508,7 @@ class GitContextCapture:
             is_binary=self._is_binary_file(file_path),
         )
 
-    def _get_file_stat(self, file_path: str) -> Tuple[int, int]:
+    def _get_file_stat(self, file_path: str) -> tuple[int, int]:
         """Get additions and deletions for a file."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -540,7 +538,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return False
 
-    def _get_stash_list(self) -> List[GitStashEntry]:
+    def _get_stash_list(self) -> list[GitStashEntry]:
         """Get list of stash entries."""
         try:
             stdout, _, _ = self._run_git_command(
@@ -585,7 +583,7 @@ class GitContextCapture:
         except GitContextCaptureError:
             return []
 
-    def get_diff_summary(self, max_size_kb: int = 100) -> Optional[str]:
+    def get_diff_summary(self, max_size_kb: int = 100) -> str | None:
         """
         Get human-readable diff summary.
 
@@ -675,7 +673,7 @@ def is_git_repository(path: str) -> bool:
     return git_dir.exists() and git_dir.is_dir()
 
 
-def find_repository_root(start_path: str) -> Optional[str]:
+def find_repository_root(start_path: str) -> str | None:
     """
     Find git repository root starting from a path.
 

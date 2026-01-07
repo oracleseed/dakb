@@ -20,35 +20,33 @@ Endpoints:
 
 import logging
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..config import get_settings
-from ..middleware.auth import (
-    AuthenticatedAgent,
-    get_current_agent,
-    check_rate_limit,
-    require_role,
-    AccessChecker,
-)
 from ...db import (
-    # Schemas
-    DakbKnowledge,
-    KnowledgeFlag,
     # Enums
-    AccessLevel,
-    KnowledgeStatus,
-    AuditAction,
-    ResourceType,
     AgentRole,
+    AuditAction,
+    # Schemas
     FlagReason,
+    KnowledgeFlag,
+    KnowledgeStatus,
     ModerateAction,
+    ResourceType,
     # Repositories
     get_dakb_repositories,
 )
 from ...db.collections import get_dakb_client
+from ..config import get_settings
+from ..middleware.auth import (
+    AccessChecker,
+    AuthenticatedAgent,
+    check_rate_limit,
+    get_current_agent,
+    require_role,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +70,7 @@ class FlagRequest(BaseModel):
     """Request model for flagging knowledge."""
     knowledge_id: str = Field(..., description="Knowledge ID to flag")
     reason: FlagReason = Field(..., description="Reason for flagging")
-    details: Optional[str] = Field(None, max_length=500, description="Additional details")
+    details: str | None = Field(None, max_length=500, description="Additional details")
 
 
 class FlagResponse(BaseModel):
@@ -96,7 +94,7 @@ class ModerateRequest(BaseModel):
     """Request model for moderation action."""
     knowledge_id: str = Field(..., description="Knowledge ID to moderate")
     action: ModerateAction = Field(..., description="Moderation action to take")
-    reason: Optional[str] = Field(None, max_length=500, description="Reason for action")
+    reason: str | None = Field(None, max_length=500, description="Reason for action")
 
 
 class ModerateResponse(BaseModel):
@@ -377,7 +375,7 @@ async def moderate_knowledge(
     dependencies=[Depends(require_role(AgentRole.ADMIN))]  # ISS-048: Admin enforcement at gateway
 )
 async def get_moderation_history(
-    knowledge_id: Optional[str] = Query(None, description="Filter by knowledge ID"),
+    knowledge_id: str | None = Query(None, description="Filter by knowledge ID"),
     limit: int = Query(default=50, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent)
 ) -> ModerationHistoryResponse:

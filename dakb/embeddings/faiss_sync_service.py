@@ -22,7 +22,6 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Optional, Set
 
 from pymongo import MongoClient
 from pymongo.database import Database
@@ -72,12 +71,12 @@ class FAISSMongoSyncService:
         self.db: Database = mongo_client[db_name]
         self.embedding_service = embedding_service
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="faiss_sync")
-        self._sync_task: Optional[asyncio.Task] = None
+        self._sync_task: asyncio.Task | None = None
         self._running = False
 
         # Sync statistics
-        self._last_sync_at: Optional[datetime] = None
-        self._last_rebuild_at: Optional[datetime] = None
+        self._last_sync_at: datetime | None = None
+        self._last_rebuild_at: datetime | None = None
         self._total_syncs = 0
         self._total_rebuilds = 0
 
@@ -100,7 +99,7 @@ class FAISSMongoSyncService:
             - rebuild_triggered: Whether a rebuild was triggered
         """
         now = datetime.utcnow()
-        ids_to_remove: Set[str] = set()
+        ids_to_remove: set[str] = set()
         expired_count = 0
         deprecated_count = 0
         deleted_count = 0
@@ -477,7 +476,7 @@ class FAISSMongoSyncService:
                 "checked_at": datetime.utcnow().isoformat(),
             }
 
-    def _get_active_mongo_ids(self) -> Set[str]:
+    def _get_active_mongo_ids(self) -> set[str]:
         """
         Get set of all active knowledge IDs from MongoDB.
 

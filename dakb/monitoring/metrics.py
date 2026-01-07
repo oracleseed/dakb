@@ -32,10 +32,10 @@ import sys
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 # Add project root to path
 PROJECT_ROOT = os.path.dirname(
@@ -66,7 +66,7 @@ class MetricValue:
     """Single metric value with labels."""
 
     value: float
-    labels: Dict[str, str] = field(default_factory=dict)
+    labels: dict[str, str] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
 
@@ -77,11 +77,11 @@ class Counter:
     Used for counting events like requests, errors, etc.
     """
 
-    def __init__(self, name: str, description: str, labels: Optional[List[str]] = None):
+    def __init__(self, name: str, description: str, labels: list[str] | None = None):
         self.name = name
         self.description = description
         self.label_names = labels or []
-        self._values: Dict[tuple, float] = defaultdict(float)
+        self._values: dict[tuple, float] = defaultdict(float)
         self._lock = threading.Lock()
 
     def inc(self, value: float = 1.0, **labels) -> None:
@@ -99,11 +99,11 @@ class Counter:
         with self._lock:
             return self._values.get(label_key, 0.0)
 
-    def _make_label_key(self, labels: Dict[str, str]) -> tuple:
+    def _make_label_key(self, labels: dict[str, str]) -> tuple:
         """Create hashable key from labels."""
         return tuple(sorted((k, str(v)) for k, v in labels.items()))
 
-    def get_all(self) -> List[MetricValue]:
+    def get_all(self) -> list[MetricValue]:
         """Get all values with labels."""
         with self._lock:
             return [
@@ -122,11 +122,11 @@ class Gauge:
     Used for current values like queue size, active connections, etc.
     """
 
-    def __init__(self, name: str, description: str, labels: Optional[List[str]] = None):
+    def __init__(self, name: str, description: str, labels: list[str] | None = None):
         self.name = name
         self.description = description
         self.label_names = labels or []
-        self._values: Dict[tuple, float] = {}
+        self._values: dict[tuple, float] = {}
         self._lock = threading.Lock()
 
     def set(self, value: float, **labels) -> None:
@@ -153,11 +153,11 @@ class Gauge:
         with self._lock:
             return self._values.get(label_key, 0.0)
 
-    def _make_label_key(self, labels: Dict[str, str]) -> tuple:
+    def _make_label_key(self, labels: dict[str, str]) -> tuple:
         """Create hashable key from labels."""
         return tuple(sorted((k, str(v)) for k, v in labels.items()))
 
-    def get_all(self) -> List[MetricValue]:
+    def get_all(self) -> list[MetricValue]:
         """Get all values with labels."""
         with self._lock:
             return [
@@ -185,19 +185,19 @@ class Histogram:
         self,
         name: str,
         description: str,
-        labels: Optional[List[str]] = None,
-        buckets: Optional[Tuple[float, ...]] = None,
+        labels: list[str] | None = None,
+        buckets: tuple[float, ...] | None = None,
     ):
         self.name = name
         self.description = description
         self.label_names = labels or []
         self.buckets = buckets or self.DEFAULT_BUCKETS
 
-        self._bucket_counts: Dict[tuple, Dict[float, int]] = defaultdict(
-            lambda: {b: 0 for b in self.buckets}
+        self._bucket_counts: dict[tuple, dict[float, int]] = defaultdict(
+            lambda: dict.fromkeys(self.buckets, 0)
         )
-        self._sums: Dict[tuple, float] = defaultdict(float)
-        self._counts: Dict[tuple, int] = defaultdict(int)
+        self._sums: dict[tuple, float] = defaultdict(float)
+        self._counts: dict[tuple, int] = defaultdict(int)
         self._lock = threading.Lock()
 
     def observe(self, value: float, **labels) -> None:
@@ -223,11 +223,11 @@ class Histogram:
         with self._lock:
             return self._sums.get(label_key, 0.0)
 
-    def _make_label_key(self, labels: Dict[str, str]) -> tuple:
+    def _make_label_key(self, labels: dict[str, str]) -> tuple:
         """Create hashable key from labels."""
         return tuple(sorted((k, str(v)) for k, v in labels.items()))
 
-    def get_all(self) -> Dict[tuple, Dict[str, Any]]:
+    def get_all(self) -> dict[tuple, dict[str, Any]]:
         """Get all histogram data."""
         with self._lock:
             result = {}
@@ -255,16 +255,16 @@ class MetricsRegistry:
 
     def __init__(self, namespace: str = "dakb"):
         self.namespace = namespace
-        self._counters: Dict[str, Counter] = {}
-        self._gauges: Dict[str, Gauge] = {}
-        self._histograms: Dict[str, Histogram] = {}
+        self._counters: dict[str, Counter] = {}
+        self._gauges: dict[str, Gauge] = {}
+        self._histograms: dict[str, Histogram] = {}
         self._lock = threading.Lock()
 
     def counter(
         self,
         name: str,
         description: str,
-        labels: Optional[List[str]] = None,
+        labels: list[str] | None = None,
     ) -> Counter:
         """Get or create a counter."""
         full_name = f"{self.namespace}_{name}"
@@ -277,7 +277,7 @@ class MetricsRegistry:
         self,
         name: str,
         description: str,
-        labels: Optional[List[str]] = None,
+        labels: list[str] | None = None,
     ) -> Gauge:
         """Get or create a gauge."""
         full_name = f"{self.namespace}_{name}"
@@ -290,8 +290,8 @@ class MetricsRegistry:
         self,
         name: str,
         description: str,
-        labels: Optional[List[str]] = None,
-        buckets: Optional[Tuple[float, ...]] = None,
+        labels: list[str] | None = None,
+        buckets: tuple[float, ...] | None = None,
     ) -> Histogram:
         """Get or create a histogram."""
         full_name = f"{self.namespace}_{name}"
@@ -353,14 +353,14 @@ class MetricsRegistry:
 
         return "\n".join(lines) + "\n"
 
-    def _format_labels(self, labels: Dict[str, str]) -> str:
+    def _format_labels(self, labels: dict[str, str]) -> str:
         """Format labels for Prometheus output."""
         if not labels:
             return ""
         label_parts = [f'{k}="{v}"' for k, v in sorted(labels.items())]
         return "{" + ",".join(label_parts) + "}"
 
-    def get_all_metrics(self) -> Dict[str, Any]:
+    def get_all_metrics(self) -> dict[str, Any]:
         """Get all metrics as dictionary."""
         return {
             "counters": {
@@ -405,7 +405,7 @@ class MetricsCollector:
     Provides high-level methods for recording DAKB operations.
     """
 
-    def __init__(self, registry: Optional[MetricsRegistry] = None):
+    def __init__(self, registry: MetricsRegistry | None = None):
         self.registry = registry or MetricsRegistry()
         self._initialize_metrics()
 
@@ -600,7 +600,7 @@ class MetricsCollector:
         latency_seconds: float,
         result_count: int,
         search_type: str = "semantic",
-        faiss_latency_seconds: Optional[float] = None,
+        faiss_latency_seconds: float | None = None,
     ) -> None:
         """
         Record search metrics.
@@ -668,7 +668,7 @@ class MetricsCollector:
     def update_faiss_index_metrics(
         self,
         vector_count: int,
-        memory_bytes: Optional[int] = None,
+        memory_bytes: int | None = None,
     ) -> None:
         """Update FAISS index metrics."""
         self.faiss_index_size.set(vector_count)
@@ -715,7 +715,7 @@ class MetricsCollector:
         self.update_uptime()
         return self.registry.export_prometheus()
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get all metrics as dictionary."""
         self.update_uptime()
         return self.registry.get_all_metrics()
@@ -725,7 +725,7 @@ class MetricsCollector:
 # GLOBAL METRICS INSTANCE
 # =============================================================================
 
-_metrics_instance: Optional[MetricsCollector] = None
+_metrics_instance: MetricsCollector | None = None
 
 
 def get_metrics() -> MetricsCollector:
@@ -762,7 +762,7 @@ def record_request(
 def record_search_latency(
     latency_ms: float,
     result_count: int,
-    faiss_latency_ms: Optional[float] = None,
+    faiss_latency_ms: float | None = None,
 ) -> None:
     """
     Convenience function to record search latency.
@@ -795,10 +795,10 @@ def record_error(error_type: str, endpoint: str = "") -> None:
 class Timer:
     """Context manager for timing operations."""
 
-    def __init__(self, callback: Optional[Callable[[float], None]] = None):
+    def __init__(self, callback: Callable[[float], None] | None = None):
         self.callback = callback
-        self.start_time: Optional[float] = None
-        self.elapsed_seconds: Optional[float] = None
+        self.start_time: float | None = None
+        self.elapsed_seconds: float | None = None
 
     def __enter__(self) -> "Timer":
         self.start_time = time.time()

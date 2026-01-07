@@ -48,7 +48,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Optional
+from typing import Any
 
 # Configure logging
 log_level = os.getenv("DAKB_LOG_LEVEL", "INFO").upper()
@@ -59,14 +59,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from .handlers import ToolResponse, dispatch_tool, set_client_token
 from .tools import (
-    validate_tool_args,
-    get_tools_by_profile,
-    PROFILE_STANDARD,
     PROFILE_FULL,
+    PROFILE_STANDARD,
+    get_tools_by_profile,
+    validate_tool_args,
 )
-from .handlers import dispatch_tool, set_client_token, ToolResponse
-
 
 # =============================================================================
 # MCP SERVER (STDIO TRANSPORT)
@@ -93,7 +92,7 @@ class DAKBMCPServer:
     def __init__(self):
         """Initialize the MCP server."""
         self._running = False
-        self._auth_token: Optional[str] = os.getenv("DAKB_AUTH_TOKEN")
+        self._auth_token: str | None = os.getenv("DAKB_AUTH_TOKEN")
         self._consecutive_empty_reads = 0  # ISS-058: Track empty reads to detect disconnect
         self._max_empty_reads = 10  # Exit after this many consecutive empty reads
         # ISS-057 Fix: Token is set asynchronously during initialize
@@ -277,7 +276,7 @@ class DAKBMCPServer:
     async def handle_message(
         self,
         message: dict[str, Any]
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Route incoming MCP message to appropriate handler.
 
@@ -342,7 +341,7 @@ class DAKBMCPServer:
     # Server Loop
     # -------------------------------------------------------------------------
 
-    async def read_message(self) -> Optional[dict[str, Any]]:
+    async def read_message(self) -> dict[str, Any] | None:
         """
         Read a JSON-RPC message from stdin.
 

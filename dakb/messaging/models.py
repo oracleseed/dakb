@@ -17,13 +17,12 @@ Features:
 - Read/delivery acknowledgments
 """
 
+import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, Any, List
-import uuid
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-
 
 # =============================================================================
 # ENUMS
@@ -91,12 +90,12 @@ class MessageAttachment(BaseModel):
     type: str = Field(..., description="Attachment type (json, file_ref, code, etc.)")
     name: str = Field(..., max_length=100, description="Attachment name")
     content: Any = Field(..., description="Attachment content or reference")
-    size_bytes: Optional[int] = Field(None, ge=0, description="Content size for validation")
-    mime_type: Optional[str] = Field(None, description="MIME type if applicable")
+    size_bytes: int | None = Field(None, ge=0, description="Content size for validation")
+    mime_type: str | None = Field(None, description="MIME type if applicable")
 
     @field_validator('size_bytes')
     @classmethod
-    def validate_size(cls, v: Optional[int]) -> Optional[int]:
+    def validate_size(cls, v: int | None) -> int | None:
         """Validate attachment size does not exceed 1MB limit."""
         if v is not None and v > 1024 * 1024:  # 1MB limit
             raise ValueError("Attachment size exceeds 1MB limit")
@@ -137,11 +136,11 @@ class Message(BaseModel):
 
     # Routing
     sender_id: str = Field(..., description="Sending agent ID")
-    recipient_id: Optional[str] = Field(
+    recipient_id: str | None = Field(
         None,
         description="Target agent ID (None for broadcast)"
     )
-    original_recipient: Optional[str] = Field(
+    original_recipient: str | None = Field(
         None,
         description="Original recipient value if alias was resolved (Phase 3 Token Alias System)"
     )
@@ -164,17 +163,17 @@ class Message(BaseModel):
     subject: str = Field(..., max_length=200, description="Message subject line")
     content: str = Field(..., max_length=100000, description="Message body content (max 100KB)")
     # ISS-063 Fix: Added max_length=100000 to prevent DoS via arbitrarily large message bodies
-    attachments: List[MessageAttachment] = Field(
+    attachments: list[MessageAttachment] = Field(
         default_factory=list,
         description="Message attachments"
     )
 
     # Threading
-    thread_id: Optional[str] = Field(
+    thread_id: str | None = Field(
         None,
         description="Thread ID for message grouping"
     )
-    reply_to_id: Optional[str] = Field(
+    reply_to_id: str | None = Field(
         None,
         description="Message ID this is replying to"
     )
@@ -184,19 +183,19 @@ class Message(BaseModel):
         default=MessageStatus.PENDING,
         description="Current message status"
     )
-    delivery_receipts: List[DeliveryReceipt] = Field(
+    delivery_receipts: list[DeliveryReceipt] = Field(
         default_factory=list,
         description="Delivery acknowledgments"
     )
-    read_receipts: List[ReadReceipt] = Field(
+    read_receipts: list[ReadReceipt] = Field(
         default_factory=list,
         description="Read acknowledgments"
     )
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    delivered_at: Optional[datetime] = Field(None, description="First delivery time")
-    read_at: Optional[datetime] = Field(None, description="First read time")
+    delivered_at: datetime | None = Field(None, description="First delivery time")
+    read_at: datetime | None = Field(None, description="First read time")
     expires_at: datetime = Field(
         default_factory=lambda: datetime.utcnow() + timedelta(days=7),
         description="Auto-expiration time (default 7 days)"
@@ -233,7 +232,7 @@ class Message(BaseModel):
 
     @field_validator('attachments')
     @classmethod
-    def validate_attachments_count(cls, v: List[MessageAttachment]) -> List[MessageAttachment]:
+    def validate_attachments_count(cls, v: list[MessageAttachment]) -> list[MessageAttachment]:
         """Limit attachments to 10 per message."""
         if len(v) > 10:
             raise ValueError("Maximum 10 attachments allowed per message")
@@ -283,7 +282,7 @@ class Message(BaseModel):
 
 class MessageCreate(BaseModel):
     """Schema for creating new messages."""
-    recipient_id: Optional[str] = Field(
+    recipient_id: str | None = Field(
         None,
         description="Target agent ID (None for broadcast)"
     )
@@ -298,12 +297,12 @@ class MessageCreate(BaseModel):
     subject: str = Field(..., max_length=200, description="Message subject")
     content: str = Field(..., max_length=100000, description="Message body (max 100KB)")
     # ISS-063 Fix: Added max_length to prevent DoS
-    attachments: List[MessageAttachment] = Field(
+    attachments: list[MessageAttachment] = Field(
         default_factory=list,
         description="Message attachments"
     )
-    thread_id: Optional[str] = Field(None, description="Thread to add message to")
-    reply_to_id: Optional[str] = Field(None, description="Message being replied to")
+    thread_id: str | None = Field(None, description="Thread to add message to")
+    reply_to_id: str | None = Field(None, description="Message being replied to")
     expires_in_hours: int = Field(
         default=168,  # 7 days
         ge=1,
@@ -326,20 +325,20 @@ class MessageCreate(BaseModel):
 
 class MessageFilter(BaseModel):
     """Filter criteria for message queries."""
-    sender_id: Optional[str] = Field(None, description="Filter by sender")
-    recipient_id: Optional[str] = Field(None, description="Filter by recipient")
-    message_type: Optional[MessageType] = Field(None, description="Filter by type")
-    priority: Optional[MessagePriority] = Field(None, description="Filter by priority")
-    status: Optional[MessageStatus] = Field(None, description="Filter by status")
-    thread_id: Optional[str] = Field(None, description="Filter by thread")
-    since: Optional[datetime] = Field(None, description="Messages after this time")
-    before: Optional[datetime] = Field(None, description="Messages before this time")
+    sender_id: str | None = Field(None, description="Filter by sender")
+    recipient_id: str | None = Field(None, description="Filter by recipient")
+    message_type: MessageType | None = Field(None, description="Filter by type")
+    priority: MessagePriority | None = Field(None, description="Filter by priority")
+    status: MessageStatus | None = Field(None, description="Filter by status")
+    thread_id: str | None = Field(None, description="Filter by thread")
+    since: datetime | None = Field(None, description="Messages after this time")
+    before: datetime | None = Field(None, description="Messages before this time")
     include_expired: bool = Field(default=False, description="Include expired messages")
 
 
 class MessageUpdate(BaseModel):
     """Schema for updating message status."""
-    status: Optional[MessageStatus] = Field(None, description="New status")
+    status: MessageStatus | None = Field(None, description="New status")
 
 
 # =============================================================================
@@ -349,19 +348,19 @@ class MessageUpdate(BaseModel):
 class MessageResponse(BaseModel):
     """Response wrapper for single message."""
     success: bool = Field(default=True)
-    message: Optional[Message] = Field(None)
-    error: Optional[str] = Field(None)
+    message: Message | None = Field(None)
+    error: str | None = Field(None)
 
 
 class MessageListResponse(BaseModel):
     """Response wrapper for message list queries."""
     success: bool = Field(default=True)
-    messages: List[Message] = Field(default_factory=list)
+    messages: list[Message] = Field(default_factory=list)
     total: int = Field(default=0)
     page: int = Field(default=1)
     page_size: int = Field(default=20)
     has_more: bool = Field(default=False)
-    error: Optional[str] = Field(None)
+    error: str | None = Field(None)
 
 
 class BroadcastResponse(BaseModel):
@@ -370,7 +369,7 @@ class BroadcastResponse(BaseModel):
     message_id: str = Field(..., description="Broadcast message ID")
     recipients_count: int = Field(default=0, description="Number of recipients")
     delivered_count: int = Field(default=0, description="Number delivered")
-    error: Optional[str] = Field(None)
+    error: str | None = Field(None)
 
 
 class MessageStats(BaseModel):
@@ -396,14 +395,14 @@ class WebhookConfig(BaseModel):
     )
     agent_id: str = Field(..., description="Owning agent ID")
     url: str = Field(..., description="Webhook URL endpoint")
-    secret: Optional[str] = Field(None, description="Shared secret for validation")
-    events: List[str] = Field(
+    secret: str | None = Field(None, description="Shared secret for validation")
+    events: list[str] = Field(
         default_factory=lambda: ["message.received", "message.urgent"],
         description="Events to trigger webhook"
     )
     enabled: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    last_triggered_at: Optional[datetime] = Field(None)
+    last_triggered_at: datetime | None = Field(None)
     failure_count: int = Field(default=0, ge=0)
     max_failures: int = Field(default=5, description="Disable after this many failures")
 
@@ -433,8 +432,8 @@ class NotificationPreferences(BaseModel):
         },
         description="Which priorities trigger immediate notifications"
     )
-    quiet_hours_start: Optional[int] = Field(None, ge=0, le=23, description="Hour to start quiet period")
-    quiet_hours_end: Optional[int] = Field(None, ge=0, le=23, description="Hour to end quiet period")
+    quiet_hours_start: int | None = Field(None, ge=0, le=23, description="Hour to start quiet period")
+    quiet_hours_end: int | None = Field(None, ge=0, le=23, description="Hour to end quiet period")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -452,8 +451,8 @@ class QueuedMessage(BaseModel):
     )
     enqueued_at: datetime = Field(default_factory=datetime.utcnow)
     attempts: int = Field(default=0, ge=0, description="Delivery attempts")
-    next_attempt_at: Optional[datetime] = Field(None, description="Next delivery attempt time")
-    last_error: Optional[str] = Field(None, description="Last delivery error")
+    next_attempt_at: datetime | None = Field(None, description="Next delivery attempt time")
+    last_error: str | None = Field(None, description="Last delivery error")
 
     @staticmethod
     def priority_to_score(priority: MessagePriority) -> int:
@@ -471,5 +470,5 @@ class QueueStats(BaseModel):
     """Queue statistics."""
     total_pending: int = Field(default=0, ge=0)
     by_priority: dict[str, int] = Field(default_factory=dict)
-    oldest_message_age_seconds: Optional[float] = Field(None)
+    oldest_message_age_seconds: float | None = Field(None)
     processing_rate_per_minute: float = Field(default=0.0)

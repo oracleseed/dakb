@@ -13,7 +13,93 @@ https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-communit
 
 ---
 
-## Discord Post Content (Context-Focused)
+## Community Response: Large Project Context Management
+
+**Use this when responding to questions about managing context on large codebases**
+
+```
+Re: Effectively managing context on large projects
+
+Hey! I built something that might help with exactly this problem.
+
+With a codebase that size (150K+ LOC, hundreds of classes), the usual techniques work but hit a wall — you're manually doing the context engineering every session, and Claude still loses everything when the conversation ends.
+
+I created DAKB (Distributed Agent Knowledge Base) to solve this. Here's how it works for large projects:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 Distributed Knowledge (Not Local Markdown)
+
+The big difference from markdown files: DAKB is a shared knowledge layer accessible by any agent, anywhere.
+
+• Multiple Claude Code instances on different machines
+• GPT, Gemini, Grok, local LLMs — any agent can connect
+• Team members share the same knowledge base
+• Store once, every agent accesses it
+
+Your markdown file lives on one machine for one agent. DAKB lives on a server — your whole agent fleet shares it.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 Semantic Search (Not Keyword Matching)
+
+Store your architecture knowledge:
+
+dakb_store_knowledge(
+    title="Auth Service Architecture",
+    content="900 classes breakdown: AuthController handles...",
+    category="backend",
+    tags=["architecture", "auth-service"]
+)
+
+Any agent, any machine, any LLM finds it:
+
+dakb_search("what handles user authentication")
+# → Returns your stored context via semantic similarity
+
+No more grepping. No more re-explaining to each new session.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 For Large Method Count Problems
+
+Build up knowledge across agents and sessions:
+
+• Claude Code discovers a pattern → stores it
+• GPT agent on another machine finds it later
+• Team member's Gemini agent uses the same knowledge
+
+Knowledge accumulates across your entire agent ecosystem.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 Session Continuity & Handoff
+
+When context fills or you switch agents:
+
+# Agent A (Claude) exports work state
+dakb_advanced(operation="session_export")
+
+# Agent B (GPT on different machine) picks up
+dakb_advanced(operation="session_import", params={"session_id": "..."})
+
+Cross-platform, cross-machine context transfer.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The core idea: your project knowledge lives in a shared, searchable layer — not locked in one markdown file on one machine. Any agent, anywhere, can access and contribute.
+
+📦 GitHub: https://github.com/oracleseed/dakb
+📖 Context Guide: https://github.com/oracleseed/dakb/blob/main/docs/CONTEXT_MANAGEMENT_GUIDE.md
+
+Open source (Apache 2.0), built with Claude Code. Happy to answer questions!
+```
+
+---
+
+## Discord Showcase Post (General Introduction)
+
+**Use this for general showcase/announcement posts**
 
 ```
 🧠 DAKB - Distributed Agent Knowledge Base
@@ -26,6 +112,17 @@ DAKB is my attempt at solving this. It's a RAG-powered knowledge base that creat
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+🌐 What Makes It Different
+
+Unlike local markdown files, DAKB is distributed:
+
+• Multiple Claude Code instances on different machines share it
+• GPT, Gemini, Grok, local LLMs — any agent can connect
+• Team members share the same knowledge base
+• Store once, every agent accesses it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 🎯 What It Actually Does
 
 • 🔍 RAG Knowledge Base — Semantic search using FAISS + embeddings
@@ -35,49 +132,22 @@ DAKB is my attempt at solving this. It's a RAG-powered knowledge base that creat
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-❓ The Real Problem: Context Is Your Bottleneck
+🔄 Context Sharing Example
 
-It's not just about session time limits. The deeper problem:
-
-❌ Agent A discovers a solution → Agent B re-discovers it from scratch
-❌ You become the "human context relay" between sessions
-❌ Multi-week projects lose accumulated insights
-❌ Research findings scatter across conversations
-
-✅ DAKB creates a shared knowledge layer — your agents accumulate and share context over time, not just within a single conversation.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔄 Context Sharing & Tracking
-
-This is the core value. DAKB sessions track and share context, not just time:
-
-# Store context as you work (agent learns something)
+# Store context as you work
 dakb_store_knowledge(
     title="API rate limit pattern discovered",
     content="Kraken returns 429 after 15 req/sec...",
     tags=["api", "kraken", "rate-limit"]
 )
 
-# Any agent, any session, finds it later
+# Any agent, any machine, any session finds it later
 dakb_search("kraken rate limit")
 # → Instantly retrieves the solution
 
-# Track work sessions with git context
-dakb_advanced(operation="session_start", params={
-    "description": "Implementing momentum strategy",
-    "git_branch": "feature/momentum-v2"
-})
-
-# Come back days later — context preserved
-dakb_advanced(operation="session_status")
-# → Shows: branch, recent commits, where you left off
-
-# Export context for agent handoff
+# Export for agent handoff
 dakb_advanced(operation="session_export")
-# → Bundle your work context for another agent
-
-The key: context accumulates across agents and sessions. Your agent fleet gets smarter over time.
+# → Bundle work context for another agent on different machine
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

@@ -2,7 +2,7 @@
 
 ## The Context Problem
 
-When working with AI agents on large projects or deep research tasks, you'll hit a wall: **context limits**.
+When working with AI agents on large projects (100K+ LOC, hundreds of classes) or deep research tasks, you'll hit a wall: **isolated context**.
 
 ### What Happens Without DAKB
 
@@ -19,36 +19,63 @@ Day 5: Deep in ML model optimization...
        → "What was that fix we found for the GPU memory issue?"
 
 Week 3: Multiple agents working on different parts...
-       → Agent A finds a bug pattern.
-       → Agent B encounters same bug. Re-discovers it.
-       → No knowledge sharing between sessions or agents.
+       → Agent A (Claude on Machine 1) finds a bug pattern.
+       → Agent B (GPT on Machine 2) encounters same bug. Re-discovers it.
+       → No knowledge sharing between sessions, agents, or machines.
 ```
 
-**The result**: You become the "knowledge transfer bottleneck" — constantly re-explaining context, re-discovering solutions, losing insights when conversations end.
+**The result**: You become the "human context relay" — constantly re-explaining, manually transferring knowledge between agents, losing insights when conversations end.
+
+### The Markdown File Limitation
+
+Many developers try markdown files for context:
+```
+project/
+├── ARCHITECTURE.md
+├── DECISIONS.md
+└── CONTEXT.md
+```
+
+**The problem**: These files are:
+- **Local to one machine** — your laptop, not your colleague's
+- **Single agent** — Claude can read it, but GPT on another machine can't
+- **Keyword-based** — you must know what file to reference
+- **Not searchable** — can't find by meaning, only by exact terms
 
 ---
 
 ## How DAKB Solves This
 
-DAKB creates a **persistent knowledge layer** that survives beyond any single conversation:
+DAKB creates a **distributed, searchable knowledge layer** accessible by any agent, anywhere:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    DAKB Knowledge Base                       │
+│                       (Server-Based)                         │
 │                                                              │
 │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐   │
 │  │ Project        │ │ Research       │ │ Error Fixes    │   │
 │  │ Architecture   │ │ Findings       │ │ & Patterns     │   │
 │  └────────────────┘ └────────────────┘ └────────────────┘   │
 │                                                              │
-│  Persists across sessions • Searchable • Shareable          │
+│  Persists • Searchable • Distributed • Multi-Agent          │
 └─────────────────────────────────────────────────────────────┘
          │                    │                    │
     ┌────▼────┐          ┌────▼────┐          ┌────▼────┐
-    │Session 1│          │Session 5│          │Session N│
-    │ Day 1   │          │ Week 2  │          │ Month 3 │
+    │ Claude  │          │  GPT    │          │ Gemini  │
+    │Machine 1│          │Machine 2│          │Machine 3│
     └─────────┘          └─────────┘          └─────────┘
 ```
+
+### Key Difference: Distributed, Not Local
+
+| Local Markdown | DAKB |
+|----------------|------|
+| One machine | Any machine on network |
+| One agent | Claude, GPT, Gemini, Grok, local LLMs |
+| Keyword search | Semantic similarity search |
+| Manual reference | Automatic discovery |
+| Single user | Team-wide sharing |
 
 ---
 
@@ -206,18 +233,19 @@ results = dakb_search("attention time series trading")
 
 ---
 
-## Use Case 3: Multi-Agent Collaboration
+## Use Case 3: Multi-Agent, Multi-Platform Collaboration
 
 ### The Challenge
-- Different agents handle different tasks
-- Backend agent, ML agent, Research agent
+- Different agents handle different tasks (Backend, ML, Research)
+- **Different LLMs**: Claude Code, GPT, Gemini, Grok, local models
+- **Different machines**: Developer laptops, cloud servers, CI/CD agents
 - Need to share findings without human relay
 
-### DAKB Solution
+### DAKB Solution: Cross-Platform Knowledge Sharing
 
-**Agent A discovers a pattern:**
+**Agent A (Claude on Machine 1) discovers a pattern:**
 ```python
-# Backend Agent finds an API issue
+# Backend Agent (Claude Code) finds an API issue
 dakb_store_knowledge(
     title="Kraken API Rate Limit Pattern",
     content="""
@@ -241,22 +269,83 @@ dakb_store_knowledge(
 )
 ```
 
-**Agent B finds it automatically:**
+**Agent B (GPT on Machine 2) finds it automatically:**
 ```python
-# ML Agent hitting same issue days later
+# ML Agent (GPT) on different machine, days later
 results = dakb_search("kraken api rate limit")
 # → Finds the pattern without human intervention
+# → No manual copy-paste between machines
 ```
 
-**Cross-agent messaging for urgent issues:**
+**Agent C (Gemini on Machine 3) uses the same knowledge:**
 ```python
-# Backend Agent alerts ML Agent
+# Research Agent (Gemini) building documentation
+results = dakb_search("API patterns and workarounds")
+# → Same knowledge base, different LLM, different machine
+```
+
+### Cross-Agent Messaging
+
+Direct communication between agents, regardless of LLM or location:
+```python
+# Claude agent alerts GPT agent
 dakb_send_message(
-    recipient_id="ml-agent",
+    recipient_id="ml-agent",  # GPT on another machine
     subject="Kraken API Changes",
     content="API response format changed. Update your data parser.",
     priority="high"
 )
+```
+
+---
+
+## Use Case 4: Session Handoff Across Agents
+
+### The Challenge
+- Context window fills up mid-task
+- Need to switch from Claude to GPT (or vice versa)
+- Want to hand off work to a colleague's agent
+- Continue tomorrow without re-explaining
+
+### DAKB Solution: Session Export/Import
+
+**Export your work state before ending:**
+```python
+# Claude agent on your laptop, context getting full
+dakb_advanced(operation="session_export")
+# → Captures: git branch, recent commits, what you were working on
+# → Returns session_id for continuation
+```
+
+**Import on another agent/machine:**
+```python
+# GPT agent on colleague's machine, next day
+dakb_advanced(operation="session_import", params={
+    "session_id": "sess_20260109_143022_a1b2c3d4"
+})
+# → Loads: branch context, work state, where you left off
+# → Agent picks up exactly where previous agent stopped
+```
+
+### Session Workflow
+```
+┌─────────────┐     Export      ┌─────────────┐
+│   Claude    │ ───────────────→│    DAKB     │
+│  Machine 1  │   session_id    │   Server    │
+└─────────────┘                 └──────┬──────┘
+                                       │
+                                Import │ session_id
+                                       ▼
+                                ┌─────────────┐
+                                │    GPT      │
+                                │  Machine 2  │
+                                └─────────────┘
+```
+
+**Track session status anytime:**
+```python
+dakb_advanced(operation="session_status")
+# → Shows: active sessions, git context, recent activity
 ```
 
 ---
@@ -332,9 +421,19 @@ With DAKB managing your context:
 | Lose insights when context fills | Permanent knowledge storage |
 | Manual knowledge transfer | Automatic agent sharing |
 | Rediscover bugs repeatedly | Search past solutions |
-| Context is bottleneck | Context is asset |
+| Context locked to one machine | Distributed across your network |
+| One agent, one LLM | Any agent, any LLM, any machine |
+| You are the "human relay" | Agents share directly |
 
-**Your AI agents become smarter over time** — they accumulate knowledge, learn from past mistakes, and build on previous work.
+### The Core Value
+
+**Your project knowledge lives in a shared, searchable layer** — not locked in markdown files on one machine, not trapped in one agent's context window.
+
+- **Claude on your laptop** stores a pattern
+- **GPT on your colleague's machine** finds it tomorrow
+- **Gemini on a cloud server** uses it next week
+
+Knowledge accumulates across your entire agent ecosystem. Your AI agents become smarter over time — together.
 
 ---
 

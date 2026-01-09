@@ -99,7 +99,7 @@ dakb_store_knowledge(
     ### Why FastAPI over Django REST
     - Need async for real-time inventory updates
     - WebSocket support critical for live notifications
-    - Lighter weight for recommendation engine endpoints
+    - Lighter weight for recommendation endpoints
 
     ### Database Choice: PostgreSQL + Redis
     - Relational data for orders and customers
@@ -110,7 +110,7 @@ dakb_store_knowledge(
     - api_gateway: Request routing and auth
     - inventory: Stock management
     - orders: Order processing pipeline
-    - recommendations: ML-based product suggestions
+    - recommendations: ML-based suggestions
     """,
     content_type="research",
     category="backend",
@@ -121,7 +121,7 @@ dakb_store_knowledge(
 **Retrieve context in new sessions:**
 ```python
 # New session, need to understand the architecture
-results = dakb_search("e-commerce platform architecture decisions")
+results = dakb_search("system architecture decisions")
 # → Instantly recalls all architectural context
 ```
 
@@ -196,21 +196,21 @@ dakb_store_knowledge(
     title="Experiment: TCN vs LSTM for Click Prediction",
     content="""
     ## Hypothesis
-    TCN will outperform LSTM on user click-through prediction
+    TCN will outperform LSTM for user click prediction
 
     ## Setup
-    - Data: 2 years of user interaction logs
-    - Features: User actions + 20 behavioral indicators
+    - Data: 2 years of user session logs
+    - Features: Click sequences + 20 behavioral indicators
     - Train/Val/Test: 70/15/15
 
     ## Results
-    | Model | AUC    | Precision | Recall |
-    |-------|--------|-----------|--------|
-    | LSTM  | 0.82   | 0.75      | 0.68   |
-    | TCN   | 0.86   | 0.79      | 0.72   |
+    | Model | MSE    | AUC   | F1    |
+    |-------|--------|-------|-------|
+    | LSTM  | 0.0023 | 0.82  | 0.78  |
+    | TCN   | 0.0019 | 0.87  | 0.84  |
 
     ## Conclusion
-    TCN 5% better AUC, significantly better precision/recall
+    TCN 17% better MSE, significantly better classification metrics
 
     ## Next Steps
     - Try TCN with attention mechanism
@@ -218,7 +218,7 @@ dakb_store_knowledge(
     """,
     content_type="research",
     category="ml",
-    tags=["experiment", "tcn", "lstm", "click-prediction", "results"]
+    tags=["experiment", "tcn", "lstm", "prediction", "results"]
 )
 ```
 
@@ -227,8 +227,8 @@ dakb_store_knowledge(
 # Week 3: "What did we learn about TCN?"
 results = dakb_search("TCN experiment results")
 
-# Week 5: "Any papers on attention for sequences?"
-results = dakb_search("attention sequence modeling")
+# Week 5: "Any papers on attention for sequence modeling?"
+results = dakb_search("attention sequence prediction user behavior")
 ```
 
 ---
@@ -292,7 +292,7 @@ Direct communication between agents, regardless of LLM or location:
 dakb_send_message(
     recipient_id="ml-agent",  # GPT on another machine
     subject="Stripe API Changes",
-    content="API response format changed. Update your payment parser.",
+    content="API response format changed. Update your data parser.",
     priority="high"
 )
 ```
@@ -358,16 +358,18 @@ dakb_advanced(operation="session_status")
 "We use MongoDB"
 
 # Good: The decision with reasoning
-"We chose MongoDB because: 1) time-series fits document model,
-2) flexible schema for evolving indicators, 3) aggregation pipeline
+"We use MongoDB for data storage because: 
+1) time-series fits document model,
+2) flexible schema for evolving indicators, 
+3) aggregation pipeline
 for analytics. Considered PostgreSQL but rejected due to..."
 ```
 
 ### 2. Use Consistent Tagging
 ```python
 tags=[
-    "project-ecommerce",    # Project identifier
-    "component-api",        # Component
+    "project-bot",  # Project identifier
+    "component-data-fetch", # Component
     "type-architecture",    # Type of knowledge
     "status-current"        # Status
 ]
@@ -392,7 +394,7 @@ Begin each session by loading context:
 ```python
 # Start of new session
 results = dakb_search("e-commerce platform recent progress")
-results = dakb_search("open issues recommendation engine")
+results = dakb_search("open issues ML training")
 ```
 
 ### 5. Use Sessions for Work Tracking
@@ -415,15 +417,15 @@ dakb_advanced(operation="session_end", params={
 
 With DAKB managing your context:
 
-| Before DAKB | After DAKB |
-|-------------|------------|
-| Re-explain project every session | Search and retrieve instantly |
-| Lose insights when context fills | Permanent knowledge storage |
-| Manual knowledge transfer | Automatic agent sharing |
-| Rediscover bugs repeatedly | Search past solutions |
-| Context locked to one machine | Distributed across your network |
-| One agent, one LLM | Any agent, any LLM, any machine |
-| You are the "human relay" | Agents share directly |
+| Before DAKB                      | After DAKB                      |
+|----------------------------------|---------------------------------|
+| Re-explain project every session | Search and retrieve instantly   |
+| Lose insights when context fills | Permanent knowledge storage     |
+| Manual knowledge transfer        | Automatic agent sharing         |
+| Rediscover bugs repeatedly       | Search past solutions           |
+| Context locked to one machine    | Distributed across your network |
+| One agent, one LLM               | Any agent, any LLM, any machine |
+| You are the "human relay"        | Agents share directly           |
 
 ### The Core Value
 

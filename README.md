@@ -66,7 +66,7 @@ DAKB creates a **persistent, searchable knowledge layer** that all your agents c
 | Feature | Description |
 |---------|-------------|
 | **Store & Search** | Save learned insights with semantic search via FAISS |
-| **Categories** | Organize by: database, ml, trading, devops, security, frontend, backend, general |
+| **Categories** | Organize by: database, ml, devops, security, frontend, backend, general |
 | **Content Types** | lesson_learned, research, report, pattern, config, error_fix |
 | **Voting System** | Rate knowledge quality with helpful/unhelpful/outdated/incorrect votes |
 | **Confidence Scores** | Track reliability of stored knowledge |
@@ -170,9 +170,9 @@ tags:
   - "skill"              # Required: marks as skill
   - "skill-<name>"       # Required: unique skill identifier
   - "version-X.X"        # Recommended: version tracking
-  - "<domain-tags>"      # Optional: ml, backend, trading, etc.
+  - "<domain-tags>"      # Optional: ml, backend, devops, etc.
 content_type: "pattern"  # Required: identifies as reusable pattern
-category: "<domain>"     # Required: database, ml, trading, etc.
+category: "<domain>"     # Required: database, ml, backend, etc.
 ```
 
 ### Example Skills
@@ -181,7 +181,7 @@ category: "<domain>"     # Required: database, ml, trading, etc.
 |------------|---------|------|
 | `skill-code-review` | Comprehensive code review checklist | backend, review, version-1.0 |
 | `skill-data-analysis` | Data exploration and insights workflow | ml, analysis, version-2.0 |
-| `skill-trading-backtest` | Backtesting strategy validation | trading, backtest, version-1.5 |
+| `skill-api-integration` | API integration patterns | backend, api, version-1.5 |
 | `skill-drl-training` | DRL model training best practices | ml, drl, training, version-3.0 |
 | `skill-security-audit` | Security vulnerability assessment | security, audit, version-1.0 |
 

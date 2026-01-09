@@ -137,12 +137,12 @@ Unlike local markdown files, DAKB is distributed:
 # Store context as you work
 dakb_store_knowledge(
     title="API rate limit pattern discovered",
-    content="Kraken returns 429 after 15 req/sec...",
-    tags=["api", "kraken", "rate-limit"]
+    content="Stripe returns 429 after 100 req/sec...",
+    tags=["api", "stripe", "rate-limit"]
 )
 
 # Any agent, any machine, any session finds it later
-dakb_search("kraken rate limit")
+dakb_search("stripe rate limit")
 # → Instantly retrieves the solution
 
 # Export for agent handoff
@@ -178,7 +178,7 @@ Happy to answer questions or discuss the architecture! 💬
 | Feature | Description |
 |---------|-------------|
 | **Store & Search** | Save learned insights with semantic search via FAISS |
-| **Categories** | Organize by: database, ml, trading, devops, security, frontend, backend, general |
+| **Categories** | Organize by: database, ml, devops, security, frontend, backend, general |
 | **Content Types** | lesson_learned, research, report, pattern, config, error_fix |
 | **Voting System** | Rate knowledge quality with helpful/unhelpful/outdated/incorrect votes |
 | **Confidence Scores** | Track reliability of stored knowledge |
@@ -227,7 +227,7 @@ Happy to answer questions or discuss the architecture! 💬
 │  │  Skills Collection (content_type: pattern)          │    │
 │  │  ├── skill-code-review                              │    │
 │  │  ├── skill-data-analysis                            │    │
-│  │  ├── skill-trading-backtest                         │    │
+│  │  ├── skill-api-integration                          │    │
 │  │  └── skill-drl-training                             │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘

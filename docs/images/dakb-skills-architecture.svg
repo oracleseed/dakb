@@ -43,9 +43,9 @@
   <text x="382" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.9">v2.0 | ml</text>
 
   <rect x="470" y="190" width="145" height="90" rx="8" fill="url(#skillsGrad)"/>
-  <text x="542" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">skill-trading-backtest</text>
+  <text x="542" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">skill-api-integration</text>
   <text x="542" y="240" text-anchor="middle" font-family="monospace" font-size="9" fill="white" opacity="0.8">kn_20260107_xxx</text>
-  <text x="542" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.9">v1.5 | trading</text>
+  <text x="542" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white" opacity="0.9">v1.5 | backend</text>
 
   <rect x="630" y="190" width="125" height="90" rx="8" fill="url(#skillsGrad)"/>
   <text x="692" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">skill-drl-training</text>

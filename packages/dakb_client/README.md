@@ -202,7 +202,6 @@ except DAKBError as e:
 
 - `database`: Database operations
 - `ml`: Machine learning
-- `trading`: Trading strategies
 - `devops`: DevOps/infrastructure
 - `security`: Security practices
 - `frontend`: Frontend development

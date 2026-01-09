@@ -7,7 +7,7 @@ When working with AI agents on large projects (100K+ LOC, hundreds of classes) o
 ### What Happens Without DAKB
 
 ```
-Day 1: "Claude, let's build a trading bot..."
+Day 1: "Claude, let's build this e-commerce platform..."
        → Claude learns your architecture, patterns, decisions
 
 Day 2: "Let's continue..."
@@ -92,36 +92,36 @@ DAKB creates a **distributed, searchable knowledge layer** accessible by any age
 **Store architectural decisions:**
 ```python
 dakb_store_knowledge(
-    title="Trading Bot Architecture Decisions",
+    title="E-commerce Platform Architecture Decisions",
     content="""
     ## Core Architecture (2026-01)
 
     ### Why FastAPI over Django REST
-    - Need async for real-time data streams
-    - WebSocket support critical for order book
-    - Lighter weight for ML inference endpoints
+    - Need async for real-time inventory updates
+    - WebSocket support critical for live notifications
+    - Lighter weight for recommendation engine endpoints
 
-    ### Database Choice: MongoDB
-    - Time-series data fits document model
-    - Flexible schema for evolving indicators
-    - Aggregation pipeline for analytics
+    ### Database Choice: PostgreSQL + Redis
+    - Relational data for orders and customers
+    - Redis for session caching and cart data
+    - Full-text search for product catalog
 
     ### Service Boundaries
-    - data_fetch: External API integration
-    - prepare_data: Feature engineering
-    - DRL_T: Model training (isolated for GPU)
-    - live_trade: Order execution
+    - api_gateway: Request routing and auth
+    - inventory: Stock management
+    - orders: Order processing pipeline
+    - recommendations: ML-based product suggestions
     """,
     content_type="research",
     category="backend",
-    tags=["architecture", "decisions", "trading-bot"]
+    tags=["architecture", "decisions", "e-commerce"]
 )
 ```
 
 **Retrieve context in new sessions:**
 ```python
 # New session, need to understand the architecture
-results = dakb_search("trading bot architecture decisions")
+results = dakb_search("e-commerce platform architecture decisions")
 # → Instantly recalls all architectural context
 ```
 
@@ -177,11 +177,11 @@ dakb_store_knowledge(
     3. Positional encoding for sequence order
 
     ## Relevance to Our Project
-    - Can apply transformer architecture to time-series trading data
-    - Multi-head attention might capture different market regimes
+    - Can apply transformer architecture to user behavior sequences
+    - Multi-head attention might capture different user intent patterns
 
     ## Follow-up Questions
-    - How to handle variable-length sequences in live trading?
+    - How to handle variable-length user sessions?
     - Computational cost for real-time inference?
     """,
     content_type="research",
@@ -193,32 +193,32 @@ dakb_store_knowledge(
 **Store experimental results:**
 ```python
 dakb_store_knowledge(
-    title="Experiment: TCN vs LSTM for Price Prediction",
+    title="Experiment: TCN vs LSTM for Click Prediction",
     content="""
     ## Hypothesis
-    TCN will outperform LSTM on 1-hour BTC/USD prediction
+    TCN will outperform LSTM on user click-through prediction
 
     ## Setup
-    - Data: 2 years BTC/USD hourly candles
-    - Features: OHLCV + 20 technical indicators
+    - Data: 2 years of user interaction logs
+    - Features: User actions + 20 behavioral indicators
     - Train/Val/Test: 70/15/15
 
     ## Results
-    | Model | MSE    | Sharpe | Max DD |
-    |-------|--------|--------|--------|
-    | LSTM  | 0.0023 | 1.2    | -15%   |
-    | TCN   | 0.0019 | 1.5    | -12%   |
+    | Model | AUC    | Precision | Recall |
+    |-------|--------|-----------|--------|
+    | LSTM  | 0.82   | 0.75      | 0.68   |
+    | TCN   | 0.86   | 0.79      | 0.72   |
 
     ## Conclusion
-    TCN 17% better MSE, significantly better risk-adjusted returns
+    TCN 5% better AUC, significantly better precision/recall
 
     ## Next Steps
     - Try TCN with attention mechanism
-    - Test on different timeframes
+    - Test on different user segments
     """,
     content_type="research",
     category="ml",
-    tags=["experiment", "tcn", "lstm", "price-prediction", "results"]
+    tags=["experiment", "tcn", "lstm", "click-prediction", "results"]
 )
 ```
 
@@ -227,8 +227,8 @@ dakb_store_knowledge(
 # Week 3: "What did we learn about TCN?"
 results = dakb_search("TCN experiment results")
 
-# Week 5: "Any papers on attention for time series?"
-results = dakb_search("attention time series trading")
+# Week 5: "Any papers on attention for sequences?"
+results = dakb_search("attention sequence modeling")
 ```
 
 ---
@@ -247,17 +247,17 @@ results = dakb_search("attention time series trading")
 ```python
 # Backend Agent (Claude Code) finds an API issue
 dakb_store_knowledge(
-    title="Kraken API Rate Limit Pattern",
+    title="Stripe API Rate Limit Pattern",
     content="""
     ## Discovery
-    Kraken API returns 429 after 15 requests/second
+    Stripe API returns 429 after 100 requests/second
 
     ## Workaround
     Implement exponential backoff:
     ```python
     for attempt in range(5):
         try:
-            response = kraken_api.call()
+            response = stripe_api.call()
             break
         except RateLimitError:
             time.sleep(2 ** attempt)
@@ -265,14 +265,14 @@ dakb_store_knowledge(
     """,
     content_type="pattern",
     category="backend",
-    tags=["kraken", "api", "rate-limit", "pattern"]
+    tags=["stripe", "api", "rate-limit", "pattern"]
 )
 ```
 
 **Agent B (GPT on Machine 2) finds it automatically:**
 ```python
 # ML Agent (GPT) on different machine, days later
-results = dakb_search("kraken api rate limit")
+results = dakb_search("stripe api rate limit")
 # → Finds the pattern without human intervention
 # → No manual copy-paste between machines
 ```
@@ -291,8 +291,8 @@ Direct communication between agents, regardless of LLM or location:
 # Claude agent alerts GPT agent
 dakb_send_message(
     recipient_id="ml-agent",  # GPT on another machine
-    subject="Kraken API Changes",
-    content="API response format changed. Update your data parser.",
+    subject="Stripe API Changes",
+    content="API response format changed. Update your payment parser.",
     priority="high"
 )
 ```
@@ -366,8 +366,8 @@ for analytics. Considered PostgreSQL but rejected due to..."
 ### 2. Use Consistent Tagging
 ```python
 tags=[
-    "project-trading-bot",  # Project identifier
-    "component-data-fetch", # Component
+    "project-ecommerce",    # Project identifier
+    "component-api",        # Component
     "type-architecture",    # Type of knowledge
     "status-current"        # Status
 ]
@@ -391,8 +391,8 @@ dakb_store_knowledge(
 Begin each session by loading context:
 ```python
 # Start of new session
-results = dakb_search("trading bot recent progress")
-results = dakb_search("open issues ML training")
+results = dakb_search("e-commerce platform recent progress")
+results = dakb_search("open issues recommendation engine")
 ```
 
 ### 5. Use Sessions for Work Tracking

@@ -13,52 +13,91 @@ https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-communit
 
 ---
 
-## Discord Post Content
+## Discord Post Content (Context-Focused)
 
 ```
-🚀 DAKB - Distributed Agent Knowledge Base
+🧠 DAKB - Distributed Agent Knowledge Base
 
-A RAG-powered knowledge sharing platform for multi-agent AI collaboration — built 100% with Claude Code (Opus 4.5)
+Hey everyone! I built something to solve a frustration I kept running into: context loss.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You know the drill — you're deep into a complex project with Claude Code, everything's flowing... then the conversation ends. Next session? You're re-explaining everything. Your agent forgot what took hours to establish.
 
-🎯 **What It Does**
-
-• 🔍 **RAG Knowledge Base** — Semantic search using FAISS + sentence-transformers
-• 🏢 **Enterprise-Ready** — Role-based access, shared inboxes, audit logging
-• 📚 **Research Scale** — Efficient vector indexing for large knowledge repositories
-• 💬 **Cross-Agent Messaging** — Real-time communication across machines
-• ⚡ **MCP Native** — 36 tools for Claude Code integration
-• 🎯 **Shareable Skills** — Centralized, version-controlled agent skills
-
-Think of it as a **"shared memory"** for your entire agent fleet.
+DAKB is my attempt at solving this. It's a RAG-powered knowledge base that creates persistent, searchable memory for your AI agents.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-❓ **The Problem It Solves**
+🎯 What It Actually Does
 
-When working with multiple AI agents (Claude Code, GPT, Gemini, local LLMs):
-
-❌ Agent A discovers a solution → Agent B re-discovers the same issue
-❌ Research findings aren't shared across your agent fleet
-❌ No unified knowledge base for enterprise-wide AI collaboration
-❌ Critical insights are lost when agent sessions end
-
-✅ DAKB creates a **persistent, searchable knowledge layer** all your agents can access — enabling true multi-agent collaboration at enterprise scale.
+• 🔍 RAG Knowledge Base — Semantic search using FAISS + embeddings
+• 💬 Cross-Agent Messaging — Agents share context across machines
+• 📚 Persistent Memory — Insights survive beyond any single session
+• ⚡ MCP Native — 36 tools for Claude Code integration
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔗 **Links**
+❓ The Real Problem: Context Is Your Bottleneck
+
+It's not just about session time limits. The deeper problem:
+
+❌ Agent A discovers a solution → Agent B re-discovers it from scratch
+❌ You become the "human context relay" between sessions
+❌ Multi-week projects lose accumulated insights
+❌ Research findings scatter across conversations
+
+✅ DAKB creates a shared knowledge layer — your agents accumulate and share context over time, not just within a single conversation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 Context Sharing & Tracking
+
+This is the core value. DAKB sessions track and share context, not just time:
+
+# Store context as you work (agent learns something)
+dakb_store_knowledge(
+    title="API rate limit pattern discovered",
+    content="Kraken returns 429 after 15 req/sec...",
+    tags=["api", "kraken", "rate-limit"]
+)
+
+# Any agent, any session, finds it later
+dakb_search("kraken rate limit")
+# → Instantly retrieves the solution
+
+# Track work sessions with git context
+dakb_advanced(operation="session_start", params={
+    "description": "Implementing momentum strategy",
+    "git_branch": "feature/momentum-v2"
+})
+
+# Come back days later — context preserved
+dakb_advanced(operation="session_status")
+# → Shows: branch, recent commits, where you left off
+
+# Export context for agent handoff
+dakb_advanced(operation="session_export")
+# → Bundle your work context for another agent
+
+The key: context accumulates across agents and sessions. Your agent fleet gets smarter over time.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 Full Guide
+
+I wrote a detailed guide on managing context for large projects:
+https://github.com/oracleseed/dakb/blob/main/docs/CONTEXT_MANAGEMENT_GUIDE.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 Links
 
 📦 GitHub: https://github.com/oracleseed/dakb
-
 🖼️ Architecture: https://raw.githubusercontent.com/oracleseed/dakb/main/docs/images/dakb-skills-architecture.png
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Apache 2.0 License** — Free & Open Source
+Built 100% with Claude Code (Opus 4.5) • Apache 2.0 License
 
-Questions? Happy to discuss the architecture or implementation! 💬
+Happy to answer questions or discuss the architecture! 💬
 ```
 
 ---

@@ -13,16 +13,14 @@ Python client library for the DAKB (Distributed Agent Knowledge Base) service.
 
 ## Installation
 
-```bash
-pip install dakb-client
-```
-
-Or install from source:
+Install from source:
 
 ```bash
-cd backend/dakb_service/packages/dakb_client
+cd packages/dakb_client
 pip install -e .
 ```
+
+> **Note:** PyPI package coming soon. For now, install from the repository.
 
 ## Quick Start
 

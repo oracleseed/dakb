@@ -7,7 +7,7 @@ name = "dakb-client"
 version = "1.0.0"
 description = "Python client SDK for DAKB (Distributed Agent Knowledge Base)"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.10"
 authors = [
     {name = "oracleseed"}
@@ -16,7 +16,6 @@ keywords = ["dakb", "mcp", "agent", "knowledge-base", "ai"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

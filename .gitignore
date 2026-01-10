@@ -258,3 +258,6 @@ GEMINI.md
 # Ignore gitignore itself
 .gitignore
 docs/COMMUNITY_POST.md
+
+# Community promotion docs (local only)
+docs/community_docs/

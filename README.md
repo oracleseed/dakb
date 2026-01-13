@@ -21,6 +21,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/version-3.0.0-blue.svg" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.10+-green.svg" alt="Python"/>
+  <a href="https://pypi.org/project/dakb-client/"><img src="https://img.shields.io/pypi/v/dakb-client.svg" alt="PyPI"/></a>
   <img src="https://img.shields.io/badge/RAG-FAISS%20%2B%20Embeddings-00d4aa.svg" alt="RAG"/>
   <img src="https://img.shields.io/badge/Skills-Shareable%20Agent%20Skills-10b981.svg" alt="Skills"/>
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange.svg" alt="License"/>
@@ -237,7 +238,34 @@ python -m dakb.embeddings &  # Port 3101
 python -m dakb.gateway       # Port 3100
 ```
 
-### Option 3: Claude Code MCP Integration
+### Option 3: Python SDK
+
+```bash
+pip install dakb-client
+```
+
+```python
+from dakb_client import DAKBClient
+
+client = DAKBClient(
+    base_url="http://localhost:3100",
+    auth_token="your-token"
+)
+
+# Store knowledge
+client.store_knowledge(
+    title="API Rate Limit Pattern",
+    content="Use exponential backoff...",
+    category="backend"
+)
+
+# Search
+results = client.search("rate limit handling")
+```
+
+See [SDK Documentation](packages/dakb_client/README.md) for full usage.
+
+### Option 4: Claude Code MCP Integration
 
 Add to your Claude Code MCP configuration (`.mcp.json`):
 

@@ -3,17 +3,17 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dakb"
-version = "3.0.0"
-description = "Distributed Agent Knowledge Base - A shared knowledge system for multi-agent AI collaboration"
+name = "dakb-server"
+version = "1.0.0"
+description = "Distributed Agent Knowledge Base Server - A shared knowledge system for multi-agent AI collaboration"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    {name = "DAKB Contributors"}
+    {name = "oracleseed"}
 ]
 maintainers = [
-    {name = "DAKB Contributors"}
+    {name = "oracleseed"}
 ]
 keywords = [
     "ai",
@@ -31,7 +31,6 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -56,6 +55,7 @@ dependencies = [
     "PyYAML>=6.0",
     "python-dotenv>=1.0.0",
     "mcp>=1.0.0",
+    "click>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -93,7 +93,7 @@ Issues = "https://github.com/oracleseed/dakb/issues"
 Changelog = "https://github.com/oracleseed/dakb/blob/main/CHANGELOG.md"
 
 [project.scripts]
-dakb = "dakb.cli:main"
+dakb-server = "dakb.cli:main"
 dakb-gateway = "dakb.gateway.main:run"
 dakb-embedding = "dakb.embeddings:run"
 

@@ -19,11 +19,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.0.0-blue.svg" alt="Version"/>
+  <a href="https://pypi.org/project/dakb-server/"><img src="https://img.shields.io/pypi/v/dakb-server.svg?label=dakb-server" alt="PyPI Server"/></a>
+  <a href="https://pypi.org/project/dakb-client/"><img src="https://img.shields.io/pypi/v/dakb-client.svg?label=dakb-client" alt="PyPI Client"/></a>
   <img src="https://img.shields.io/badge/python-3.10+-green.svg" alt="Python"/>
-  <a href="https://pypi.org/project/dakb-client/"><img src="https://img.shields.io/pypi/v/dakb-client.svg" alt="PyPI"/></a>
   <img src="https://img.shields.io/badge/RAG-FAISS%20%2B%20Embeddings-00d4aa.svg" alt="RAG"/>
-  <img src="https://img.shields.io/badge/Skills-Shareable%20Agent%20Skills-10b981.svg" alt="Skills"/>
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange.svg" alt="License"/>
   <img src="https://img.shields.io/badge/built%20with-Claude%20Code-blueviolet.svg" alt="Built with Claude"/>
 </p>
@@ -190,7 +189,26 @@ category: "<domain>"     # Required: database, ml, backend, etc.
 
 ## Quick Start
 
-### Option 1: Docker (Recommended)
+### Option 1: PyPI Install (Recommended)
+
+```bash
+# Install server and client
+pip install dakb-server dakb-client
+
+# Initialize configuration (creates ~/.dakb/)
+dakb-server init
+
+# Start services
+dakb-server start
+
+# Check status
+dakb-server status
+
+# Verify
+curl http://localhost:3100/health
+```
+
+### Option 2: Docker
 
 ```bash
 # Clone the repository
@@ -208,7 +226,7 @@ docker-compose -f docker/docker-compose.yml up -d
 curl http://localhost:3100/health
 ```
 
-### Option 2: Local Installation
+### Option 3: Local Installation (from source)
 
 ```bash
 # Clone and install
@@ -238,7 +256,7 @@ python -m dakb.embeddings &  # Port 3101
 python -m dakb.gateway       # Port 3100
 ```
 
-### Option 3: Python SDK
+### Option 4: Python SDK (Client Only)
 
 ```bash
 pip install dakb-client
@@ -265,7 +283,7 @@ results = client.search("rate limit handling")
 
 See [SDK Documentation](packages/dakb_client/README.md) for full usage.
 
-### Option 4: Claude Code MCP Integration
+### Option 5: Claude Code MCP Integration
 
 Add to your Claude Code MCP configuration (`.mcp.json`):
 

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-01-14
+
+### Fixed
+- Fixed version mismatch in `dakb/__init__.py` (CLI now shows correct version)
+
 ## [1.2.0] - 2026-01-14
 
 ### Added
@@ -86,7 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/oracleseed/dakb/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/oracleseed/dakb/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/oracleseed/dakb/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/oracleseed/dakb/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/oracleseed/dakb/compare/v3.0.0...v1.1.0
 [3.0.0]: https://github.com/oracleseed/dakb/compare/v2.0.0...v3.0.0

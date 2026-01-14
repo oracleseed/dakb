@@ -10,12 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="#installation">Install</a> •
   <a href="#features">Features</a> •
   <a href="#skills-architecture">Skills</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#architecture">Architecture</a> •
-  <a href="#documentation">Docs</a> •
-  <a href="#built-with-claude">Built with Claude</a>
+  <a href="#documentation">Docs</a>
 </p>
 
 <p align="center">
@@ -57,6 +57,51 @@ DAKB creates a **persistent, searchable knowledge layer** that all your agents c
 | **Research Projects** | Accumulate and search research findings, papers, and experimental results |
 | **Multi-Agent Workflows** | Coordinate specialized agents (coder, reviewer, researcher) with shared context |
 | **Knowledge Management** | Build institutional AI memory that persists across sessions and team members |
+
+---
+
+## Installation
+
+### Server + Client (Recommended)
+
+```bash
+# Install both packages
+pip install dakb-server dakb-client
+
+# Initialize configuration (creates ~/.dakb/ with secrets)
+dakb-server init
+
+# Start services
+dakb-server start
+
+# Verify
+curl http://localhost:3100/health
+```
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `dakb-server init` | Initialize config, generate secrets, create directories |
+| `dakb-server start` | Start gateway (port 3100) and embedding (port 3101) services |
+| `dakb-server stop` | Stop all running services |
+| `dakb-server status` | Check service health and MongoDB connection |
+| `dakb-server version` | Show version information |
+
+### Client Only
+
+If you already have a DAKB server running:
+
+```bash
+pip install dakb-client
+```
+
+```python
+from dakb_client import DAKBClient
+
+client = DAKBClient(base_url="http://localhost:3100", auth_token="your-token")
+results = client.search("authentication patterns")
+```
 
 ---
 

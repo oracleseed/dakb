@@ -299,7 +299,7 @@ class DAKBClient:
         Args:
             title: Brief title (max 100 chars)
             content: Knowledge content (markdown supported)
-            content_type: Type (lesson_learned, research, report, pattern, config, error_fix)
+            content_type: Type (lesson_learned, research, report, pattern, config, error_fix, plan, implementation)
             category: Category (database, ml, trading, devops, security, frontend, backend, general)
             confidence: Confidence score 0-1 (default: 0.8)
             tags: Searchable tags (max 10)

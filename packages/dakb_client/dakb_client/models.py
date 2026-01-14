@@ -26,6 +26,8 @@ class ContentType(str, Enum):
     PATTERN = "pattern"
     CONFIG = "config"
     ERROR_FIX = "error_fix"
+    PLAN = "plan"
+    IMPLEMENTATION = "implementation"
 
 
 class Category(str, Enum):

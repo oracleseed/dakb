@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAKB Admin Dashboard</title>
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --dakb-primary: #2c3e50;
+            --dakb-secondary: #34495e;
+            --dakb-accent: #3498db;
+            --dakb-success: #27ae60;
+            --dakb-warning: #f39c12;
+            --dakb-danger: #e74c3c;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background: linear-gradient(135deg, var(--dakb-primary) 0%, var(--dakb-secondary) 100%);
+            padding: 20px 0;
+            z-index: 1000;
+        }
+
+        .sidebar-brand {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-brand i {
+            margin-right: 10px;
+            color: var(--dakb-accent);
+        }
+
+        .nav-item {
+            margin: 5px 15px;
+        }
+
+        .nav-link {
+            color: rgba(255,255,255,0.8);
+            border-radius: 8px;
+            padding: 12px 15px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .nav-link i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 30px;
+        }
+
+        .page-header {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--dakb-primary);
+            margin: 0;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+        }
+
+        .stat-icon.blue { background: rgba(52, 152, 219, 0.1); color: var(--dakb-accent); }
+        .stat-icon.green { background: rgba(39, 174, 96, 0.1); color: var(--dakb-success); }
+        .stat-icon.orange { background: rgba(243, 156, 18, 0.1); color: var(--dakb-warning); }
+        .stat-icon.purple { background: rgba(155, 89, 182, 0.1); color: #9b59b6; }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--dakb-primary);
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .card-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dakb-primary);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: var(--dakb-primary);
+            border-top: none;
+        }
+
+        .badge-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .badge-active { background: rgba(39, 174, 96, 0.1); color: var(--dakb-success); }
+        .badge-expired { background: rgba(243, 156, 18, 0.1); color: var(--dakb-warning); }
+        .badge-revoked { background: rgba(231, 76, 60, 0.1); color: var(--dakb-danger); }
+
+        .btn-action {
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .modal-content {
+            border-radius: 12px;
+            border: none;
+        }
+
+        .modal-header {
+            background: var(--dakb-primary);
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .form-control, .form-select {
+            border-radius: 8px;
+            padding: 10px 15px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--dakb-accent);
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+        }
+
+        .loading-spinner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-spinner.show {
+            display: flex;
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <i class="bi bi-database-fill"></i>DAKB Admin
+        </div>
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-section="overview">
+                    <i class="bi bi-speedometer2"></i>Overview
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="admins">
+                    <i class="bi bi-shield-check"></i>Admin Agents
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="tokens">
+                    <i class="bi bi-key"></i>Token Registry
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="invites">
+                    <i class="bi bi-ticket-perforated"></i>Invite Tokens
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="agents">
+                    <i class="bi bi-people"></i>Agents
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="config">
+                    <i class="bi bi-gear"></i>Configuration
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="status">
+                    <i class="bi bi-activity"></i>System Status
+                </a>
+            </li>
+        </ul>
+        <div class="mt-auto p-3" style="position: absolute; bottom: 0; left: 0; right: 0;">
+            <div class="text-white-50 mb-2"><small>DAKB Admin v1.0</small></div>
+            <button class="btn btn-outline-light btn-sm w-100" onclick="logout()">
+                <i class="bi bi-box-arrow-left me-2"></i>Logout
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Overview Section -->
+        <section id="section-overview" class="section-content">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="page-title">Dashboard Overview</h1>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="badge bg-secondary" id="wsStatus">Connecting...</span>
+                    <button class="btn btn-primary" onclick="refreshAll()">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="bi bi-people"></i></div>
+                        <div class="stat-value" id="stat-agents">--</div>
+                        <div class="stat-label">Active Agents</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="bi bi-book"></i></div>
+                        <div class="stat-value" id="stat-knowledge">--</div>
+                        <div class="stat-label">Knowledge Entries</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="bi bi-envelope"></i></div>
+                        <div class="stat-value" id="stat-messages">--</div>
+                        <div class="stat-label">Pending Messages</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="bi bi-shield"></i></div>
+                        <div class="stat-value" id="stat-admins">--</div>
+                        <div class="stat-label">Admin Agents</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card-section">
+                        <h5 class="section-title"><i class="bi bi-pie-chart me-2"></i>Knowledge by Category</h5>
+                        <div style="position: relative; height: 250px;">
+                            <canvas id="knowledgeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card-section">
+                        <h5 class="section-title"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
+                        <div id="recentActivity" class="list-group list-group-flush">
+                            <!-- Activity items will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Agents Section -->
+        <section id="section-admins" class="section-content" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <h1 class="page-title">Admin Agents</h1>
+                <button class="btn btn-success" onclick="showAddAdminModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Add Admin
+                </button>
+            </div>
+
+            <div class="card-section">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Agent ID</th>
+                                <th>Added By</th>
+                                <th>Added At</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminTable">
+                            <!-- Admin rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Token Registry Section -->
+        <section id="section-tokens" class="section-content" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <h1 class="page-title">Token Registry</h1>
+                <div>
+                    <button class="btn btn-primary me-2" onclick="showGenerateTokenModal()">
+                        <i class="bi bi-magic me-2"></i>Generate Token
+                    </button>
+                    <button class="btn btn-success" onclick="showRegisterTokenModal()">
+                        <i class="bi bi-plus-lg me-2"></i>Register Existing
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Agent ID</th>
+                                <th>Status</th>
+                                <th>Role</th>
+                                <th>Expires</th>
+                                <th>Use Count</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tokenTable">
+                            <!-- Token rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Invite Tokens Section -->
+        <section id="section-invites" class="section-content" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <h1 class="page-title">Invite Tokens</h1>
+                <button class="btn btn-success" onclick="showCreateInviteModal()">
+                    <i class="bi bi-plus-lg me-2"></i>Create Invite
+                </button>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card-section">
+                        <h6 class="section-title"><i class="bi bi-info-circle me-2"></i>How Invite Tokens Work</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-start">
+                                    <span class="badge bg-primary me-2">1</span>
+                                    <div>
+                                        <strong>Create Invite</strong>
+                                        <p class="text-muted small mb-0">Generate an invite token with optional role and access level restrictions.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-start">
+                                    <span class="badge bg-primary me-2">2</span>
+                                    <div>
+                                        <strong>Share Token</strong>
+                                        <p class="text-muted small mb-0">Send the invite token to the new agent via secure channel.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-start">
+                                    <span class="badge bg-primary me-2">3</span>
+                                    <div>
+                                        <strong>Agent Registers</strong>
+                                        <p class="text-muted small mb-0">Agent uses POST /api/v1/register/request with the invite token.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="card-section mb-4">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="inviteFilterStatus" onchange="loadInvites()">
+                            <option value="">All</option>
+                            <option value="active">Active</option>
+                            <option value="used">Used</option>
+                            <option value="expired">Expired</option>
+                            <option value="revoked">Revoked</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Created By</label>
+                        <input type="text" class="form-control" id="inviteFilterCreator" placeholder="Admin ID" onchange="loadInvites()">
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-outline-secondary" onclick="loadInvites()">
+                            <i class="bi bi-funnel me-1"></i>Apply Filter
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="clearInviteFilters()">
+                            <i class="bi bi-x-lg me-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Invite Token</th>
+                                <th>Status</th>
+                                <th>Purpose</th>
+                                <th>Created By</th>
+                                <th>Expires</th>
+                                <th>Used By</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inviteTable">
+                            <!-- Invite rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <small class="text-muted">Showing <span id="inviteCount">0</span> of <span id="inviteTotal">0</span> invites</small>
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="prevInvitePage()" id="invitePrevBtn" disabled>
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="nextInvitePage()" id="inviteNextBtn" disabled>
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Agents Section -->
+        <section id="section-agents" class="section-content" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <h1 class="page-title">Registered Agents</h1>
+                <div class="d-flex gap-2">
+                    <span class="badge bg-success" id="agentActiveCount">0 Active</span>
+                    <span class="badge bg-warning text-dark" id="agentSuspendedCount">0 Suspended</span>
+                    <span class="badge bg-secondary" id="agentOfflineCount">0 Offline</span>
+                </div>
+            </div>
+
+            <!-- Agent Filters -->
+            <div class="card-section mb-4">
+                <div class="section-title">Filters</div>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="agentStatusFilter" onchange="loadAgents()">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="idle">Idle</option>
+                            <option value="offline">Offline</option>
+                            <option value="suspended">Suspended</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" id="agentRoleFilter" onchange="loadAgents()">
+                            <option value="">All Roles</option>
+                            <option value="admin">Admin</option>
+                            <option value="developer">Developer</option>
+                            <option value="researcher">Researcher</option>
+                            <option value="viewer">Viewer</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Agent Type</label>
+                        <select class="form-select" id="agentTypeFilter" onchange="loadAgents()">
+                            <option value="">All Types</option>
+                            <option value="claude">Claude</option>
+                            <option value="claude_code">Claude Code</option>
+                            <option value="gpt">GPT</option>
+                            <option value="gemini">Gemini</option>
+                            <option value="grok">Grok</option>
+                            <option value="local">Local</option>
+                            <option value="human">Human</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-outline-secondary w-100" onclick="clearAgentFilters()">
+                            <i class="bi bi-x-circle me-2"></i>Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agents Table -->
+            <div class="card-section">
+                <div class="section-title d-flex justify-content-between align-items-center">
+                    <span>Agents (<span id="agentTotalCount">0</span>)</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadAgents()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Agent ID</th>
+                                <th>Display Name</th>
+                                <th>Type</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Machine</th>
+                                <th>Last Seen</th>
+                                <th>Stats</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agentsTable">
+                            <!-- Agent rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="text-muted" id="agentPaginationInfo">
+                        Showing 0-0 of 0 agents
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="prevAgentPage()" id="agentPrevBtn" disabled>
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="nextAgentPage()" id="agentNextBtn" disabled>
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- View Agent Modal -->
+        <div class="modal fade" id="viewAgentModal" tabindex="-1" aria-labelledby="viewAgentModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="viewAgentModalLabel">
+                            <i class="bi bi-person-badge me-2"></i>Agent Details
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th class="text-muted" style="width: 40%;">Agent ID:</th>
+                                        <td><code id="viewAgentId"></code></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Display Name:</th>
+                                        <td id="viewAgentDisplayName"></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Type:</th>
+                                        <td id="viewAgentType"></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Role:</th>
+                                        <td id="viewAgentRole"></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Status:</th>
+                                        <td id="viewAgentStatus"></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th class="text-muted" style="width: 40%;">Machine ID:</th>
+                                        <td><code id="viewAgentMachineId"></code></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Created:</th>
+                                        <td id="viewAgentCreated"></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Last Seen:</th>
+                                        <td id="viewAgentLastSeen"></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Knowledge:</th>
+                                        <td id="viewAgentKnowledge"></td>
+                                    </tr>
+                                    <tr>
+                                        <th class="text-muted">Messages:</th>
+                                        <td id="viewAgentMessages"></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6 class="text-muted mb-2">Capabilities</h6>
+                                <div id="viewAgentCapabilities" class="mb-3">
+                                    <!-- Capability badges will be inserted here -->
+                                </div>
+                                <h6 class="text-muted mb-2">Specializations</h6>
+                                <div id="viewAgentSpecializations">
+                                    <!-- Specialization badges will be inserted here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="showEditAgentModal()" id="editAgentBtn">
+                            <i class="bi bi-pencil me-1"></i>Edit Agent
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Agent Modal -->
+        <div class="modal fade" id="editAgentModal" tabindex="-1" aria-labelledby="editAgentModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editAgentModalLabel">
+                            <i class="bi bi-pencil-square me-2"></i>Edit Agent
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editAgentForm">
+                            <input type="hidden" id="editAgentIdInput">
+                            <div class="mb-3">
+                                <label for="editDisplayName" class="form-label">Display Name</label>
+                                <input type="text" class="form-control" id="editDisplayName" maxlength="100">
+                            </div>
+                            <div class="mb-3">
+                                <label for="editRole" class="form-label">Role</label>
+                                <select class="form-select" id="editRole">
+                                    <option value="admin">Admin</option>
+                                    <option value="developer">Developer</option>
+                                    <option value="researcher">Researcher</option>
+                                    <option value="viewer">Viewer</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editStatus" class="form-label">Status</label>
+                                <select class="form-select" id="editStatus">
+                                    <option value="active">Active</option>
+                                    <option value="idle">Idle</option>
+                                    <option value="offline">Offline</option>
+                                    <option value="suspended">Suspended</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editCapabilities" class="form-label">Capabilities (comma-separated)</label>
+                                <input type="text" class="form-control" id="editCapabilities" placeholder="coding, debugging, database">
+                            </div>
+                            <div class="mb-3">
+                                <label for="editSpecializations" class="form-label">Specializations (comma-separated)</label>
+                                <input type="text" class="form-control" id="editSpecializations" placeholder="Python, Django, ML">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="saveAgentChanges()">
+                            <i class="bi bi-check-lg me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Agent Confirmation Modal -->
+        <div class="modal fade" id="deleteAgentModal" tabindex="-1" aria-labelledby="deleteAgentModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title" id="deleteAgentModalLabel">
+                            <i class="bi bi-exclamation-triangle me-2"></i>Delete Agent
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger">
+                            <strong>Warning:</strong> This action cannot be undone. The agent will be permanently removed from the system.
+                        </div>
+                        <p>Are you sure you want to delete agent <strong id="deleteAgentIdDisplay"></strong>?</p>
+                        <input type="hidden" id="deleteAgentIdInput">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="confirmDeleteAgent()">
+                            <i class="bi bi-trash me-1"></i>Delete Permanently
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Section -->
+        <section id="section-config" class="section-content" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Runtime Configuration</h1>
+            </div>
+
+            <div class="card-section">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Value</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="configTable">
+                            <!-- Config rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- System Status Section -->
+        <section id="section-status" class="section-content" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <h1 class="page-title">System Status</h1>
+                <button class="btn btn-primary" onclick="loadSystemStatus()">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                </button>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card-section">
+                        <h5 class="section-title"><i class="bi bi-server me-2"></i>Services</h5>
+                        <div id="serviceStatus">
+                            <!-- Service status will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card-section">
+                        <h5 class="section-title"><i class="bi bi-info-circle me-2"></i>System Info</h5>
+                        <div id="systemInfo">
+                            <!-- System info will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Add Admin Modal -->
+    <div class="modal fade" id="addAdminModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-shield-plus me-2"></i>Add Admin Agent</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addAdminForm">
+                        <div class="mb-3">
+                            <label class="form-label">Agent ID</label>
+                            <input type="text" class="form-control" id="newAdminId" required placeholder="e.g., new-admin-agent">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" id="newAdminNotes" rows="2" placeholder="Optional notes about this admin"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="addAdmin()">Add Admin</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Token Modal -->
+    <div class="modal fade" id="registerTokenModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-key me-2"></i>Register Token</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="registerTokenForm">
+                        <div class="mb-3">
+                            <label class="form-label">Agent ID</label>
+                            <input type="text" class="form-control" id="tokenAgentId" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Token Fingerprint (SHA256)</label>
+                            <input type="text" class="form-control" id="tokenFingerprint" required placeholder="sha256:...">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Agent Type</label>
+                                <select class="form-select" id="tokenAgentType">
+                                    <option value="claude">Claude</option>
+                                    <option value="gpt">GPT</option>
+                                    <option value="gemini">Gemini</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Role</label>
+                                <select class="form-select" id="tokenRole">
+                                    <option value="developer">Developer</option>
+                                    <option value="admin">Admin</option>
+                                    <option value="readonly">Read-only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Expires In (days)</label>
+                            <input type="number" class="form-control" id="tokenExpiryDays" value="365" min="1" max="3650">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" id="tokenNotes" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="registerToken()">Register Token</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Config Modal -->
+    <div class="modal fade" id="editConfigModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-gear me-2"></i>Edit Configuration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editConfigForm">
+                        <div class="mb-3">
+                            <label class="form-label">Key</label>
+                            <input type="text" class="form-control" id="configKey" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Value</label>
+                            <input type="text" class="form-control" id="configValue" required>
+                            <div class="form-text" id="configHint"></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="updateConfig()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Refresh Token Modal -->
+    <div class="modal fade" id="refreshTokenModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>Refresh Token</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="refreshTokenForm">
+                        <div class="mb-3">
+                            <label class="form-label">Agent ID</label>
+                            <input type="text" class="form-control" id="refreshAgentId" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Extend By (hours)</label>
+                            <input type="number" class="form-control" id="refreshHours" value="8760" min="1" max="87600">
+                            <div class="form-text">8760 hours = 365 days</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="refreshToken()">Refresh Token</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generate Token Modal -->
+    <div class="modal fade" id="generateTokenModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-magic me-2"></i>Generate New Token</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Step 1: Configure -->
+                    <div id="tokenStep1">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Agent ID</label>
+                                <input type="text" class="form-control" id="genAgentId" required placeholder="e.g., my-new-agent">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Machine ID</label>
+                                <input type="text" class="form-control" id="genMachineId" required placeholder="e.g., workstation-1">
+                                <div class="form-text">Identifier for the machine/environment</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Agent Type</label>
+                                <select class="form-select" id="genAgentType">
+                                    <option value="claude">Claude</option>
+                                    <option value="gpt">GPT</option>
+                                    <option value="gemini">Gemini</option>
+                                    <option value="grok">Grok</option>
+                                    <option value="local">Local</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Role</label>
+                                <select class="form-select" id="genRole">
+                                    <option value="developer">Developer</option>
+                                    <option value="admin">Admin</option>
+                                    <option value="readonly">Read-only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Valid For</label>
+                            <select class="form-select" id="genExpiry">
+                                <option value="24">24 hours</option>
+                                <option value="168">7 days</option>
+                                <option value="720">30 days</option>
+                                <option value="2160">90 days</option>
+                                <option value="8760" selected>1 year</option>
+                                <option value="17520">2 years</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Access Levels</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="accessPublic" checked>
+                                <label class="form-check-label" for="accessPublic">Public</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="accessRestricted">
+                                <label class="form-check-label" for="accessRestricted">Restricted</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="accessSecret">
+                                <label class="form-check-label" for="accessSecret">Secret</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Generated Token -->
+                    <div id="tokenStep2" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle me-2"></i>Token generated successfully!
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Generated Token</label>
+                            <div class="input-group">
+                                <textarea class="form-control font-monospace" id="generatedToken" rows="4" readonly
+                                    style="font-size: 0.85rem; background: #f8f9fa;"></textarea>
+                            </div>
+                            <div class="mt-2">
+                                <button class="btn btn-outline-primary btn-sm" onclick="copyToken()">
+                                    <i class="bi bi-clipboard me-1"></i>Copy to Clipboard
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="downloadToken()">
+                                    <i class="bi bi-download me-1"></i>Download
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-info-circle me-2"></i>Token Details</h6>
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr><td>Agent ID:</td><td><strong id="tokenDetailAgentId">-</strong></td></tr>
+                                    <tr><td>Machine ID:</td><td><strong id="tokenDetailMachineId">-</strong></td></tr>
+                                    <tr><td>Role:</td><td><strong id="tokenDetailRole">-</strong></td></tr>
+                                    <tr><td>Expires:</td><td><strong id="tokenDetailExpires">-</strong></td></tr>
+                                    <tr><td>Access Levels:</td><td><strong id="tokenDetailAccess">-</strong></td></tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Important:</strong> Save this token securely. It will not be shown again.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="generateTokenBtn" onclick="generateNewToken()">
+                        <i class="bi bi-magic me-1"></i>Generate Token
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Invite Modal -->
+    <div class="modal fade" id="createInviteModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-ticket-perforated me-2"></i>Create Invite Token</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Step 1: Configure -->
+                    <div id="inviteStep1">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Target Agent ID (Optional)</label>
+                                <input type="text" class="form-control" id="inviteTargetAgentId" placeholder="e.g., new-research-agent">
+                                <div class="form-text">Hint for expected agent ID</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Target Agent Type (Optional)</label>
+                                <select class="form-select" id="inviteTargetType">
+                                    <option value="">Any</option>
+                                    <option value="claude">Claude</option>
+                                    <option value="gpt">GPT</option>
+                                    <option value="gemini">Gemini</option>
+                                    <option value="grok">Grok</option>
+                                    <option value="local">Local</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Role</label>
+                                <select class="form-select" id="inviteRole">
+                                    <option value="developer">Developer</option>
+                                    <option value="readonly">Read-only</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Valid For</label>
+                                <select class="form-select" id="inviteExpiry">
+                                    <option value="1">1 hour</option>
+                                    <option value="6">6 hours</option>
+                                    <option value="24">24 hours</option>
+                                    <option value="48" selected>48 hours</option>
+                                    <option value="72">72 hours</option>
+                                    <option value="168">7 days</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Max Uses</label>
+                                <input type="number" class="form-control" id="inviteMaxUses" value="1" min="1" max="10">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Access Levels</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="inviteAccessPublic" checked>
+                                <label class="form-check-label" for="inviteAccessPublic">Public</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="inviteAccessRestricted">
+                                <label class="form-check-label" for="inviteAccessRestricted">Restricted</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="inviteAccessSecret">
+                                <label class="form-check-label" for="inviteAccessSecret">Secret</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Purpose</label>
+                            <input type="text" class="form-control" id="invitePurpose" placeholder="e.g., Onboarding new research agent for ML team">
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Generated Invite -->
+                    <div id="inviteStep2" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle me-2"></i>Invite token created successfully!
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Invite Token</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" id="generatedInviteToken" readonly
+                                    style="font-size: 0.9rem; background: #f8f9fa;">
+                                <button class="btn btn-outline-primary" onclick="copyInviteToken()">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-info-circle me-2"></i>Invite Details</h6>
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr><td>Expires:</td><td><strong id="inviteDetailExpires">-</strong></td></tr>
+                                    <tr><td>Max Uses:</td><td><strong id="inviteDetailMaxUses">-</strong></td></tr>
+                                    <tr><td>Role:</td><td><strong id="inviteDetailRole">-</strong></td></tr>
+                                    <tr><td>Access Levels:</td><td><strong id="inviteDetailAccess">-</strong></td></tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-lightbulb me-2"></i>
+                            <strong>Registration Endpoint:</strong>
+                            <code class="ms-2">POST /api/v1/register/request</code>
+                            <br><br>
+                            <strong>Required Fields:</strong>
+                            <code>invite_token</code>, <code>agent_id</code>, <code>machine_id</code>, <code>agent_type</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" id="createInviteBtn" onclick="createInvite()">
+                        <i class="bi bi-ticket-perforated me-1"></i>Create Invite
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Invite Modal -->
+    <div class="modal fade" id="viewInviteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-ticket-perforated me-2"></i>Invite Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-borderless">
+                        <tr><td><strong>Token:</strong></td><td><code id="viewInviteToken">-</code></td></tr>
+                        <tr><td><strong>Status:</strong></td><td><span id="viewInviteStatus">-</span></td></tr>
+                        <tr><td><strong>Created By:</strong></td><td id="viewInviteCreatedBy">-</td></tr>
+                        <tr><td><strong>Created At:</strong></td><td id="viewInviteCreatedAt">-</td></tr>
+                        <tr><td><strong>Expires At:</strong></td><td id="viewInviteExpiresAt">-</td></tr>
+                        <tr><td><strong>Purpose:</strong></td><td id="viewInvitePurpose">-</td></tr>
+                        <tr><td><strong>For Agent Type:</strong></td><td id="viewInviteAgentType">-</td></tr>
+                        <tr><td><strong>Agent ID Hint:</strong></td><td id="viewInviteAgentHint">-</td></tr>
+                        <tr><td><strong>Used By:</strong></td><td id="viewInviteUsedBy">-</td></tr>
+                        <tr><td><strong>Used At:</strong></td><td id="viewInviteUsedAt">-</td></tr>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // Global state
+        let authToken = localStorage.getItem('dakb_admin_token') || '';
+        let knowledgeChart = null;
+        let statusWebSocket = null;
+        let wsReconnectTimer = null;
+
+        // API Base URL
+        const API_BASE = '/api/v1/admin';
+        const WS_BASE = `ws://${window.location.host}/ws/admin`;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupNavigation();
+            checkAuth();
+        });
+
+        // WebSocket for real-time status
+        function connectWebSocket() {
+            if (statusWebSocket && statusWebSocket.readyState === WebSocket.OPEN) {
+                return;
+            }
+
+            statusWebSocket = new WebSocket(`${WS_BASE}/status`);
+
+            statusWebSocket.onopen = () => {
+                console.log('WebSocket connected');
+                updateConnectionStatus(true);
+                if (wsReconnectTimer) {
+                    clearInterval(wsReconnectTimer);
+                    wsReconnectTimer = null;
+                }
+            };
+
+            statusWebSocket.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+
+                if (message.type === 'status_update') {
+                    updateStatusFromWebSocket(message.data);
+                } else if (message.type === 'heartbeat') {
+                    // Connection still alive
+                }
+            };
+
+            statusWebSocket.onclose = () => {
+                console.log('WebSocket disconnected');
+                updateConnectionStatus(false);
+                // Attempt to reconnect after 5 seconds
+                if (!wsReconnectTimer) {
+                    wsReconnectTimer = setTimeout(connectWebSocket, 5000);
+                }
+            };
+
+            statusWebSocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus(false);
+            };
+        }
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('wsStatus');
+            if (indicator) {
+                indicator.className = `badge ${connected ? 'bg-success' : 'bg-danger'}`;
+                indicator.textContent = connected ? 'Live' : 'Offline';
+            }
+        }
+
+        function updateStatusFromWebSocket(data) {
+            // Update stat cards
+            if (data.agents) {
+                document.getElementById('stat-agents').textContent = data.agents.active || 0;
+            }
+            if (data.knowledge) {
+                document.getElementById('stat-knowledge').textContent = data.knowledge.total || 0;
+                // Update chart if we have category data
+                if (data.knowledge.by_category) {
+                    updateKnowledgeChart(data.knowledge.by_category);
+                }
+            }
+            if (data.messages) {
+                document.getElementById('stat-messages').textContent = data.messages.pending || 0;
+            }
+
+            // Update service status indicators if on status page
+            if (data.services) {
+                updateServiceIndicators(data.services);
+            }
+        }
+
+        function updateServiceIndicators(services) {
+            Object.entries(services).forEach(([name, info]) => {
+                const indicator = document.getElementById(`service-${name}`);
+                if (indicator) {
+                    indicator.className = `badge bg-${info.status === 'running' || info.status === 'connected' ? 'success' : 'danger'}`;
+                    indicator.textContent = info.status;
+                }
+            });
+        }
+
+        // Navigation
+        function setupNavigation() {
+            document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const section = e.target.closest('.nav-link').dataset.section;
+                    showSection(section);
+                });
+            });
+        }
+
+        function showSection(section) {
+            // Update nav
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.nav-link[data-section="${section}"]`).classList.add('active');
+
+            // Show section
+            document.querySelectorAll('.section-content').forEach(s => s.style.display = 'none');
+            document.getElementById(`section-${section}`).style.display = 'block';
+
+            // Load section data
+            switch(section) {
+                case 'overview': loadOverview(); break;
+                case 'admins': loadAdmins(); break;
+                case 'tokens': loadTokens(); break;
+                case 'invites': loadInvites(); break;
+                case 'agents': loadAgents(); break;
+                case 'config': loadConfig(); break;
+                case 'status': loadSystemStatus(); break;
+            }
+        }
+
+        // Auth
+        function checkAuth() {
+            // First try cookie, then localStorage
+            const cookieToken = getCookie('dakb_admin_session');
+            if (cookieToken) {
+                authToken = cookieToken;
+                localStorage.setItem('dakb_admin_token', cookieToken);
+            }
+
+            if (!authToken) {
+                // Redirect to login page
+                window.location.href = '/admin/login';
+                return;
+            }
+
+            // Verify token is still valid
+            verifyAndLoadOverview();
+        }
+
+        async function verifyAndLoadOverview() {
+            try {
+                const response = await fetch(API_BASE + '/status', {
+                    headers: getHeaders()
+                });
+
+                if (response.ok) {
+                    loadOverview();
+                    // Connect WebSocket for real-time updates
+                    connectWebSocket();
+                } else {
+                    // Token invalid, redirect to login
+                    clearAuth();
+                    window.location.href = '/admin/login';
+                }
+            } catch (error) {
+                showToast('Connection error', 'error');
+            }
+        }
+
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? match[2] : null;
+        }
+
+        function clearAuth() {
+            document.cookie = 'dakb_admin_session=; path=/; max-age=0';
+            localStorage.removeItem('dakb_admin_token');
+            authToken = '';
+        }
+
+        function logout() {
+            clearAuth();
+            window.location.href = '/admin/login';
+        }
+
+        function getHeaders() {
+            return {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            };
+        }
+
+        // API Calls
+        async function apiCall(endpoint, options = {}) {
+            showLoading(true);
+            try {
+                const response = await fetch(API_BASE + endpoint, {
+                    ...options,
+                    headers: getHeaders()
+                });
+
+                if (response.status === 401) {
+                    clearAuth();
+                    window.location.href = '/admin/login';
+                    return null;
+                }
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showToast(data.detail || 'Error', 'error');
+                    return null;
+                }
+
+                return data;
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+                return null;
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Overview
+        async function loadOverview() {
+            const status = await apiCall('/status');
+            if (status) {
+                document.getElementById('stat-agents').textContent = status.agents?.active || 0;
+                document.getElementById('stat-knowledge').textContent = status.knowledge?.total || 0;
+                document.getElementById('stat-messages').textContent = status.messages?.pending || 0;
+                document.getElementById('stat-admins').textContent = status.admin_count || 0;
+
+                // Update chart
+                if (status.knowledge?.by_category) {
+                    updateKnowledgeChart(status.knowledge.by_category);
+                }
+            }
+        }
+
+        function updateKnowledgeChart(data) {
+            const canvas = document.getElementById('knowledgeChart');
+            const container = canvas.parentElement;
+
+            // Check if we have valid data
+            if (!data || Object.keys(data).length === 0) {
+                // Show empty state
+                if (knowledgeChart) {
+                    knowledgeChart.destroy();
+                    knowledgeChart = null;
+                }
+                container.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-pie-chart fs-1 d-block mb-2"></i>No knowledge entries yet</div>';
+                return;
+            }
+
+            // Ensure canvas exists (might have been replaced by empty state)
+            if (!canvas || canvas.tagName !== 'CANVAS') {
+                container.innerHTML = '<canvas id="knowledgeChart"></canvas>';
+            }
+
+            const ctx = document.getElementById('knowledgeChart').getContext('2d');
+
+            if (knowledgeChart) {
+                knowledgeChart.destroy();
+            }
+
+            const colors = [
+                '#3498db', '#27ae60', '#f39c12', '#e74c3c',
+                '#9b59b6', '#1abc9c', '#34495e', '#e67e22'
+            ];
+
+            knowledgeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: colors.slice(0, Object.keys(data).length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Admin Agents
+        async function loadAdmins() {
+            const data = await apiCall('/agents');
+            if (data) {
+                const tbody = document.getElementById('adminTable');
+                tbody.innerHTML = data.admin_agents.map(admin => `
+                    <tr>
+                        <td><strong>${admin.agent_id}</strong></td>
+                        <td>${admin.added_by || '-'}</td>
+                        <td>${formatDate(admin.added_at)}</td>
+                        <td>${admin.notes || '-'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" onclick="removeAdmin('${admin.agent_id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function showAddAdminModal() {
+            document.getElementById('newAdminId').value = '';
+            document.getElementById('newAdminNotes').value = '';
+            new bootstrap.Modal(document.getElementById('addAdminModal')).show();
+        }
+
+        async function addAdmin() {
+            const agentId = document.getElementById('newAdminId').value.trim();
+            const notes = document.getElementById('newAdminNotes').value.trim();
+
+            if (!agentId) {
+                showToast('Agent ID is required', 'error');
+                return;
+            }
+
+            const data = await apiCall('/agents', {
+                method: 'POST',
+                body: JSON.stringify({ agent_id: agentId, notes: notes || null })
+            });
+
+            if (data) {
+                bootstrap.Modal.getInstance(document.getElementById('addAdminModal')).hide();
+                showToast('Admin agent added successfully', 'success');
+                loadAdmins();
+            }
+        }
+
+        async function removeAdmin(agentId) {
+            if (!confirm(`Remove admin privileges for "${agentId}"?`)) return;
+
+            const data = await apiCall(`/agents/${agentId}`, { method: 'DELETE' });
+            if (data) {
+                showToast('Admin agent removed', 'success');
+                loadAdmins();
+            }
+        }
+
+        // Token Registry
+        async function loadTokens() {
+            const data = await apiCall('/tokens');
+            if (data) {
+                const tbody = document.getElementById('tokenTable');
+                tbody.innerHTML = data.tokens.length > 0 ? data.tokens.map(token => `
+                    <tr>
+                        <td><strong>${token.agent_id}</strong></td>
+                        <td><span class="badge-status badge-${token.status}">${token.status}</span></td>
+                        <td>${token.role}</td>
+                        <td>${formatDate(token.expires_at)}</td>
+                        <td>${token.use_count}</td>
+                        <td>
+                            ${token.status === 'active' ? `
+                                <button class="btn btn-sm btn-outline-primary me-1" onclick="showRefreshTokenModal('${token.agent_id}')">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="revokeToken('${token.agent_id}')">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            ` : '-'}
+                        </td>
+                    </tr>
+                `).join('') : '<tr><td colspan="6" class="text-center text-muted">No tokens registered</td></tr>';
+            }
+        }
+
+        function showRegisterTokenModal() {
+            document.getElementById('tokenAgentId').value = '';
+            document.getElementById('tokenFingerprint').value = '';
+            document.getElementById('tokenNotes').value = '';
+            new bootstrap.Modal(document.getElementById('registerTokenModal')).show();
+        }
+
+        async function registerToken() {
+            const agentId = document.getElementById('tokenAgentId').value.trim();
+            const fingerprint = document.getElementById('tokenFingerprint').value.trim();
+            const agentType = document.getElementById('tokenAgentType').value;
+            const role = document.getElementById('tokenRole').value;
+            const expiryDays = parseInt(document.getElementById('tokenExpiryDays').value);
+            const notes = document.getElementById('tokenNotes').value.trim();
+
+            if (!agentId || !fingerprint) {
+                showToast('Agent ID and fingerprint are required', 'error');
+                return;
+            }
+
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + expiryDays);
+
+            const data = await apiCall('/tokens', {
+                method: 'POST',
+                body: JSON.stringify({
+                    agent_id: agentId,
+                    token_fingerprint: fingerprint,
+                    expires_at: expiresAt.toISOString(),
+                    agent_type: agentType,
+                    role: role,
+                    access_levels: ['public'],
+                    notes: notes || null
+                })
+            });
+
+            if (data) {
+                bootstrap.Modal.getInstance(document.getElementById('registerTokenModal')).hide();
+                showToast('Token registered successfully', 'success');
+                loadTokens();
+            }
+        }
+
+        function showRefreshTokenModal(agentId) {
+            document.getElementById('refreshAgentId').value = agentId;
+            document.getElementById('refreshHours').value = 8760;
+            new bootstrap.Modal(document.getElementById('refreshTokenModal')).show();
+        }
+
+        async function refreshToken() {
+            const agentId = document.getElementById('refreshAgentId').value;
+            const hours = parseInt(document.getElementById('refreshHours').value);
+
+            const data = await apiCall(`/tokens/${agentId}/refresh`, {
+                method: 'POST',
+                body: JSON.stringify({ extend_hours: hours })
+            });
+
+            if (data) {
+                bootstrap.Modal.getInstance(document.getElementById('refreshTokenModal')).hide();
+                showToast('Token refreshed successfully', 'success');
+                loadTokens();
+            }
+        }
+
+        async function revokeToken(agentId) {
+            const reason = prompt(`Reason for revoking token for "${agentId}" (optional):`);
+            if (reason === null) return; // Cancelled
+
+            const data = await apiCall(`/tokens/${agentId}/revoke`, {
+                method: 'POST',
+                body: JSON.stringify({ reason: reason || null })
+            });
+
+            if (data) {
+                showToast('Token revoked', 'success');
+                loadTokens();
+            }
+        }
+
+        // Generate Token Functions
+        function showGenerateTokenModal() {
+            // Reset to step 1
+            document.getElementById('tokenStep1').style.display = 'block';
+            document.getElementById('tokenStep2').style.display = 'none';
+            document.getElementById('generateTokenBtn').style.display = 'block';
+
+            // Reset form fields
+            document.getElementById('genAgentId').value = '';
+            document.getElementById('genMachineId').value = generateMachineId();
+            document.getElementById('genAgentType').value = 'claude';
+            document.getElementById('genRole').value = 'developer';
+            document.getElementById('genExpiry').value = '8760';
+            document.getElementById('accessPublic').checked = true;
+            document.getElementById('accessRestricted').checked = false;
+            document.getElementById('accessSecret').checked = false;
+
+            new bootstrap.Modal(document.getElementById('generateTokenModal')).show();
+        }
+
+        function generateMachineId() {
+            // Generate a machine ID based on timestamp and random string
+            const timestamp = Date.now().toString(36);
+            const random = Math.random().toString(36).substring(2, 8);
+            return `admin-gen-${timestamp}-${random}`;
+        }
+
+        async function generateNewToken() {
+            const agentId = document.getElementById('genAgentId').value.trim();
+            const machineId = document.getElementById('genMachineId').value.trim();
+            const agentType = document.getElementById('genAgentType').value;
+            const role = document.getElementById('genRole').value;
+            const expiryHours = parseInt(document.getElementById('genExpiry').value);
+
+            // Collect access levels
+            const accessLevels = [];
+            if (document.getElementById('accessPublic').checked) accessLevels.push('public');
+            if (document.getElementById('accessRestricted').checked) accessLevels.push('restricted');
+            if (document.getElementById('accessSecret').checked) accessLevels.push('secret');
+
+            if (!agentId) {
+                showToast('Agent ID is required', 'error');
+                return;
+            }
+
+            if (!machineId) {
+                showToast('Machine ID is required', 'error');
+                return;
+            }
+
+            if (accessLevels.length === 0) {
+                showToast('At least one access level must be selected', 'error');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                // Call the token generation endpoint
+                const response = await fetch('/api/v1/token', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        agent_id: agentId,
+                        machine_id: machineId,
+                        agent_type: agentType,
+                        role: role,
+                        access_levels: accessLevels
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showToast(data.detail || 'Failed to generate token', 'error');
+                    return;
+                }
+
+                // Show step 2 with the generated token
+                document.getElementById('tokenStep1').style.display = 'none';
+                document.getElementById('tokenStep2').style.display = 'block';
+                document.getElementById('generateTokenBtn').style.display = 'none';
+
+                // Display token
+                document.getElementById('generatedToken').value = data.token;
+
+                // Display token details
+                document.getElementById('tokenDetailAgentId').textContent = data.agent_id;
+                document.getElementById('tokenDetailMachineId').textContent = machineId;
+                document.getElementById('tokenDetailRole').textContent = role;
+                document.getElementById('tokenDetailExpires').textContent = formatDate(data.expires_at);
+                document.getElementById('tokenDetailAccess').textContent = accessLevels.join(', ');
+
+                showToast('Token generated successfully!', 'success');
+
+                // Refresh tokens table in background
+                loadTokens();
+
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function copyToken() {
+            const tokenField = document.getElementById('generatedToken');
+            tokenField.select();
+            document.execCommand('copy');
+
+            // Modern clipboard API fallback
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(tokenField.value);
+            }
+
+            showToast('Token copied to clipboard!', 'success');
+        }
+
+        function downloadToken() {
+            const token = document.getElementById('generatedToken').value;
+            const agentId = document.getElementById('tokenDetailAgentId').textContent;
+            const machineId = document.getElementById('tokenDetailMachineId').textContent;
+            const role = document.getElementById('tokenDetailRole').textContent;
+            const expiresAt = document.getElementById('tokenDetailExpires').textContent;
+            const accessLevels = document.getElementById('tokenDetailAccess').textContent;
+
+            // Create token file content
+            const content = `# DAKB Agent Token
+# Generated: ${new Date().toISOString()}
+# Agent ID: ${agentId}
+# Machine ID: ${machineId}
+# Role: ${role}
+# Expires: ${expiresAt}
+# Access Levels: ${accessLevels}
+#
+# IMPORTANT: Keep this token secure and do not share it.
+# To use: export DAKB_AUTH_TOKEN="${token}"
+
+${token}
+`;
+
+            // Create download
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dakb_token_${agentId.replace(/[^a-z0-9]/gi, '_')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('Token file downloaded', 'success');
+        }
+
+        // =================================================================
+        // INVITE TOKEN MANAGEMENT
+        // =================================================================
+
+        let invitePage = 0;
+        const invitePageSize = 20;
+
+        async function loadInvites() {
+            const status = document.getElementById('inviteFilterStatus').value;
+            const createdBy = document.getElementById('inviteFilterCreator').value.trim();
+
+            let queryParams = `?skip=${invitePage * invitePageSize}&limit=${invitePageSize}`;
+            if (status) queryParams += `&status=${status}`;
+            if (createdBy) queryParams += `&created_by=${createdBy}`;
+
+            showLoading(true);
+            try {
+                const response = await fetch(`/api/v1/register/invites${queryParams}`, {
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        clearAuth();
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to load invites', 'error');
+                    return;
+                }
+
+                const data = await response.json();
+                renderInviteTable(data);
+
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderInviteTable(data) {
+            const tbody = document.getElementById('inviteTable');
+            const tokens = data.tokens || [];
+
+            if (tokens.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No invite tokens found</td></tr>';
+            } else {
+                tbody.innerHTML = tokens.map(invite => `
+                    <tr>
+                        <td><code>${invite.invite_token}</code></td>
+                        <td><span class="badge-status badge-${invite.status}">${invite.status}</span></td>
+                        <td>${invite.purpose || '-'}</td>
+                        <td>${invite.created_by}</td>
+                        <td>${formatDate(invite.expires_at)}</td>
+                        <td>${invite.used_by_agent_id || '-'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewInvite('${invite.invite_token}', ${JSON.stringify(invite).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${invite.status === 'active' ? `
+                                <button class="btn btn-sm btn-outline-danger" onclick="revokeInvite('${invite.invite_token}')" title="Revoke invite">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Update counts and pagination
+            document.getElementById('inviteCount').textContent = tokens.length;
+            document.getElementById('inviteTotal').textContent = data.total;
+
+            document.getElementById('invitePrevBtn').disabled = invitePage === 0;
+            document.getElementById('inviteNextBtn').disabled = (invitePage + 1) * invitePageSize >= data.total;
+        }
+
+        function clearInviteFilters() {
+            document.getElementById('inviteFilterStatus').value = '';
+            document.getElementById('inviteFilterCreator').value = '';
+            invitePage = 0;
+            loadInvites();
+        }
+
+        function prevInvitePage() {
+            if (invitePage > 0) {
+                invitePage--;
+                loadInvites();
+            }
+        }
+
+        function nextInvitePage() {
+            invitePage++;
+            loadInvites();
+        }
+
+        function showCreateInviteModal() {
+            // Reset to step 1
+            document.getElementById('inviteStep1').style.display = 'block';
+            document.getElementById('inviteStep2').style.display = 'none';
+            document.getElementById('createInviteBtn').style.display = 'block';
+
+            // Reset form fields
+            document.getElementById('inviteTargetAgentId').value = '';
+            document.getElementById('inviteTargetType').value = '';
+            document.getElementById('inviteRole').value = 'developer';
+            document.getElementById('inviteExpiry').value = '48';
+            document.getElementById('inviteMaxUses').value = '1';
+            document.getElementById('inviteAccessPublic').checked = true;
+            document.getElementById('inviteAccessRestricted').checked = false;
+            document.getElementById('inviteAccessSecret').checked = false;
+            document.getElementById('invitePurpose').value = '';
+
+            new bootstrap.Modal(document.getElementById('createInviteModal')).show();
+        }
+
+        async function createInvite() {
+            const targetAgentId = document.getElementById('inviteTargetAgentId').value.trim();
+            const targetType = document.getElementById('inviteTargetType').value;
+            const role = document.getElementById('inviteRole').value;
+            const expiryHours = parseInt(document.getElementById('inviteExpiry').value);
+            const maxUses = parseInt(document.getElementById('inviteMaxUses').value);
+            const purpose = document.getElementById('invitePurpose').value.trim();
+
+            // Collect access levels
+            const accessLevels = [];
+            if (document.getElementById('inviteAccessPublic').checked) accessLevels.push('public');
+            if (document.getElementById('inviteAccessRestricted').checked) accessLevels.push('restricted');
+            if (document.getElementById('inviteAccessSecret').checked) accessLevels.push('secret');
+
+            if (accessLevels.length === 0) {
+                showToast('At least one access level must be selected', 'error');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const response = await fetch('/api/v1/register/invite', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        target_agent_id: targetAgentId || null,
+                        target_agent_type: targetType || null,
+                        expires_in_hours: expiryHours,
+                        max_uses: maxUses,
+                        role: role,
+                        access_levels: accessLevels,
+                        purpose: purpose || null
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showToast(data.detail || 'Failed to create invite', 'error');
+                    return;
+                }
+
+                // Show step 2 with the generated invite
+                document.getElementById('inviteStep1').style.display = 'none';
+                document.getElementById('inviteStep2').style.display = 'block';
+                document.getElementById('createInviteBtn').style.display = 'none';
+
+                // Display invite token
+                document.getElementById('generatedInviteToken').value = data.invite_token;
+
+                // Display invite details
+                document.getElementById('inviteDetailExpires').textContent = formatDate(data.expires_at);
+                document.getElementById('inviteDetailMaxUses').textContent = data.max_uses;
+                document.getElementById('inviteDetailRole').textContent = role;
+                document.getElementById('inviteDetailAccess').textContent = accessLevels.join(', ');
+
+                showToast('Invite token created successfully!', 'success');
+
+                // Refresh invites table in background
+                loadInvites();
+
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function copyInviteToken() {
+            const tokenField = document.getElementById('generatedInviteToken');
+            tokenField.select();
+            document.execCommand('copy');
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(tokenField.value);
+            }
+
+            showToast('Invite token copied to clipboard!', 'success');
+        }
+
+        function viewInvite(token, invite) {
+            document.getElementById('viewInviteToken').textContent = token;
+            document.getElementById('viewInviteStatus').innerHTML = `<span class="badge-status badge-${invite.status}">${invite.status}</span>`;
+            document.getElementById('viewInviteCreatedBy').textContent = invite.created_by;
+            document.getElementById('viewInviteCreatedAt').textContent = formatDate(invite.created_at);
+            document.getElementById('viewInviteExpiresAt').textContent = formatDate(invite.expires_at);
+            document.getElementById('viewInvitePurpose').textContent = invite.purpose || '-';
+            document.getElementById('viewInviteAgentType').textContent = invite.for_agent_type || 'Any';
+            document.getElementById('viewInviteAgentHint').textContent = invite.for_agent_id_hint || '-';
+            document.getElementById('viewInviteUsedBy').textContent = invite.used_by_agent_id || '-';
+            document.getElementById('viewInviteUsedAt').textContent = invite.used_at ? formatDate(invite.used_at) : '-';
+
+            new bootstrap.Modal(document.getElementById('viewInviteModal')).show();
+        }
+
+        async function revokeInvite(inviteToken) {
+            if (!confirm(`Are you sure you want to revoke this invite token?\n\n${inviteToken}\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const response = await fetch(`/api/v1/register/invite/${encodeURIComponent(inviteToken)}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showToast(data.detail?.message || data.detail || 'Failed to revoke invite', 'error');
+                    return;
+                }
+
+                showToast('Invite token revoked successfully', 'success');
+                loadInvites();
+
+            } catch (error) {
+                showToast('Network error: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Agent Management Functions
+        let agentCurrentPage = 0;
+        const agentPageSize = 20;
+        let agentTotalAgents = 0;
+        let currentAgentData = null;
+
+        async function loadAgents() {
+            const status = document.getElementById('agentStatusFilter').value;
+            const role = document.getElementById('agentRoleFilter').value;
+            const agentType = document.getElementById('agentTypeFilter').value;
+
+            let url = `/all-agents?skip=${agentCurrentPage * agentPageSize}&limit=${agentPageSize}`;
+            if (status) url += `&status=${status}`;
+            if (role) url += `&role=${role}`;
+            if (agentType) url += `&agent_type=${agentType}`;
+
+            const data = await apiCall(url);
+            if (data) {
+                agentTotalAgents = data.total;
+                renderAgentsTable(data);
+                updateAgentPagination();
+                updateAgentCounts(data);
+            }
+        }
+
+        function renderAgentsTable(data) {
+            const tbody = document.getElementById('agentsTable');
+
+            if (!data.agents || data.agents.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            No agents found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = data.agents.map(agent => `
+                <tr>
+                    <td><code class="text-primary">${agent.agent_id}</code></td>
+                    <td>${agent.display_name || agent.agent_id}</td>
+                    <td><span class="badge bg-info text-dark">${formatAgentType(agent.agent_type)}</span></td>
+                    <td><span class="badge bg-secondary">${agent.role}</span></td>
+                    <td>${getAgentStatusBadge(agent.status)}</td>
+                    <td><small class="text-muted">${agent.machine_id || '-'}</small></td>
+                    <td><small>${formatDate(agent.last_seen)}</small></td>
+                    <td>
+                        <small class="text-muted">
+                            <i class="bi bi-lightbulb me-1"></i>${agent.knowledge_contributed || 0}
+                            <i class="bi bi-chat-dots ms-2 me-1"></i>${(agent.messages_sent || 0) + (agent.messages_received || 0)}
+                        </small>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="viewAgent('${agent.agent_id}')" title="View details">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="editAgent('${agent.agent_id}')" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            ${agent.status === 'suspended' ? `
+                                <button class="btn btn-outline-success" onclick="activateAgent('${agent.agent_id}')" title="Activate">
+                                    <i class="bi bi-check-circle"></i>
+                                </button>
+                            ` : `
+                                <button class="btn btn-outline-warning" onclick="suspendAgent('${agent.agent_id}')" title="Suspend">
+                                    <i class="bi bi-pause-circle"></i>
+                                </button>
+                            `}
+                            <button class="btn btn-outline-danger" onclick="deleteAgent('${agent.agent_id}')" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function formatAgentType(type) {
+            const typeMap = {
+                'claude': 'Claude',
+                'claude_code': 'Claude Code',
+                'gpt': 'GPT',
+                'openai': 'OpenAI',
+                'gemini': 'Gemini',
+                'grok': 'Grok',
+                'local': 'Local',
+                'human': 'Human'
+            };
+            return typeMap[type] || type || 'Unknown';
+        }
+
+        function getAgentStatusBadge(status) {
+            const statusConfig = {
+                'active': { class: 'bg-success', icon: 'bi-check-circle' },
+                'idle': { class: 'bg-info', icon: 'bi-pause' },
+                'offline': { class: 'bg-secondary', icon: 'bi-circle' },
+                'suspended': { class: 'bg-danger', icon: 'bi-x-circle' }
+            };
+            const config = statusConfig[status] || statusConfig['offline'];
+            return `<span class="badge ${config.class}"><i class="bi ${config.icon} me-1"></i>${status}</span>`;
+        }
+
+        function updateAgentCounts(data) {
+            document.getElementById('agentActiveCount').textContent = `${data.active_count || 0} Active`;
+            document.getElementById('agentSuspendedCount').textContent = `${data.suspended_count || 0} Suspended`;
+            document.getElementById('agentOfflineCount').textContent = `${data.offline_count || 0} Offline`;
+            document.getElementById('agentTotalCount').textContent = data.total || 0;
+        }
+
+        function updateAgentPagination() {
+            const start = agentCurrentPage * agentPageSize + 1;
+            const end = Math.min((agentCurrentPage + 1) * agentPageSize, agentTotalAgents);
+            document.getElementById('agentPaginationInfo').textContent =
+                agentTotalAgents > 0 ? `Showing ${start}-${end} of ${agentTotalAgents} agents` : 'No agents found';
+
+            document.getElementById('agentPrevBtn').disabled = agentCurrentPage === 0;
+            document.getElementById('agentNextBtn').disabled = (agentCurrentPage + 1) * agentPageSize >= agentTotalAgents;
+        }
+
+        function prevAgentPage() {
+            if (agentCurrentPage > 0) {
+                agentCurrentPage--;
+                loadAgents();
+            }
+        }
+
+        function nextAgentPage() {
+            if ((agentCurrentPage + 1) * agentPageSize < agentTotalAgents) {
+                agentCurrentPage++;
+                loadAgents();
+            }
+        }
+
+        function clearAgentFilters() {
+            document.getElementById('agentStatusFilter').value = '';
+            document.getElementById('agentRoleFilter').value = '';
+            document.getElementById('agentTypeFilter').value = '';
+            agentCurrentPage = 0;
+            loadAgents();
+        }
+
+        async function viewAgent(agentId) {
+            const data = await apiCall(`/all-agents/${agentId}`);
+            if (data) {
+                currentAgentData = data;
+
+                document.getElementById('viewAgentId').textContent = data.agent_id;
+                document.getElementById('viewAgentDisplayName').textContent = data.display_name || data.agent_id;
+                document.getElementById('viewAgentType').textContent = formatAgentType(data.agent_type);
+                document.getElementById('viewAgentRole').innerHTML = `<span class="badge bg-secondary">${data.role}</span>`;
+                document.getElementById('viewAgentStatus').innerHTML = getAgentStatusBadge(data.status);
+                document.getElementById('viewAgentMachineId').textContent = data.machine_id || '-';
+                document.getElementById('viewAgentCreated').textContent = formatDate(data.created_at);
+                document.getElementById('viewAgentLastSeen').textContent = formatDate(data.last_seen);
+                document.getElementById('viewAgentKnowledge').textContent = `${data.knowledge_contributed || 0} entries`;
+                document.getElementById('viewAgentMessages').textContent = `${(data.messages_sent || 0)} sent / ${(data.messages_received || 0)} received`;
+
+                // Render capabilities
+                const capsContainer = document.getElementById('viewAgentCapabilities');
+                if (data.capabilities && data.capabilities.length > 0) {
+                    capsContainer.innerHTML = data.capabilities.map(cap =>
+                        `<span class="badge bg-primary me-1 mb-1">${cap}</span>`
+                    ).join('');
+                } else {
+                    capsContainer.innerHTML = '<span class="text-muted">None specified</span>';
+                }
+
+                // Render specializations
+                const specsContainer = document.getElementById('viewAgentSpecializations');
+                if (data.specializations && data.specializations.length > 0) {
+                    specsContainer.innerHTML = data.specializations.map(spec =>
+                        `<span class="badge bg-info text-dark me-1 mb-1">${spec}</span>`
+                    ).join('');
+                } else {
+                    specsContainer.innerHTML = '<span class="text-muted">None specified</span>';
+                }
+
+                new bootstrap.Modal(document.getElementById('viewAgentModal')).show();
+            }
+        }
+
+        async function editAgent(agentId) {
+            const data = await apiCall(`/all-agents/${agentId}`);
+            if (data) {
+                currentAgentData = data;
+                showEditAgentModal();
+            }
+        }
+
+        function showEditAgentModal() {
+            if (!currentAgentData) return;
+
+            document.getElementById('editAgentIdInput').value = currentAgentData.agent_id;
+            document.getElementById('editDisplayName').value = currentAgentData.display_name || '';
+            document.getElementById('editRole').value = currentAgentData.role || 'developer';
+            document.getElementById('editStatus').value = currentAgentData.status || 'offline';
+            document.getElementById('editCapabilities').value = (currentAgentData.capabilities || []).join(', ');
+            document.getElementById('editSpecializations').value = (currentAgentData.specializations || []).join(', ');
+
+            // Close view modal if open
+            const viewModal = bootstrap.Modal.getInstance(document.getElementById('viewAgentModal'));
+            if (viewModal) viewModal.hide();
+
+            new bootstrap.Modal(document.getElementById('editAgentModal')).show();
+        }
+
+        async function saveAgentChanges() {
+            const agentId = document.getElementById('editAgentIdInput').value;
+            const updateData = {
+                display_name: document.getElementById('editDisplayName').value || null,
+                role: document.getElementById('editRole').value,
+                status: document.getElementById('editStatus').value,
+                capabilities: document.getElementById('editCapabilities').value.split(',').map(s => s.trim()).filter(s => s),
+                specializations: document.getElementById('editSpecializations').value.split(',').map(s => s.trim()).filter(s => s)
+            };
+
+            const data = await apiCall(`/all-agents/${agentId}`, {
+                method: 'PUT',
+                body: JSON.stringify(updateData)
+            });
+
+            if (data) {
+                bootstrap.Modal.getInstance(document.getElementById('editAgentModal')).hide();
+                showToast('Agent updated successfully', 'success');
+                loadAgents();
+            }
+        }
+
+        async function suspendAgent(agentId) {
+            if (!confirm(`Are you sure you want to suspend agent "${agentId}"?`)) return;
+
+            const data = await apiCall(`/all-agents/${agentId}/suspend`, {
+                method: 'POST'
+            });
+
+            if (data && data.success) {
+                showToast(data.message, 'success');
+                loadAgents();
+            }
+        }
+
+        async function activateAgent(agentId) {
+            const data = await apiCall(`/all-agents/${agentId}/activate`, {
+                method: 'POST'
+            });
+
+            if (data && data.success) {
+                showToast(data.message, 'success');
+                loadAgents();
+            }
+        }
+
+        function deleteAgent(agentId) {
+            document.getElementById('deleteAgentIdInput').value = agentId;
+            document.getElementById('deleteAgentIdDisplay').textContent = agentId;
+            new bootstrap.Modal(document.getElementById('deleteAgentModal')).show();
+        }
+
+        async function confirmDeleteAgent() {
+            const agentId = document.getElementById('deleteAgentIdInput').value;
+
+            const data = await apiCall(`/all-agents/${agentId}`, {
+                method: 'DELETE'
+            });
+
+            if (data && data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('deleteAgentModal')).hide();
+                showToast(data.message, 'success');
+                loadAgents();
+            }
+        }
+
+        // Configuration
+        async function loadConfig() {
+            const data = await apiCall('/config');
+            if (data) {
+                const tbody = document.getElementById('configTable');
+                tbody.innerHTML = data.configs.map(config => `
+                    <tr>
+                        <td><code>${config.key}</code></td>
+                        <td><strong>${config.value}</strong></td>
+                        <td><span class="badge bg-secondary">${config.category}</span></td>
+                        <td>${config.description}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="showEditConfigModal('${config.key}', ${JSON.stringify(config.value)}, '${config.min_value || ''}', '${config.max_value || ''}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function showEditConfigModal(key, value, min, max) {
+            document.getElementById('configKey').value = key;
+            document.getElementById('configValue').value = value;
+
+            let hint = '';
+            if (min) hint += `Min: ${min}`;
+            if (max) hint += (hint ? ', ' : '') + `Max: ${max}`;
+            document.getElementById('configHint').textContent = hint;
+
+            new bootstrap.Modal(document.getElementById('editConfigModal')).show();
+        }
+
+        async function updateConfig() {
+            const key = document.getElementById('configKey').value;
+            let value = document.getElementById('configValue').value;
+
+            // Try to parse as number if it looks like one
+            if (!isNaN(value) && value.trim() !== '') {
+                value = parseFloat(value);
+            }
+
+            const data = await apiCall(`/config/${key}`, {
+                method: 'PUT',
+                body: JSON.stringify({ value: value })
+            });
+
+            if (data) {
+                bootstrap.Modal.getInstance(document.getElementById('editConfigModal')).hide();
+                showToast('Configuration updated', 'success');
+                loadConfig();
+            }
+        }
+
+        // System Status
+        async function loadSystemStatus() {
+            const data = await apiCall('/status');
+            if (data) {
+                const serviceStatus = document.getElementById('serviceStatus');
+                serviceStatus.innerHTML = Object.entries(data.services || {}).map(([name, info]) => `
+                    <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                        <span><i class="bi bi-server me-2"></i>${name}</span>
+                        <span class="badge bg-${info.status === 'running' || info.status === 'connected' ? 'success' : 'danger'}">${info.status}</span>
+                    </div>
+                `).join('');
+
+                const systemInfo = document.getElementById('systemInfo');
+                systemInfo.innerHTML = `
+                    <div class="p-2 border-bottom"><strong>Total Agents:</strong> ${data.agents?.total || 0}</div>
+                    <div class="p-2 border-bottom"><strong>Active Agents:</strong> ${data.agents?.active || 0}</div>
+                    <div class="p-2 border-bottom"><strong>Knowledge Entries:</strong> ${data.knowledge?.total || 0}</div>
+                    <div class="p-2 border-bottom"><strong>Total Messages:</strong> ${data.messages?.total || 0}</div>
+                    <div class="p-2"><strong>Pending Messages:</strong> ${data.messages?.pending || 0}</div>
+                `;
+            }
+        }
+
+        // Utility functions
+        function showLoading(show) {
+            document.getElementById('loadingSpinner').classList.toggle('show', show);
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast show align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'primary'}`;
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+
+        function refreshAll() {
+            loadOverview();
+        }
+    </script>
+</body>
+</html>

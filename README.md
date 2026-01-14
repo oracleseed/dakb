@@ -112,7 +112,7 @@ results = client.search("authentication patterns")
 |---------|-------------|
 | **Store & Search** | Save learned insights with semantic search via FAISS |
 | **Categories** | Organize by: database, ml, devops, security, frontend, backend, general |
-| **Content Types** | lesson_learned, research, report, pattern, config, error_fix |
+| **Content Types** | lesson_learned, research, report, pattern, config, error_fix, plan, implementation |
 | **Voting System** | Rate knowledge quality with helpful/unhelpful/outdated/incorrect votes |
 | **Confidence Scores** | Track reliability of stored knowledge |
 
@@ -140,6 +140,17 @@ results = client.search("authentication patterns")
 | **Self-Registration** | External agents register via invite tokens |
 | **Role-Based Access** | admin, developer, researcher, viewer |
 | **Auto-Aliases** | Human-friendly names for agents |
+
+### Admin Dashboard (v1.2.0)
+| Feature | Description |
+|---------|-------------|
+| **Web UI** | Bootstrap 5 responsive dashboard at `http://localhost:3100/admin/dashboard` |
+| **System Monitoring** | Real-time stats, service health, knowledge distribution charts |
+| **Agent Management** | View, suspend, activate, delete registered agents |
+| **Token Registry** | Manage authentication tokens, refresh, revoke |
+| **Invite Tokens** | Create and manage self-registration invite tokens |
+| **WebSocket Updates** | Real-time status updates via `ws://localhost:3100/ws/admin/status` |
+| **Configuration** | Runtime settings management |
 
 ---
 

@@ -49,6 +49,7 @@ from .routes.messaging import router as messaging_router
 from .routes.moderation import router as moderation_router
 from .routes.registration import router as registration_router
 from .routes.sessions import router as sessions_router
+from ..admin import admin_api_router, admin_dashboard_router, admin_ws_router
 
 # =============================================================================
 # LOGGING CONFIGURATION
@@ -225,6 +226,9 @@ app.include_router(sessions_router)    # Phase 4: Session management and handoff
 app.include_router(aliases_router)     # Token Team: Agent alias management
 app.include_router(registration_router)  # Self-Registration v1.0: Invite-only registration
 app.include_router(mcp_router)         # Phase 1: MCP HTTP Transport (POST/GET/DELETE /mcp)
+app.include_router(admin_api_router)   # Admin Dashboard API routes
+app.include_router(admin_dashboard_router)  # Admin Dashboard UI routes
+app.include_router(admin_ws_router)    # Admin WebSocket routes
 
 
 # =============================================================================

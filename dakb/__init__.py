@@ -22,7 +22,7 @@ Quick Start:
 Example:
     >>> from dakb import __version__
     >>> print(__version__)
-    '3.0.0'
+    '1.1.0'
 
 For more information, see:
 - Documentation: https://github.com/oracleseed/dakb#documentation
@@ -31,12 +31,12 @@ For more information, see:
 License: Apache 2.0
 """
 
-__version__ = "3.0.0"
+__version__ = "1.1.0"
 __author__ = "DAKB Contributors"
 __license__ = "Apache-2.0"
 
 # Version info tuple for programmatic access
-VERSION_INFO = (3, 0, 0)
+VERSION_INFO = (1, 1, 0)
 
 # Package metadata
 __all__ = [

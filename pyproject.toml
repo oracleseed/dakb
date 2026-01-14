@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dakb-server"
-version = "1.0.0"
+version = "1.2.0"
 description = "Distributed Agent Knowledge Base Server - A shared knowledge system for multi-agent AI collaboration"
 readme = "README.md"
 license = "Apache-2.0"
@@ -106,7 +106,7 @@ include = ["dakb*", "packages*"]
 exclude = ["tests*", "docs*", "examples*"]
 
 [tool.setuptools.package-data]
-dakb = ["py.typed", "config/*.yaml"]
+dakb = ["py.typed", "config/*.yaml", "admin/templates/*.html"]
 
 # ==============================================================================
 # Ruff Configuration

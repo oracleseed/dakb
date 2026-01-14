@@ -1064,7 +1064,7 @@ class SecurityAudit:
         logger.info("Auditing secrets handling...")
 
         # Check if .env file is readable
-        env_file = os.path.join(PROJECT_ROOT, "tradebot", ".env")
+        env_file = os.path.join(PROJECT_ROOT, ".env")
         if os.path.exists(env_file):
             # Check file permissions (should not be world-readable)
             import stat

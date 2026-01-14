@@ -30,11 +30,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class ContentType(str, Enum):
     """Knowledge content types with associated TTL policies."""
     LESSON_LEARNED = "lesson_learned"  # Never expires
-    RESEARCH = "research"               # 1 year
-    REPORT = "report"                   # 90 days
+    RESEARCH = "research"               # Never expires
+    REPORT = "report"                   # Never expires
     PATTERN = "pattern"                 # Never expires
-    CONFIG = "config"                   # 30 days
-    ERROR_FIX = "error_fix"             # 180 days
+    CONFIG = "config"                   # 365 days
+    ERROR_FIX = "error_fix"             # 365 days
+    PLAN = "plan"                       # 365 days
+    IMPLEMENTATION = "implementation"   # 365 days
 
 
 class Category(str, Enum):

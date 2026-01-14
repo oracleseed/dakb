@@ -147,6 +147,8 @@ DAKB_TOOLS: list[dict[str, Any]] = [
                         "pattern",
                         "config",
                         "error_fix",
+                        "plan",
+                        "implementation",
                     ],
                 },
                 "category": {
@@ -377,6 +379,8 @@ DAKB_TOOLS: list[dict[str, Any]] = [
                                     "pattern",
                                     "config",
                                     "error_fix",
+                                    "plan",
+                                    "implementation",
                                 ],
                             },
                             "category": {

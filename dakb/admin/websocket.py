@@ -9,10 +9,9 @@ Author: Claude Opus 4.5
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Set
-import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -33,7 +32,7 @@ class AdminConnectionManager:
     """Manages WebSocket connections for admin status updates."""
 
     def __init__(self):
-        self.active_connections: Set[WebSocket] = set()
+        self.active_connections: set[WebSocket] = set()
         self._broadcast_task: asyncio.Task = None
         self._running: bool = False
 

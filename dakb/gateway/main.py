@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
+from ..admin import admin_api_router, admin_dashboard_router, admin_ws_router
 from ..db import AccessLevel, AgentRole, get_dakb_repositories
 from ..db.collections import get_dakb_client
 from ..monitoring.metrics import get_metrics  # Phase 8: Prometheus metrics
@@ -49,7 +50,6 @@ from .routes.messaging import router as messaging_router
 from .routes.moderation import router as moderation_router
 from .routes.registration import router as registration_router
 from .routes.sessions import router as sessions_router
-from ..admin import admin_api_router, admin_dashboard_router, admin_ws_router
 
 # =============================================================================
 # LOGGING CONFIGURATION

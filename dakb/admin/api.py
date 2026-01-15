@@ -16,42 +16,37 @@ Author: Claude Opus 4.5
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from ..db import AgentRole
+from ..db.admin_schemas import (
+    DEFAULT_ADMIN_AGENTS,
+    DEFAULT_RUNTIME_CONFIGS,
+    AdminAgentAdd,
+    AdminAgentEntry,
+    AdminAgentListResponse,
+    AdminConfigDocument,
+    RuntimeConfigDocument,
+    RuntimeConfigListResponse,
+    RuntimeConfigUpdate,
+    TokenRefreshRequest,
+    TokenRegistryCreate,
+    TokenRegistryDocument,
+    TokenRegistryListResponse,
+    TokenRegistryResponse,
+    TokenRevokeRequest,
+    TokenStatus,
+    utcnow,
+)
+from ..db.collections import get_dakb_client
+from ..gateway.config import get_settings
 from ..gateway.middleware.auth import (
     AuthenticatedAgent,
     get_current_agent,
-    require_role,
 )
-from ..gateway.config import get_settings
-from ..db import AgentRole
-from ..db.admin_schemas import (
-    AdminConfigDocument,
-    AdminAgentEntry,
-    AdminAgentAdd,
-    AdminAgentRemove,
-    AdminAgentListResponse,
-    RuntimeConfigDocument,
-    RuntimeConfigUpdate,
-    RuntimeConfigListResponse,
-    TokenRegistryDocument,
-    TokenRegistryCreate,
-    TokenRefreshRequest,
-    TokenRevokeRequest,
-    TokenRegistryListResponse,
-    TokenRegistryResponse,
-    TokenStatus,
-    DEFAULT_ADMIN_AGENTS,
-    DEFAULT_RUNTIME_CONFIGS,
-    utcnow,
-    hash_token,
-)
-from ..db.collections import get_dakb_client
-
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +84,7 @@ async def get_login_page() -> HTMLResponse:
             detail="Login template not found"
         )
 
-    with open(template_path, "r") as f:
+    with open(template_path) as f:
         html_content = f.read()
 
     return HTMLResponse(content=html_content)
@@ -116,7 +111,7 @@ async def get_dashboard() -> HTMLResponse:
             detail="Dashboard template not found"
         )
 
-    with open(template_path, "r") as f:
+    with open(template_path) as f:
         html_content = f.read()
 
     return HTMLResponse(content=html_content)
@@ -458,7 +453,7 @@ async def check_admin_status(agent_id: str) -> dict:
     description="Get all runtime configuration settings. Requires admin privileges.",
 )
 async def list_runtime_configs(
-    category: Optional[str] = None,
+    category: str | None = None,
     admin: AuthenticatedAgent = Depends(require_admin)
 ) -> RuntimeConfigListResponse:
     """
@@ -630,7 +625,7 @@ async def _initialize_default_configs(db, admin_id: str) -> list[RuntimeConfigDo
 class DetailedStatusResponse(BaseModel):
     """Enhanced status response with detailed metrics."""
     status: str = Field(default="ok")
-    uptime_seconds: Optional[float] = None
+    uptime_seconds: float | None = None
     services: dict = Field(default_factory=dict)
     agents: dict = Field(default_factory=dict)
     knowledge: dict = Field(default_factory=dict)
@@ -714,7 +709,7 @@ async def get_detailed_status(
     description="Get list of all registered tokens with metadata. Requires admin privileges.",
 )
 async def list_tokens(
-    status: Optional[str] = None,
+    status: str | None = None,
     admin: AuthenticatedAgent = Depends(require_admin)
 ) -> TokenRegistryListResponse:
     """
@@ -1069,7 +1064,7 @@ class AllAgentResponse(BaseModel):
     knowledge_contributed: int = 0
     messages_sent: int = 0
     messages_received: int = 0
-    last_seen: Optional[datetime] = None
+    last_seen: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -1085,12 +1080,12 @@ class AllAgentListResponse(BaseModel):
 
 class AgentUpdateRequest(BaseModel):
     """Request model for updating an agent."""
-    display_name: Optional[str] = Field(None, max_length=100)
-    role: Optional[str] = Field(None, description="Agent role: admin, developer, researcher, viewer")
-    status: Optional[str] = Field(None, description="Agent status: active, suspended, offline")
-    capabilities: Optional[list[str]] = None
-    specializations: Optional[list[str]] = None
-    notes: Optional[str] = Field(None, max_length=500)
+    display_name: str | None = Field(None, max_length=100)
+    role: str | None = Field(None, description="Agent role: admin, developer, researcher, viewer")
+    status: str | None = Field(None, description="Agent status: active, suspended, offline")
+    capabilities: list[str] | None = None
+    specializations: list[str] | None = None
+    notes: str | None = Field(None, max_length=500)
 
 
 class AgentActionResponse(BaseModel):
@@ -1111,9 +1106,9 @@ COLLECTION_AGENTS = "dakb_agents"
     description="Get list of all registered agents in the system. Requires admin privileges.",
 )
 async def list_all_agents(
-    status: Optional[str] = None,
-    role: Optional[str] = None,
-    agent_type: Optional[str] = None,
+    status: str | None = None,
+    role: str | None = None,
+    agent_type: str | None = None,
     skip: int = 0,
     limit: int = 50,
     admin: AuthenticatedAgent = Depends(require_admin)

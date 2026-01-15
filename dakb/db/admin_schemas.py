@@ -14,13 +14,12 @@ Collections:
 - dakb_token_registry: Token tracking and management
 """
 
+import hashlib
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Any
-import hashlib
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -72,7 +71,7 @@ class AdminAgentEntry(BaseModel):
     agent_id: str = Field(..., description="Agent identifier")
     added_at: datetime = Field(default_factory=utcnow)
     added_by: str = Field(..., description="Agent who added this admin")
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=500)
 
 
 class AdminConfigDocument(AdminConfigBase):
@@ -90,7 +89,7 @@ class AdminConfigDocument(AdminConfigBase):
     version: int = Field(default=1, description="Config version for concurrency control")
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
-    updated_by: Optional[str] = Field(None, description="Last agent to update")
+    updated_by: str | None = Field(None, description="Last agent to update")
 
     def get_agent_ids(self) -> set[str]:
         """Get set of admin agent IDs."""
@@ -113,7 +112,7 @@ class AdminConfigCreate(BaseModel):
 class AdminAgentAdd(BaseModel):
     """Request model for adding an admin agent."""
     agent_id: str = Field(..., min_length=1, max_length=50)
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=500)
 
 
 class AdminAgentRemove(BaseModel):
@@ -137,18 +136,18 @@ class RuntimeConfigDocument(AdminConfigBase):
     value_type: ConfigValueType = Field(..., description="Value type for validation")
     description: str = Field(..., description="Human-readable description")
     default_value: Any = Field(..., description="Default value")
-    min_value: Optional[float] = Field(None, description="Minimum value (for numeric)")
-    max_value: Optional[float] = Field(None, description="Maximum value (for numeric)")
-    allowed_values: Optional[list] = Field(None, description="Allowed values (for enums)")
+    min_value: float | None = Field(None, description="Minimum value (for numeric)")
+    max_value: float | None = Field(None, description="Maximum value (for numeric)")
+    allowed_values: list | None = Field(None, description="Allowed values (for enums)")
     category: str = Field(default="general", description="Config category")
     requires_restart: bool = Field(default=False, description="Whether change requires restart")
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
-    updated_by: Optional[str] = Field(None)
+    updated_by: str | None = Field(None)
 
     @field_validator('value', mode='before')
     @classmethod
-    def validate_value_type(cls, v, info):
+    def validate_value_type(cls, v, _info):
         """Validate value matches declared type."""
         # Validation happens at runtime based on value_type
         return v
@@ -166,9 +165,9 @@ class RuntimeConfigCreate(BaseModel):
     value_type: ConfigValueType = Field(...)
     description: str = Field(..., max_length=500)
     default_value: Any = Field(...)
-    min_value: Optional[float] = None
-    max_value: Optional[float] = None
-    allowed_values: Optional[list] = None
+    min_value: float | None = None
+    max_value: float | None = None
+    allowed_values: list | None = None
     category: str = Field(default="general")
     requires_restart: bool = Field(default=False)
 
@@ -194,19 +193,19 @@ class TokenRegistryDocument(AdminConfigBase):
     expires_at: datetime = Field(..., description="Token expiration time")
 
     # Usage tracking
-    last_used_at: Optional[datetime] = Field(None)
+    last_used_at: datetime | None = Field(None)
     use_count: int = Field(default=0)
 
     # Revocation info
-    revoked_at: Optional[datetime] = Field(None)
-    revoked_by: Optional[str] = Field(None)
-    revocation_reason: Optional[str] = Field(None, max_length=500)
+    revoked_at: datetime | None = Field(None)
+    revoked_by: str | None = Field(None)
+    revocation_reason: str | None = Field(None, max_length=500)
 
     # Metadata
     agent_type: str = Field(default="claude")
     role: str = Field(default="developer")
     access_levels: list[str] = Field(default_factory=lambda: ["public"])
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=500)
 
     def is_valid(self) -> bool:
         """Check if token is currently valid."""
@@ -234,7 +233,7 @@ class TokenRegistryCreate(BaseModel):
     agent_type: str = Field(default="claude")
     role: str = Field(default="developer")
     access_levels: list[str] = Field(default_factory=lambda: ["public"])
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=500)
 
 
 class TokenRefreshRequest(BaseModel):
@@ -249,7 +248,7 @@ class TokenRefreshRequest(BaseModel):
 
 class TokenRevokeRequest(BaseModel):
     """Request model for revoking a token."""
-    reason: Optional[str] = Field(None, max_length=500)
+    reason: str | None = Field(None, max_length=500)
 
 
 # =============================================================================
@@ -285,7 +284,7 @@ class TokenRegistryResponse(BaseModel):
     status: TokenStatus
     created_at: datetime
     expires_at: datetime
-    last_used_at: Optional[datetime]
+    last_used_at: datetime | None
     use_count: int
     is_valid: bool
     days_until_expiry: int

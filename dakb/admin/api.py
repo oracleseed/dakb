@@ -14,7 +14,8 @@ Author: Claude Opus 4.5
 """
 
 import logging
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -39,6 +40,7 @@ from ..db.admin_schemas import (
     TokenRegistryResponse,
     TokenRevokeRequest,
     TokenStatus,
+    hash_token,
     utcnow,
 )
 from ..db.collections import get_dakb_client
@@ -1096,6 +1098,37 @@ class AgentActionResponse(BaseModel):
     message: str
 
 
+class TokenInfoResponse(BaseModel):
+    """Response model for token info endpoint."""
+    agent_id: str
+    token_status: str  # active, expired, revoked, unknown
+    expires_at: datetime | None = None
+    days_until_expiry: int = 0
+    role: str | None = None
+    access_levels: list[str] = Field(default_factory=list)
+    last_used_at: datetime | None = None
+    use_count: int = 0
+
+
+class TokenRegenerateRequest(BaseModel):
+    """Request model for token regeneration."""
+    expires_in_hours: int = Field(
+        default=8760, ge=1, le=87600,
+        description="Hours until expiry (default 1 year)"
+    )
+    role: str | None = Field(None, description="New role (optional, keeps existing)")
+    access_levels: list[str] | None = Field(None, description="New access levels (optional)")
+
+
+class TokenRegenerateResponse(BaseModel):
+    """Response model for token regeneration."""
+    success: bool
+    agent_id: str
+    token: str  # Only shown once!
+    expires_at: datetime
+    message: str = "Save this token securely - it will not be shown again"
+
+
 COLLECTION_AGENTS = "dakb_agents"
 
 
@@ -1268,7 +1301,10 @@ async def update_agent(
         update_doc["display_name"] = request.display_name
     if request.role is not None:
         # Validate role
-        valid_roles = ["admin", "developer", "researcher", "viewer"]
+        valid_roles = [
+            "admin", "developer", "researcher", "viewer",
+            "specialist", "coordinator", "analyst", "observer"
+        ]
         if request.role not in valid_roles:
             raise HTTPException(
                 status_code=400,
@@ -1501,4 +1537,511 @@ async def delete_agent(
         agent_id=agent_id,
         action="delete",
         message=f"Agent '{agent_id}' has been permanently deleted"
+    )
+
+
+# =============================================================================
+# TOKEN MANAGEMENT ENDPOINTS (for All Agents)
+# =============================================================================
+
+@router.get(
+    "/all-agents/{agent_id}/token-info",
+    response_model=TokenInfoResponse,
+    summary="Get agent token info",
+    description="Get token status and expiration info for an agent. Requires admin privileges.",
+)
+async def get_agent_token_info(
+    agent_id: str,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> TokenInfoResponse:
+    """Get token information for any registered agent."""
+    db = get_db()
+
+    # Check agent exists
+    agent_doc = db[COLLECTION_AGENTS].find_one({"agent_id": agent_id})
+    if not agent_doc:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    # Get token info from registry
+    token_doc = db[COLLECTION_TOKEN_REGISTRY].find_one({"agent_id": agent_id})
+
+    if not token_doc:
+        return TokenInfoResponse(
+            agent_id=agent_id,
+            token_status="unknown",
+            days_until_expiry=0,
+        )
+
+    token = TokenRegistryDocument(**token_doc)
+
+    # Calculate status
+    now = utcnow()
+    expires_at = token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if token.status == TokenStatus.REVOKED:
+        status = "revoked"
+        days_until_expiry = 0
+    elif expires_at <= now:
+        status = "expired"
+        days_until_expiry = 0
+    else:
+        status = "active"
+        days_until_expiry = (expires_at - now).days
+
+    return TokenInfoResponse(
+        agent_id=agent_id,
+        token_status=status,
+        expires_at=token.expires_at,
+        days_until_expiry=days_until_expiry,
+        role=token.role,
+        access_levels=token.access_levels,
+        last_used_at=token.last_used_at,
+        use_count=token.use_count,
+    )
+
+
+@router.post(
+    "/all-agents/{agent_id}/regenerate-token",
+    response_model=TokenRegenerateResponse,
+    summary="Regenerate agent token",
+    description="Generate a new authentication token for an agent. Returns token only once. Requires admin privileges.",
+)
+async def regenerate_agent_token(
+    agent_id: str,
+    request: TokenRegenerateRequest = TokenRegenerateRequest(),
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> TokenRegenerateResponse:
+    """Regenerate token for an agent with new expiry."""
+    db = get_db()
+
+    # Check agent exists
+    agent_doc = db[COLLECTION_AGENTS].find_one({"agent_id": agent_id})
+    if not agent_doc:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    # Generate new token
+    new_token = secrets.token_urlsafe(32)
+    new_fingerprint = hash_token(new_token)
+    new_expires = utcnow() + timedelta(hours=request.expires_in_hours)
+
+    # Prepare update
+    update_data = {
+        "token_fingerprint": new_fingerprint,
+        "expires_at": new_expires,
+        "status": TokenStatus.ACTIVE,
+        "updated_at": utcnow(),
+    }
+
+    # Optionally update role and access_levels
+    if request.role is not None:
+        update_data["role"] = request.role
+    if request.access_levels is not None:
+        update_data["access_levels"] = request.access_levels
+
+    # Update or create token registry entry
+    db[COLLECTION_TOKEN_REGISTRY].update_one(
+        {"agent_id": agent_id},
+        {"$set": update_data},
+        upsert=True
+    )
+
+    logger.info(f"Token regenerated for {agent_id} by {admin.agent_id}, expires: {new_expires}")
+
+    return TokenRegenerateResponse(
+        success=True,
+        agent_id=agent_id,
+        token=new_token,
+        expires_at=new_expires,
+    )
+
+
+@router.post(
+    "/all-agents/{agent_id}/expire-token",
+    response_model=AgentActionResponse,
+    summary="Expire agent token",
+    description="Immediately expire an agent's token (soft revoke). Requires admin privileges.",
+)
+async def expire_agent_token(
+    agent_id: str,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> AgentActionResponse:
+    """Expire token immediately."""
+    db = get_db()
+
+    # Check token exists
+    token_doc = db[COLLECTION_TOKEN_REGISTRY].find_one({"agent_id": agent_id})
+    if not token_doc:
+        raise HTTPException(status_code=404, detail=f"No token for agent '{agent_id}'")
+
+    # Prevent self-expiration
+    if agent_id == admin.agent_id:
+        raise HTTPException(status_code=400, detail="Cannot expire your own token")
+
+    # Update token status
+    db[COLLECTION_TOKEN_REGISTRY].update_one(
+        {"agent_id": agent_id},
+        {
+            "$set": {
+                "status": TokenStatus.EXPIRED,
+                "expires_at": utcnow(),
+                "updated_at": utcnow(),
+                "revoked_by": admin.agent_id,
+                "revocation_reason": "Manually expired by admin",
+            }
+        }
+    )
+
+    logger.info(f"Token expired for {agent_id} by {admin.agent_id}")
+
+    return AgentActionResponse(
+        success=True,
+        agent_id=agent_id,
+        action="expire_token",
+        message=f"Token for agent '{agent_id}' has been expired"
+    )
+
+
+# =============================================================================
+# KNOWLEDGE BASE MANAGEMENT ENDPOINTS
+# =============================================================================
+
+COLLECTION_KNOWLEDGE = "dakb_knowledge"
+
+
+class KnowledgeEntry(BaseModel):
+    """Knowledge entry data model."""
+    knowledge_id: str
+    title: str
+    content: str
+    category: str
+    status: str
+    content_type: str
+    tags: list[str] = Field(default_factory=list)
+    source: dict = Field(default_factory=dict)
+    votes: dict = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class KnowledgeListResponse(BaseModel):
+    """Response for knowledge list."""
+    items: list[dict]
+    total: int
+    page: int
+    page_size: int
+    has_more: bool
+
+
+class KnowledgeStatsResponse(BaseModel):
+    """Response for knowledge statistics."""
+    total_entries: int
+    categories: dict
+    content_types: dict
+    statuses: dict
+    agents: dict
+    recent_24h: int
+
+
+class KnowledgeUpdateRequest(BaseModel):
+    """Request to update knowledge entry."""
+    title: str | None = None
+    content: str | None = None
+    category: str | None = None
+    status: str | None = None
+    tags: list[str] | None = None
+
+
+class KnowledgeDeleteResponse(BaseModel):
+    """Response for knowledge deletion."""
+    success: bool
+    knowledge_id: str
+    action: str  # soft_delete or hard_delete
+    message: str
+
+
+class RedundancyCheckResponse(BaseModel):
+    """Response for redundancy check."""
+    knowledge_id: str
+    title: str
+    similar_entries: list[dict]
+    highest_similarity: float
+
+
+@router.get(
+    "/knowledge",
+    response_model=KnowledgeListResponse,
+    summary="List knowledge entries",
+    description="List knowledge with search, filter, and pagination. Admin only.",
+)
+async def list_knowledge(
+    page: int = 1,
+    page_size: int = 20,
+    category: str | None = None,
+    status: str | None = None,
+    agent_id: str | None = None,
+    search: str | None = None,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> KnowledgeListResponse:
+    """List knowledge entries with filtering and search."""
+    import re
+    db = get_db()
+
+    query: dict = {}
+
+    # Apply filters
+    if category:
+        query["category"] = category
+    if status:
+        query["status"] = status
+    if agent_id:
+        query["source.agent_id"] = agent_id
+
+    # Apply search (MongoDB regex on title, content, tags, ID)
+    if search:
+        search_regex = re.compile(re.escape(search), re.IGNORECASE)
+        query["$or"] = [
+            {"title": {"$regex": search_regex}},
+            {"content": {"$regex": search_regex}},
+            {"tags": {"$regex": search_regex}},
+            {"knowledge_id": {"$regex": search_regex}},
+        ]
+
+    # Pagination
+    skip = (page - 1) * page_size
+    cursor = db[COLLECTION_KNOWLEDGE].find(query).skip(skip).limit(page_size + 1).sort("created_at", -1)
+
+    items = list(cursor)
+    has_more = len(items) > page_size
+    items = items[:page_size]
+
+    # Convert ObjectId to string
+    for item in items:
+        item["_id"] = str(item["_id"])
+
+    total = db[COLLECTION_KNOWLEDGE].count_documents(query)
+
+    return KnowledgeListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_more=has_more,
+    )
+
+
+@router.get(
+    "/knowledge-stats",
+    response_model=KnowledgeStatsResponse,
+    summary="Get knowledge statistics",
+    description="Get knowledge base statistics. Admin only.",
+)
+async def get_knowledge_stats(
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> KnowledgeStatsResponse:
+    """Get knowledge base statistics."""
+    db = get_db()
+
+    total = db[COLLECTION_KNOWLEDGE].count_documents({})
+
+    # By category
+    categories = {}
+    for doc in db[COLLECTION_KNOWLEDGE].aggregate([
+        {"$group": {"_id": "$category", "count": {"$sum": 1}}}
+    ]):
+        categories[doc["_id"] or "unknown"] = doc["count"]
+
+    # By content_type
+    content_types = {}
+    for doc in db[COLLECTION_KNOWLEDGE].aggregate([
+        {"$group": {"_id": "$content_type", "count": {"$sum": 1}}}
+    ]):
+        content_types[doc["_id"] or "unknown"] = doc["count"]
+
+    # By status
+    statuses = {}
+    for doc in db[COLLECTION_KNOWLEDGE].aggregate([
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+    ]):
+        statuses[doc["_id"] or "unknown"] = doc["count"]
+
+    # By agent
+    agents = {}
+    for doc in db[COLLECTION_KNOWLEDGE].aggregate([
+        {"$group": {"_id": "$source.agent_id", "count": {"$sum": 1}}}
+    ]):
+        agents[doc["_id"] or "unknown"] = doc["count"]
+
+    # Recent (last 24h)
+    cutoff = utcnow() - timedelta(hours=24)
+    recent_24h = db[COLLECTION_KNOWLEDGE].count_documents({"created_at": {"$gte": cutoff}})
+
+    return KnowledgeStatsResponse(
+        total_entries=total,
+        categories=categories,
+        content_types=content_types,
+        statuses=statuses,
+        agents=agents,
+        recent_24h=recent_24h,
+    )
+
+
+@router.get(
+    "/knowledge/{knowledge_id}",
+    summary="Get single knowledge entry",
+    description="Get full knowledge entry by ID. Admin only.",
+)
+async def get_knowledge_entry(
+    knowledge_id: str,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> dict:
+    """Get single knowledge entry."""
+    db = get_db()
+    doc = db[COLLECTION_KNOWLEDGE].find_one({"knowledge_id": knowledge_id})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Knowledge '{knowledge_id}' not found")
+
+    doc["_id"] = str(doc["_id"])
+    return doc
+
+
+@router.put(
+    "/knowledge/{knowledge_id}",
+    summary="Update knowledge entry",
+    description="Update knowledge entry fields. Admin only.",
+)
+async def update_knowledge_entry(
+    knowledge_id: str,
+    request: KnowledgeUpdateRequest,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> dict:
+    """Update knowledge entry."""
+    db = get_db()
+    doc = db[COLLECTION_KNOWLEDGE].find_one({"knowledge_id": knowledge_id})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Knowledge '{knowledge_id}' not found")
+
+    update_doc: dict = {"updated_at": utcnow()}
+
+    if request.title is not None:
+        update_doc["title"] = request.title
+    if request.content is not None:
+        update_doc["content"] = request.content
+    if request.category is not None:
+        update_doc["category"] = request.category
+    if request.status is not None:
+        update_doc["status"] = request.status
+    if request.tags is not None:
+        update_doc["tags"] = request.tags
+
+    db[COLLECTION_KNOWLEDGE].update_one(
+        {"knowledge_id": knowledge_id},
+        {"$set": update_doc}
+    )
+
+    logger.info(f"Knowledge updated: {knowledge_id} by {admin.agent_id}")
+
+    updated = db[COLLECTION_KNOWLEDGE].find_one({"knowledge_id": knowledge_id})
+    if updated:
+        updated["_id"] = str(updated["_id"])
+    return updated or {}
+
+
+@router.delete(
+    "/knowledge/{knowledge_id}",
+    response_model=KnowledgeDeleteResponse,
+    summary="Delete knowledge entry",
+    description="Soft or hard delete knowledge entry. Admin only.",
+)
+async def delete_knowledge_entry(
+    knowledge_id: str,
+    hard_delete: bool = False,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> KnowledgeDeleteResponse:
+    """Delete knowledge entry (soft or hard)."""
+    db = get_db()
+    doc = db[COLLECTION_KNOWLEDGE].find_one({"knowledge_id": knowledge_id})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Knowledge '{knowledge_id}' not found")
+
+    if hard_delete:
+        db[COLLECTION_KNOWLEDGE].delete_one({"knowledge_id": knowledge_id})
+        action = "hard_delete"
+        message = f"Knowledge '{knowledge_id}' permanently deleted"
+    else:
+        db[COLLECTION_KNOWLEDGE].update_one(
+            {"knowledge_id": knowledge_id},
+            {
+                "$set": {
+                    "status": "deleted",
+                    "deleted_at": utcnow(),
+                    "deleted_by": admin.agent_id,
+                }
+            }
+        )
+        action = "soft_delete"
+        message = f"Knowledge '{knowledge_id}' marked as deleted"
+
+    logger.info(f"Knowledge {action}: {knowledge_id} by {admin.agent_id}")
+
+    return KnowledgeDeleteResponse(
+        success=True,
+        knowledge_id=knowledge_id,
+        action=action,
+        message=message,
+    )
+
+
+@router.get(
+    "/knowledge/{knowledge_id}/redundancy",
+    response_model=RedundancyCheckResponse,
+    summary="Check knowledge redundancy",
+    description="Find similar knowledge entries. Admin only.",
+)
+async def check_knowledge_redundancy(
+    knowledge_id: str,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> RedundancyCheckResponse:
+    """Check for similar/redundant knowledge entries."""
+    import re
+    db = get_db()
+
+    doc = db[COLLECTION_KNOWLEDGE].find_one({"knowledge_id": knowledge_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Knowledge '{knowledge_id}' not found")
+
+    title = doc.get("title", "")
+    similar: list[dict] = []
+    highest_similarity = 0.0
+
+    # Simple text-based similarity check using title prefix
+    if title and len(title) >= 10:
+        search_prefix = title[:20]
+        search_regex = re.compile(re.escape(search_prefix), re.IGNORECASE)
+
+        cursor = db[COLLECTION_KNOWLEDGE].find({
+            "knowledge_id": {"$ne": knowledge_id},
+            "title": {"$regex": search_regex}
+        }).limit(10)
+
+        for match in cursor:
+            # Simple similarity score based on title match
+            similarity = 0.5 + (0.3 if match.get("category") == doc.get("category") else 0)
+            similar.append({
+                "knowledge_id": match["knowledge_id"],
+                "title": match.get("title"),
+                "category": match.get("category"),
+                "similarity": similarity,
+            })
+            highest_similarity = max(highest_similarity, similarity)
+
+    return RedundancyCheckResponse(
+        knowledge_id=knowledge_id,
+        title=title,
+        similar_entries=similar,
+        highest_similarity=highest_similarity,
     )

@@ -376,6 +376,14 @@ class CreateInviteRequest(BaseModel):
         max_length=500,
         description="Optional note about why this invite was created"
     )
+    granted_role: AgentRole = Field(
+        default=AgentRole.DEVELOPER,
+        description="Role to grant the invited agent"
+    )
+    granted_access_levels: list[AccessLevel] = Field(
+        default_factory=lambda: [AccessLevel.PUBLIC],
+        description="Access levels to grant the invited agent"
+    )
 
 
 class CreateInviteResponse(BaseModel):

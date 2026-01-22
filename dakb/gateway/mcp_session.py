@@ -18,8 +18,8 @@ Features:
 
 Configuration (environment variables):
 - DAKB_MCP_SESSION_CLEANUP_INTERVAL: Cleanup check interval in seconds (default: 300)
-- DAKB_MCP_SESSION_TIMEOUT: Session idle timeout in seconds (default: 3600)
-- DAKB_MCP_MAX_SESSIONS_PER_AGENT: Max sessions per agent (default: 10)
+- DAKB_MCP_SESSION_TIMEOUT: Session idle timeout in seconds (default: 86400 = 24 hours)
+- DAKB_MCP_MAX_SESSIONS_PER_AGENT: Max sessions per agent (default: 50)
 - DAKB_MCP_MAX_TOTAL_SESSIONS: Max total sessions (default: 1000)
 - DAKB_MCP_EVENT_BUFFER_SIZE: Max events to buffer per session (default: 100)
 """
@@ -55,8 +55,8 @@ class MCPSessionConfig:
     """MCP Session configuration loaded from environment."""
 
     cleanup_interval_seconds: int = _get_env_int("DAKB_MCP_SESSION_CLEANUP_INTERVAL", 300)
-    session_timeout_seconds: int = _get_env_int("DAKB_MCP_SESSION_TIMEOUT", 3600)
-    max_sessions_per_agent: int = _get_env_int("DAKB_MCP_MAX_SESSIONS_PER_AGENT", 10)
+    session_timeout_seconds: int = _get_env_int("DAKB_MCP_SESSION_TIMEOUT", 86400)  # 24 hours
+    max_sessions_per_agent: int = _get_env_int("DAKB_MCP_MAX_SESSIONS_PER_AGENT", 50)  # Increased from 10
     max_total_sessions: int = _get_env_int("DAKB_MCP_MAX_TOTAL_SESSIONS", 1000)
     event_buffer_size: int = _get_env_int("DAKB_MCP_EVENT_BUFFER_SIZE", 100)
 

@@ -280,6 +280,11 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" href="#" data-section="knowledge">
+                    <i class="bi bi-book"></i>Knowledge Base
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" href="#" data-section="config">
                     <i class="bi bi-gear"></i>Configuration
                 </a>
@@ -287,6 +292,11 @@
             <li class="nav-item">
                 <a class="nav-link" href="#" data-section="status">
                     <i class="bi bi-activity"></i>System Status
+                </a>
+            </li>
+            <li class="nav-item mt-3">
+                <a class="nav-link" href="#" data-section="help">
+                    <i class="bi bi-question-circle"></i>Help & Docs
                 </a>
             </li>
         </ul>
@@ -569,6 +579,10 @@
                             <option value="developer">Developer</option>
                             <option value="researcher">Researcher</option>
                             <option value="viewer">Viewer</option>
+                            <option value="specialist">Specialist</option>
+                            <option value="coordinator">Coordinator</option>
+                            <option value="analyst">Analyst</option>
+                            <option value="observer">Observer</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -746,6 +760,10 @@
                                     <option value="developer">Developer</option>
                                     <option value="researcher">Researcher</option>
                                     <option value="viewer">Viewer</option>
+                                    <option value="specialist">Specialist</option>
+                                    <option value="coordinator">Coordinator</option>
+                                    <option value="analyst">Analyst</option>
+                                    <option value="observer">Observer</option>
                                 </select>
                             </div>
                             <div class="mb-3">
@@ -804,6 +822,122 @@
             </div>
         </div>
 
+        <!-- Token Management Modal -->
+        <div class="modal fade" id="tokenManagementModal" tabindex="-1" aria-labelledby="tokenManagementModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title" id="tokenManagementModalLabel">
+                            <i class="bi bi-key me-2"></i>Token Management
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="tokenAgentIdInput">
+
+                        <!-- Token Info Section -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <i class="bi bi-info-circle me-1"></i>Current Token Status
+                            </div>
+                            <div class="card-body" id="tokenInfoDisplay">
+                                <div class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    Loading token info...
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Regenerate Token Section -->
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark">
+                                <i class="bi bi-arrow-repeat me-1"></i>Regenerate Token
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>
+                                    <strong>Warning:</strong> Regenerating the token will invalidate the current token.
+                                    The agent will need to update their configuration with the new token.
+                                </div>
+
+                                <form id="tokenRegenerateForm">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label for="tokenExpiryHours" class="form-label">Expiry (hours)</label>
+                                            <select class="form-select" id="tokenExpiryHours">
+                                                <option value="24">24 hours (1 day)</option>
+                                                <option value="168">168 hours (1 week)</option>
+                                                <option value="720">720 hours (30 days)</option>
+                                                <option value="2160">2160 hours (90 days)</option>
+                                                <option value="4320">4320 hours (6 months)</option>
+                                                <option value="8760" selected>8760 hours (1 year)</option>
+                                                <option value="17520">17520 hours (2 years)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="tokenNewRole" class="form-label">Role (optional)</label>
+                                            <select class="form-select" id="tokenNewRole">
+                                                <option value="">Keep existing</option>
+                                                <option value="developer">Developer</option>
+                                                <option value="admin">Admin</option>
+                                                <option value="researcher">Researcher</option>
+                                                <option value="viewer">Viewer (Read-only)</option>
+                                                <option value="specialist">Specialist</option>
+                                                <option value="coordinator">Coordinator</option>
+                                                <option value="analyst">Analyst</option>
+                                                <option value="observer">Observer</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="tokenAccessLevels" class="form-label">Access Levels</label>
+                                            <select class="form-select" id="tokenAccessLevels" multiple size="3">
+                                                <option value="public" selected>Public</option>
+                                                <option value="restricted">Restricted</option>
+                                                <option value="secret">Secret</option>
+                                            </select>
+                                            <small class="text-muted">Ctrl+click to select multiple</small>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- New Token Display (hidden by default) -->
+                        <div class="card mt-3" id="newTokenDisplay" style="display: none;">
+                            <div class="card-header bg-success text-white">
+                                <i class="bi bi-check-circle me-1"></i>New Token Generated
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-success">
+                                    <strong>Success!</strong> Save this token now - it will not be shown again.
+                                </div>
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control font-monospace" id="newTokenValue" readonly>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="copyNewToken()">
+                                        <i class="bi bi-clipboard"></i> Copy
+                                    </button>
+                                </div>
+                                <small class="text-muted">
+                                    <strong>Expires:</strong> <span id="newTokenExpiry"></span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-danger" onclick="expireAgentToken()" id="expireTokenBtn">
+                            <i class="bi bi-x-circle me-1"></i>Expire Token
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-warning" onclick="regenerateAgentToken()">
+                            <i class="bi bi-arrow-repeat me-1"></i>Regenerate Token
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Configuration Section -->
         <section id="section-config" class="section-content" style="display: none;">
             <div class="page-header">
@@ -853,6 +987,409 @@
                         <h5 class="section-title"><i class="bi bi-info-circle me-2"></i>System Info</h5>
                         <div id="systemInfo">
                             <!-- System info will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Knowledge Base Section -->
+        <div id="section-knowledge" class="content-section" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <h1 class="page-title"><i class="bi bi-book me-2"></i>Knowledge Base Management</h1>
+                <div>
+                    <button class="btn btn-outline-primary me-2" onclick="refreshKnowledgeStats()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Stats
+                    </button>
+                </div>
+            </div>
+
+            <!-- Knowledge Stats Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="bi bi-book"></i></div>
+                        <div class="stat-value" id="kb-total">-</div>
+                        <div class="stat-label">Total Entries</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="bi bi-check-circle"></i></div>
+                        <div class="stat-value" id="kb-active">-</div>
+                        <div class="stat-label">Active Entries</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="bi bi-search"></i></div>
+                        <div class="stat-value" id="kb-indexed">-</div>
+                        <div class="stat-label">Indexed (Searchable)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="bi bi-calendar-week"></i></div>
+                        <div class="stat-value" id="kb-recent">-</div>
+                        <div class="stat-label">Added (7 days)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search -->
+            <div class="card-section">
+                <h5 class="section-title"><i class="bi bi-search me-2"></i>Search Knowledge Base</h5>
+                <div class="row">
+                    <div class="col-md-10">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" id="kbSearchInput" placeholder="Search by title, content, tags, or ID..." onkeyup="debounceKBSearch()">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100" onclick="kbCurrentPage = 1; loadKnowledgeEntries();">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="card-section">
+                <h5 class="section-title">Filters</h5>
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" id="kbCategoryFilter" onchange="loadKnowledgeEntries()">
+                            <option value="">All Categories</option>
+                            <option value="database">Database</option>
+                            <option value="ml">Machine Learning</option>
+                            <option value="trading">Trading</option>
+                            <option value="devops">DevOps</option>
+                            <option value="security">Security</option>
+                            <option value="frontend">Frontend</option>
+                            <option value="backend">Backend</option>
+                            <option value="general">General</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="kbStatusFilter" onchange="loadKnowledgeEntries()">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="deprecated">Deprecated</option>
+                            <option value="deleted">Deleted</option>
+                            <option value="pending_review">Pending Review</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Source Agent</label>
+                        <input type="text" class="form-control" id="kbAgentFilter" placeholder="e.g., backend, MLX" onkeyup="debounceKBSearch()">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-secondary w-100" onclick="clearKBFilters()">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Knowledge Table -->
+            <div class="card-section">
+                <h5 class="section-title">Knowledge Entries</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Agent</th>
+                                <th>Votes</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="knowledgeTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <nav>
+                    <ul class="pagination justify-content-center" id="kbPagination"></ul>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Help & Docs Section -->
+        <section id="section-help" class="section-content" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Help & Documentation</h1>
+            </div>
+
+            <div class="row g-4">
+                <!-- API Documentation Card -->
+                <div class="col-md-6">
+                    <div class="card-section h-100">
+                        <h5 class="section-title"><i class="bi bi-code-slash me-2"></i>API Documentation</h5>
+                        <p class="text-muted mb-3">Interactive API documentation with request/response examples.</p>
+                        <div class="list-group list-group-flush">
+                            <a href="/docs" target="_blank" class="list-group-item list-group-item-action d-flex align-items-center">
+                                <i class="bi bi-box-arrow-up-right me-3 text-primary"></i>
+                                <div>
+                                    <strong>Swagger UI</strong>
+                                    <small class="d-block text-muted">Interactive API explorer with try-it-out feature</small>
+                                </div>
+                            </a>
+                            <a href="/redoc" target="_blank" class="list-group-item list-group-item-action d-flex align-items-center">
+                                <i class="bi bi-file-text me-3 text-success"></i>
+                                <div>
+                                    <strong>ReDoc</strong>
+                                    <small class="d-block text-muted">Clean, readable API reference documentation</small>
+                                </div>
+                            </a>
+                            <a href="/openapi.json" target="_blank" class="list-group-item list-group-item-action d-flex align-items-center">
+                                <i class="bi bi-filetype-json me-3 text-warning"></i>
+                                <div>
+                                    <strong>OpenAPI Schema</strong>
+                                    <small class="d-block text-muted">Raw OpenAPI 3.0 specification (JSON)</small>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Reference Card -->
+                <div class="col-md-6">
+                    <div class="card-section h-100">
+                        <h5 class="section-title"><i class="bi bi-lightning me-2"></i>Quick Reference</h5>
+                        <p class="text-muted mb-3">Common API endpoints and operations.</p>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th>Operation</th><th>Endpoint</th><th>Method</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>System Status</td><td><code>/api/v1/status</code></td><td><span class="badge bg-success">GET</span></td></tr>
+                                    <tr><td>Search Knowledge</td><td><code>/api/v1/knowledge/search</code></td><td><span class="badge bg-primary">POST</span></td></tr>
+                                    <tr><td>Store Knowledge</td><td><code>/api/v1/knowledge</code></td><td><span class="badge bg-primary">POST</span></td></tr>
+                                    <tr><td>Send Message</td><td><code>/api/v1/messages</code></td><td><span class="badge bg-primary">POST</span></td></tr>
+                                    <tr><td>Get Messages</td><td><code>/api/v1/messages/inbox</code></td><td><span class="badge bg-success">GET</span></td></tr>
+                                    <tr><td>Create Invite</td><td><code>/api/v1/register/invite</code></td><td><span class="badge bg-primary">POST</span></td></tr>
+                                    <tr><td>Register Agent</td><td><code>/api/v1/register/request</code></td><td><span class="badge bg-primary">POST</span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin System Guide -->
+            <div class="card-section mt-4">
+                <h5 class="section-title"><i class="bi bi-book me-2"></i>Admin System Guide</h5>
+
+                <div class="accordion" id="adminGuideAccordion">
+                    <!-- Getting Started -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#guideGettingStarted">
+                                <i class="bi bi-play-circle me-2"></i>Getting Started
+                            </button>
+                        </h2>
+                        <div id="guideGettingStarted" class="accordion-collapse collapse show" data-bs-parent="#adminGuideAccordion">
+                            <div class="accordion-body">
+                                <h6>Welcome to DAKB Admin Dashboard</h6>
+                                <p>The Distributed Agent Knowledge Base (DAKB) is a centralized system for AI agents to share knowledge, communicate, and coordinate work.</p>
+                                <ol>
+                                    <li><strong>Overview</strong> - Monitor system health, active agents, and knowledge statistics</li>
+                                    <li><strong>Admin Agents</strong> - Manage which agents have admin privileges</li>
+                                    <li><strong>Token Registry</strong> - View and manage authentication tokens</li>
+                                    <li><strong>Invite Tokens</strong> - Create and manage agent registration invites</li>
+                                    <li><strong>Agents</strong> - View all registered agents and their status</li>
+                                    <li><strong>Configuration</strong> - Adjust runtime settings</li>
+                                    <li><strong>System Status</strong> - Check service health and connectivity</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent Registration -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#guideRegistration">
+                                <i class="bi bi-person-plus me-2"></i>Agent Registration Flow
+                            </button>
+                        </h2>
+                        <div id="guideRegistration" class="accordion-collapse collapse" data-bs-parent="#adminGuideAccordion">
+                            <div class="accordion-body">
+                                <h6>How to Register New Agents</h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="card bg-light p-3 text-center">
+                                            <i class="bi bi-1-circle fs-1 text-primary"></i>
+                                            <h6 class="mt-2">Create Invite</h6>
+                                            <small>Go to Invite Tokens → Create Invite. Set optional restrictions.</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-light p-3 text-center">
+                                            <i class="bi bi-2-circle fs-1 text-primary"></i>
+                                            <h6 class="mt-2">Share Token</h6>
+                                            <small>Copy the full token and share it with the new agent securely.</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-light p-3 text-center">
+                                            <i class="bi bi-3-circle fs-1 text-primary"></i>
+                                            <h6 class="mt-2">Agent Registers</h6>
+                                            <small>Agent calls POST /api/v1/register/request with the invite token.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert alert-info mt-3 mb-0">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <strong>Tip:</strong> Use the copy button in Invite Tokens to copy the full (unmasked) token for sharing.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Token Management -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#guideTokens">
+                                <i class="bi bi-key me-2"></i>Token Management
+                            </button>
+                        </h2>
+                        <div id="guideTokens" class="accordion-collapse collapse" data-bs-parent="#adminGuideAccordion">
+                            <div class="accordion-body">
+                                <h6>Understanding Tokens</h6>
+                                <table class="table table-bordered">
+                                    <tr>
+                                        <td><strong>Auth Tokens</strong></td>
+                                        <td>JWT tokens used by agents to authenticate API requests. Stored in Token Registry.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Invite Tokens</strong></td>
+                                        <td>One-time use tokens for registering new agents. Created by admins.</td>
+                                    </tr>
+                                </table>
+                                <h6 class="mt-3">Token Lifecycle</h6>
+                                <ul>
+                                    <li><strong>Active</strong> - Token is valid and can be used</li>
+                                    <li><strong>Used</strong> - Invite token has been consumed by an agent registration</li>
+                                    <li><strong>Expired</strong> - Token has passed its expiration date</li>
+                                    <li><strong>Revoked</strong> - Token was manually invalidated by an admin</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Best Practices -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#guideSecurity">
+                                <i class="bi bi-shield-check me-2"></i>Security Best Practices
+                            </button>
+                        </h2>
+                        <div id="guideSecurity" class="accordion-collapse collapse" data-bs-parent="#adminGuideAccordion">
+                            <div class="accordion-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6><i class="bi bi-check-circle text-success me-2"></i>Do</h6>
+                                        <ul>
+                                            <li>Use short expiry times for invite tokens</li>
+                                            <li>Revoke unused invites promptly</li>
+                                            <li>Limit admin privileges to necessary agents</li>
+                                            <li>Regularly review active tokens</li>
+                                            <li>Use secure channels to share invite tokens</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="bi bi-x-circle text-danger me-2"></i>Don't</h6>
+                                        <ul>
+                                            <li>Share auth tokens publicly</li>
+                                            <li>Create invites with very long expiry</li>
+                                            <li>Grant admin to untrusted agents</li>
+                                            <li>Ignore expired or unused tokens</li>
+                                            <li>Store tokens in version control</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Troubleshooting -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#guideTroubleshooting">
+                                <i class="bi bi-wrench me-2"></i>Troubleshooting
+                            </button>
+                        </h2>
+                        <div id="guideTroubleshooting" class="accordion-collapse collapse" data-bs-parent="#adminGuideAccordion">
+                            <div class="accordion-body">
+                                <h6>Common Issues</h6>
+                                <table class="table">
+                                    <tr>
+                                        <td><strong>401 Unauthorized</strong></td>
+                                        <td>Token is invalid, expired, or missing. Check Token Registry for status.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>403 Forbidden</strong></td>
+                                        <td>Agent lacks required permissions. Check if agent needs admin role.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Invite token not found</strong></td>
+                                        <td>Token may be revoked or never existed. Check Invite Tokens list.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Agent already registered</strong></td>
+                                        <td>The agent ID is taken. Use a different agent_id in registration.</td>
+                                    </tr>
+                                </table>
+                                <div class="alert alert-secondary mt-3 mb-0">
+                                    <i class="bi bi-terminal me-2"></i>
+                                    <strong>Debug Tip:</strong> Check System Status page for service health, then review Gateway logs for detailed errors.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Support & Resources -->
+            <div class="card-section mt-4">
+                <h5 class="section-title"><i class="bi bi-life-preserver me-2"></i>Support & Resources</h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center p-3 bg-light rounded">
+                            <i class="bi bi-github fs-3 me-3"></i>
+                            <div>
+                                <strong>GitHub Repository</strong>
+                                <small class="d-block text-muted">Source code and issue tracker</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center p-3 bg-light rounded">
+                            <i class="bi bi-envelope fs-3 me-3"></i>
+                            <div>
+                                <strong>Contact Admin</strong>
+                                <small class="d-block text-muted">Reach out to system administrator</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center p-3 bg-light rounded">
+                            <i class="bi bi-journal-text fs-3 me-3"></i>
+                            <div>
+                                <strong>Documentation</strong>
+                                <small class="d-block text-muted">Full system documentation</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -921,7 +1458,12 @@
                                 <select class="form-select" id="tokenRole">
                                     <option value="developer">Developer</option>
                                     <option value="admin">Admin</option>
-                                    <option value="readonly">Read-only</option>
+                                    <option value="researcher">Researcher</option>
+                                    <option value="viewer">Viewer (Read-only)</option>
+                                    <option value="specialist">Specialist</option>
+                                    <option value="coordinator">Coordinator</option>
+                                    <option value="analyst">Analyst</option>
+                                    <option value="observer">Observer</option>
                                 </select>
                             </div>
                         </div>
@@ -1039,7 +1581,12 @@
                                 <select class="form-select" id="genRole">
                                     <option value="developer">Developer</option>
                                     <option value="admin">Admin</option>
-                                    <option value="readonly">Read-only</option>
+                                    <option value="researcher">Researcher</option>
+                                    <option value="viewer">Viewer (Read-only)</option>
+                                    <option value="specialist">Specialist</option>
+                                    <option value="coordinator">Coordinator</option>
+                                    <option value="analyst">Analyst</option>
+                                    <option value="observer">Observer</option>
                                 </select>
                             </div>
                         </div>
@@ -1156,8 +1703,13 @@
                                 <label class="form-label">Role</label>
                                 <select class="form-select" id="inviteRole">
                                     <option value="developer">Developer</option>
-                                    <option value="readonly">Read-only</option>
                                     <option value="admin">Admin</option>
+                                    <option value="researcher">Researcher</option>
+                                    <option value="viewer">Viewer (Read-only)</option>
+                                    <option value="specialist">Specialist</option>
+                                    <option value="coordinator">Coordinator</option>
+                                    <option value="analyst">Analyst</option>
+                                    <option value="observer">Observer</option>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-3">
@@ -1275,6 +1827,115 @@
         </div>
     </div>
 
+    <!-- Knowledge View/Edit Modal -->
+    <div class="modal fade" id="knowledgeModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-book me-2"></i>Knowledge Entry</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="kbModalId">
+
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" id="kbModalTitle">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="kbModalStatus">
+                                <option value="active">Active</option>
+                                <option value="deprecated">Deprecated</option>
+                                <option value="pending_review">Pending Review</option>
+                                <option value="deleted">Deleted</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Category</label>
+                            <input type="text" class="form-control" id="kbModalCategory" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Content Type</label>
+                            <input type="text" class="form-control" id="kbModalContentType" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Access Level</label>
+                            <select class="form-select" id="kbModalAccessLevel">
+                                <option value="public">Public</option>
+                                <option value="restricted">Restricted</option>
+                                <option value="secret">Secret</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Tags (comma-separated)</label>
+                        <input type="text" class="form-control" id="kbModalTags" placeholder="tag1, tag2, tag3">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Content</label>
+                        <textarea class="form-control" id="kbModalContent" rows="12" style="font-family: monospace;"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">Source Agent</label>
+                            <input type="text" class="form-control" id="kbModalAgent" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Confidence Score</label>
+                            <input type="text" class="form-control" id="kbModalConfidence" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Indexed</label>
+                            <input type="text" class="form-control" id="kbModalIndexed" readonly>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Votes</label>
+                            <div>
+                                <span class="badge bg-success me-2" id="kbModalVotesHelpful">+0 Helpful</span>
+                                <span class="badge bg-danger" id="kbModalVotesUnhelpful">-0 Unhelpful</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Created / Updated</label>
+                            <div id="kbModalDates" class="text-muted small"></div>
+                        </div>
+                    </div>
+
+                    <!-- Redundancy Check Section -->
+                    <hr class="my-4">
+                    <h6><i class="bi bi-diagram-3 me-2"></i>Redundancy Check</h6>
+                    <div class="d-flex align-items-center mb-2">
+                        <button class="btn btn-outline-info btn-sm" onclick="checkKBRedundancy()">
+                            <i class="bi bi-search"></i> Check for Similar Entries
+                        </button>
+                        <span class="ms-3 text-muted small">Finds entries with &gt;85% similarity</span>
+                    </div>
+                    <div id="redundancyResults" class="mt-2"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger me-auto" onclick="deleteKnowledgeEntry()">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="saveKnowledgeEntry()">
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -1284,6 +1945,11 @@
         let knowledgeChart = null;
         let statusWebSocket = null;
         let wsReconnectTimer = null;
+
+        // Knowledge Base state
+        let kbCurrentPage = 1;
+        let kbPageSize = 20;
+        let kbDebounceTimer = null;
 
         // API Base URL
         const API_BASE = '/api/v1/admin';
@@ -1404,6 +2070,10 @@
                 case 'tokens': loadTokens(); break;
                 case 'invites': loadInvites(); break;
                 case 'agents': loadAgents(); break;
+                case 'knowledge':
+                    loadKnowledgeStats();
+                    loadKnowledgeEntries();
+                    break;
                 case 'config': loadConfig(); break;
                 case 'status': loadSystemStatus(); break;
             }
@@ -1954,8 +2624,11 @@ ${token}
                         <td>${formatDate(invite.expires_at)}</td>
                         <td>${invite.used_by_agent_id || '-'}</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewInvite('${invite.invite_token}', ${JSON.stringify(invite).replace(/"/g, '&quot;')})">
+                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewInvite('${invite.invite_token}', ${JSON.stringify(invite).replace(/"/g, '&quot;')})" title="View details">
                                 <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="copyTokenToClipboard('${invite.full_token || invite.invite_token}')" title="Copy full token">
+                                <i class="bi bi-clipboard"></i>
                             </button>
                             ${invite.status === 'active' ? `
                                 <button class="btn btn-sm btn-outline-danger" onclick="revokeInvite('${invite.invite_token}')" title="Revoke invite">
@@ -2043,9 +2716,9 @@ ${token}
                         target_agent_type: targetType || null,
                         expires_in_hours: expiryHours,
                         max_uses: maxUses,
-                        role: role,
-                        access_levels: accessLevels,
-                        purpose: purpose || null
+                        granted_role: role,
+                        granted_access_levels: accessLevels,
+                        created_by_note: purpose || null
                     })
                 });
 
@@ -2092,6 +2765,35 @@ ${token}
             }
 
             showToast('Invite token copied to clipboard!', 'success');
+        }
+
+        function copyTokenToClipboard(token) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(token).then(() => {
+                    showToast('Token copied to clipboard!', 'success');
+                }).catch(err => {
+                    // Fallback for older browsers
+                    fallbackCopyToClipboard(token);
+                });
+            } else {
+                fallbackCopyToClipboard(token);
+            }
+        }
+
+        function fallbackCopyToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast('Token copied to clipboard!', 'success');
+            } catch (err) {
+                showToast('Failed to copy token', 'error');
+            }
+            document.body.removeChild(textArea);
         }
 
         function viewInvite(token, invite) {
@@ -2200,6 +2902,9 @@ ${token}
                             </button>
                             <button class="btn btn-outline-secondary" onclick="editAgent('${agent.agent_id}')" title="Edit">
                                 <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-info" onclick="manageAgentToken('${agent.agent_id}')" title="Manage Token">
+                                <i class="bi bi-key"></i>
                             </button>
                             ${agent.status === 'suspended' ? `
                                 <button class="btn btn-outline-success" onclick="activateAgent('${agent.agent_id}')" title="Activate">
@@ -2414,6 +3119,149 @@ ${token}
             }
         }
 
+        // Token Management Functions
+        async function manageAgentToken(agentId) {
+            document.getElementById('tokenAgentIdInput').value = agentId;
+            document.getElementById('newTokenDisplay').style.display = 'none';
+            document.getElementById('tokenManagementModalLabel').innerHTML =
+                `<i class="bi bi-key me-2"></i>Token Management - ${agentId}`;
+
+            // Show loading state
+            document.getElementById('tokenInfoDisplay').innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    Loading token info...
+                </div>
+            `;
+
+            // Open modal
+            new bootstrap.Modal(document.getElementById('tokenManagementModal')).show();
+
+            // Load token info
+            await loadTokenInfo(agentId);
+        }
+
+        async function loadTokenInfo(agentId) {
+            const data = await apiCall(`/all-agents/${agentId}/token-info`);
+
+            if (data) {
+                const statusBadge = getTokenStatusBadge(data.token_status);
+                const expiryInfo = data.expires_at ? formatDate(data.expires_at) : 'Not set';
+                const daysInfo = data.days_until_expiry !== null && data.days_until_expiry !== undefined
+                    ? `(${data.days_until_expiry} days remaining)`
+                    : '';
+
+                document.getElementById('tokenInfoDisplay').innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Agent ID:</strong> <code>${data.agent_id}</code></p>
+                            <p><strong>Token Status:</strong> ${statusBadge}</p>
+                            <p><strong>Expires:</strong> ${expiryInfo} ${daysInfo}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Role:</strong> <span class="badge bg-secondary">${data.role}</span></p>
+                            <p><strong>Access Levels:</strong>
+                                ${data.access_levels.map(l => `<span class="badge bg-info text-dark me-1">${l}</span>`).join('')}
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Disable expire button if token already expired/revoked
+                const expireBtn = document.getElementById('expireTokenBtn');
+                if (data.token_status === 'expired' || data.token_status === 'revoked') {
+                    expireBtn.disabled = true;
+                    expireBtn.title = 'Token is already expired/revoked';
+                } else {
+                    expireBtn.disabled = false;
+                    expireBtn.title = 'Expire token';
+                }
+            }
+        }
+
+        function getTokenStatusBadge(status) {
+            const statusConfig = {
+                'active': { class: 'bg-success', icon: 'bi-check-circle' },
+                'expired': { class: 'bg-danger', icon: 'bi-x-circle' },
+                'revoked': { class: 'bg-danger', icon: 'bi-slash-circle' },
+                'unknown': { class: 'bg-secondary', icon: 'bi-question-circle' }
+            };
+            const config = statusConfig[status] || statusConfig['unknown'];
+            return `<span class="badge ${config.class}"><i class="bi ${config.icon} me-1"></i>${status}</span>`;
+        }
+
+        async function regenerateAgentToken() {
+            const agentId = document.getElementById('tokenAgentIdInput').value;
+            const expiryHours = parseInt(document.getElementById('tokenExpiryHours').value);
+            const newRole = document.getElementById('tokenNewRole').value || null;
+
+            // Get selected access levels
+            const accessLevelSelect = document.getElementById('tokenAccessLevels');
+            const accessLevels = Array.from(accessLevelSelect.selectedOptions).map(opt => opt.value);
+
+            if (accessLevels.length === 0) {
+                showToast('Please select at least one access level', 'error');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to regenerate the token for ${agentId}? The current token will be invalidated.`)) {
+                return;
+            }
+
+            const requestBody = {
+                expires_in_hours: expiryHours,
+                access_levels: accessLevels
+            };
+            if (newRole) {
+                requestBody.role = newRole;
+            }
+
+            const data = await apiCall(`/all-agents/${agentId}/regenerate-token`, {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+
+            if (data && data.success) {
+                // Show the new token
+                document.getElementById('newTokenValue').value = data.token;
+                document.getElementById('newTokenExpiry').textContent = formatDate(data.expires_at);
+                document.getElementById('newTokenDisplay').style.display = 'block';
+
+                // Reload token info
+                await loadTokenInfo(agentId);
+
+                showToast('Token regenerated successfully! Please save the new token.', 'success');
+            }
+        }
+
+        async function expireAgentToken() {
+            const agentId = document.getElementById('tokenAgentIdInput').value;
+
+            if (!confirm(`Are you sure you want to expire the token for ${agentId}? The agent will not be able to access the system until a new token is generated.`)) {
+                return;
+            }
+
+            const data = await apiCall(`/all-agents/${agentId}/expire-token`, {
+                method: 'POST'
+            });
+
+            if (data && data.success) {
+                // Reload token info
+                await loadTokenInfo(agentId);
+                showToast(data.message, 'success');
+            }
+        }
+
+        function copyNewToken() {
+            const tokenInput = document.getElementById('newTokenValue');
+            tokenInput.select();
+            tokenInput.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(tokenInput.value);
+            showToast('Token copied to clipboard!', 'success');
+        }
+
         // Configuration
         async function loadConfig() {
             const data = await apiCall('/config');
@@ -2518,6 +3366,333 @@ ${token}
 
         function refreshAll() {
             loadOverview();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // =============================================================================
+        // KNOWLEDGE BASE MANAGEMENT FUNCTIONS
+        // =============================================================================
+
+        async function loadKnowledgeStats() {
+            try {
+                const response = await fetch('/api/v1/admin/knowledge-stats', {
+                    headers: getHeaders()
+                });
+                if (!response.ok) throw new Error('Failed to load KB stats');
+
+                const stats = await response.json();
+
+                document.getElementById('kb-total').textContent = stats.total_entries;
+                document.getElementById('kb-active').textContent = stats.by_status.active || 0;
+                document.getElementById('kb-indexed').textContent = stats.indexed_count;
+                document.getElementById('kb-recent').textContent = stats.recent_entries_7d;
+            } catch (error) {
+                console.error('Error loading KB stats:', error);
+            }
+        }
+
+        function refreshKnowledgeStats() {
+            loadKnowledgeStats();
+            loadKnowledgeEntries();
+        }
+
+        async function loadKnowledgeEntries() {
+            const tbody = document.getElementById('knowledgeTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center"><div class="spinner-border spinner-border-sm"></div> Loading...</td></tr>';
+
+            try {
+                const category = document.getElementById('kbCategoryFilter').value;
+                const status = document.getElementById('kbStatusFilter').value;
+                const agentId = document.getElementById('kbAgentFilter').value;
+                const searchQuery = document.getElementById('kbSearchInput').value.trim();
+
+                let url = `/api/v1/admin/knowledge?page=${kbCurrentPage}&page_size=${kbPageSize}`;
+                if (category) url += `&category=${category}`;
+                if (status) url += `&status=${status}`;
+                if (agentId) url += `&agent_id=${encodeURIComponent(agentId)}`;
+                if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+
+                const response = await fetch(url, {
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) throw new Error('Failed to load knowledge entries');
+
+                const data = await response.json();
+
+                if (data.items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No knowledge entries found</td></tr>';
+                    document.getElementById('kbPagination').innerHTML = '';
+                    return;
+                }
+
+                tbody.innerHTML = data.items.map(entry => `
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">${escapeHtml(entry.title)}</div>
+                            <small class="text-muted">${entry.knowledge_id}</small>
+                        </td>
+                        <td><span class="badge bg-secondary">${entry.category}</span></td>
+                        <td>${getKBStatusBadge(entry.status)}</td>
+                        <td><code>${entry.source_agent_id}</code></td>
+                        <td>
+                            <span class="text-success">+${entry.vote_helpful}</span> /
+                            <span class="text-danger">-${entry.vote_unhelpful}</span>
+                        </td>
+                        <td><small>${formatDate(entry.created_at)}</small></td>
+                        <td>
+                            <button class="btn btn-outline-primary btn-sm" onclick="viewKnowledgeEntry('${entry.knowledge_id}')" title="View/Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteKB('${entry.knowledge_id}', '${escapeHtml(entry.title).replace(/'/g, "\\'")}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                renderKBPagination(data.total, data.page, data.page_size);
+
+            } catch (error) {
+                console.error('Error loading knowledge entries:', error);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error loading entries</td></tr>';
+            }
+        }
+
+        function getKBStatusBadge(status) {
+            const badges = {
+                'active': '<span class="badge badge-status badge-active">Active</span>',
+                'deprecated': '<span class="badge badge-status badge-expired">Deprecated</span>',
+                'deleted': '<span class="badge badge-status badge-revoked">Deleted</span>',
+                'pending_review': '<span class="badge badge-status" style="background: rgba(155,89,182,0.1); color: #9b59b6;">Pending</span>'
+            };
+            return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+        }
+
+        function renderKBPagination(total, currentPage, pageSize) {
+            const totalPages = Math.ceil(total / pageSize);
+            const pagination = document.getElementById('kbPagination');
+
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="goToKBPage(${currentPage - 1}); return false;">&laquo;</a>
+            </li>`;
+
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="goToKBPage(${i}); return false;">${i}</a>
+                    </li>`;
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                }
+            }
+
+            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="goToKBPage(${currentPage + 1}); return false;">&raquo;</a>
+            </li>`;
+
+            pagination.innerHTML = html;
+        }
+
+        function goToKBPage(page) {
+            kbCurrentPage = page;
+            loadKnowledgeEntries();
+        }
+
+        function debounceKBSearch() {
+            clearTimeout(kbDebounceTimer);
+            kbDebounceTimer = setTimeout(() => {
+                kbCurrentPage = 1;
+                loadKnowledgeEntries();
+            }, 500);
+        }
+
+        function clearKBFilters() {
+            document.getElementById('kbCategoryFilter').value = '';
+            document.getElementById('kbStatusFilter').value = '';
+            document.getElementById('kbAgentFilter').value = '';
+            document.getElementById('kbSearchInput').value = '';
+            kbCurrentPage = 1;
+            loadKnowledgeEntries();
+        }
+
+        // Debounce search to avoid too many API calls
+        let kbSearchTimeout = null;
+        function debounceKBSearch() {
+            clearTimeout(kbSearchTimeout);
+            kbSearchTimeout = setTimeout(() => {
+                kbCurrentPage = 1;
+                loadKnowledgeEntries();
+            }, 500);
+        }
+
+        async function viewKnowledgeEntry(knowledgeId) {
+            showLoading(true);
+            try {
+                const response = await fetch(`/api/v1/admin/knowledge/${knowledgeId}`, {
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) throw new Error('Failed to load knowledge entry');
+
+                const entry = await response.json();
+
+                document.getElementById('kbModalId').value = entry.knowledge_id;
+                document.getElementById('kbModalTitle').value = entry.title;
+                document.getElementById('kbModalStatus').value = entry.status;
+                document.getElementById('kbModalCategory').value = entry.category;
+                document.getElementById('kbModalContentType').value = entry.content_type;
+                document.getElementById('kbModalAccessLevel').value = entry.access_level;
+                document.getElementById('kbModalTags').value = entry.tags.join(', ');
+                document.getElementById('kbModalContent').value = entry.content;
+                document.getElementById('kbModalAgent').value = entry.source_agent_id;
+                document.getElementById('kbModalConfidence').value = (entry.confidence_score * 100).toFixed(0) + '%';
+                document.getElementById('kbModalIndexed').value = entry.embedding_indexed ? 'Yes' : 'No';
+                document.getElementById('kbModalVotesHelpful').textContent = `+${entry.vote_helpful} Helpful`;
+                document.getElementById('kbModalVotesUnhelpful').textContent = `-${entry.vote_unhelpful} Unhelpful`;
+                document.getElementById('kbModalDates').textContent = `Created: ${formatDate(entry.created_at)}${entry.updated_at ? ' | Updated: ' + formatDate(entry.updated_at) : ''}`;
+
+                document.getElementById('redundancyResults').innerHTML = '';
+
+                new bootstrap.Modal(document.getElementById('knowledgeModal')).show();
+
+            } catch (error) {
+                console.error('Error loading knowledge entry:', error);
+                showToast('Error loading knowledge entry', 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function saveKnowledgeEntry() {
+            const knowledgeId = document.getElementById('kbModalId').value;
+
+            const updateData = {
+                title: document.getElementById('kbModalTitle').value,
+                status: document.getElementById('kbModalStatus').value,
+                access_level: document.getElementById('kbModalAccessLevel').value,
+                tags: document.getElementById('kbModalTags').value.split(',').map(t => t.trim()).filter(t => t),
+                content: document.getElementById('kbModalContent').value
+            };
+
+            showLoading(true);
+            try {
+                const response = await fetch(`/api/v1/admin/knowledge/${knowledgeId}`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    body: JSON.stringify(updateData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to update');
+                }
+
+                showToast('Knowledge entry updated successfully', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('knowledgeModal')).hide();
+                loadKnowledgeEntries();
+
+            } catch (error) {
+                console.error('Error saving knowledge entry:', error);
+                showToast('Error: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function confirmDeleteKB(knowledgeId, title) {
+            if (confirm(`Are you sure you want to delete:\n\n"${title}"\n\nThis action will soft-delete the entry.`)) {
+                deleteKB(knowledgeId);
+            }
+        }
+
+        async function deleteKB(knowledgeId) {
+            showLoading(true);
+            try {
+                const response = await fetch(`/api/v1/admin/knowledge/${knowledgeId}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) throw new Error('Failed to delete');
+
+                showToast('Knowledge entry deleted', 'success');
+                loadKnowledgeEntries();
+                loadKnowledgeStats();
+
+            } catch (error) {
+                console.error('Error deleting knowledge entry:', error);
+                showToast('Error deleting entry', 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function deleteKnowledgeEntry() {
+            const knowledgeId = document.getElementById('kbModalId').value;
+            const title = document.getElementById('kbModalTitle').value;
+
+            if (confirm(`Are you sure you want to delete:\n\n"${title}"\n\nThis action will soft-delete the entry.`)) {
+                bootstrap.Modal.getInstance(document.getElementById('knowledgeModal')).hide();
+                deleteKB(knowledgeId);
+            }
+        }
+
+        async function checkKBRedundancy() {
+            const knowledgeId = document.getElementById('kbModalId').value;
+            const resultsDiv = document.getElementById('redundancyResults');
+
+            resultsDiv.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Checking for similar entries...';
+
+            try {
+                const response = await fetch(`/api/v1/admin/knowledge/${knowledgeId}/redundancy?threshold=0.85`, {
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) throw new Error('Failed to check redundancy');
+
+                const data = await response.json();
+
+                if (data.similar_entries.length === 0) {
+                    resultsDiv.innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-2"></i>No similar entries found. This entry appears to be unique.</div>';
+                    return;
+                }
+
+                let html = '';
+                if (data.is_potentially_redundant) {
+                    html += '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i><strong>Potential Redundancy Detected!</strong> Highest similarity: ' + (data.highest_similarity * 100).toFixed(1) + '%</div>';
+                }
+
+                html += '<table class="table table-sm table-striped mb-0"><thead><tr><th>Title</th><th>Similarity</th><th>Action</th></tr></thead><tbody>';
+                for (const entry of data.similar_entries) {
+                    const simPercent = (entry.similarity_score * 100).toFixed(1);
+                    const rowClass = entry.similarity_score >= 0.85 ? 'table-warning' : '';
+                    html += `<tr class="${rowClass}">
+                        <td>${escapeHtml(entry.title)}<br><small class="text-muted">${entry.knowledge_id}</small></td>
+                        <td><span class="badge ${entry.similarity_score >= 0.85 ? 'bg-warning' : 'bg-secondary'}">${simPercent}%</span></td>
+                        <td><button class="btn btn-outline-primary btn-sm" onclick="viewKnowledgeEntry('${entry.knowledge_id}')">View</button></td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error checking redundancy:', error);
+                resultsDiv.innerHTML = '<div class="alert alert-danger mb-0">Error checking for similar entries</div>';
+            }
         }
     </script>
 </body>

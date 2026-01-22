@@ -80,6 +80,7 @@ class AccessLevel(str, Enum):
 
 class KnowledgeStatus(str, Enum):
     """Knowledge validation status."""
+    ACTIVE = "active"  # Default status for new entries
     DRAFT = "draft"
     PENDING_REVIEW = "pending_review"
     VALIDATED = "validated"
@@ -333,7 +334,7 @@ class DakbKnowledge(BaseModel):
     )
 
     # Validation & Quality
-    status: KnowledgeStatus = Field(default=KnowledgeStatus.DRAFT)
+    status: KnowledgeStatus = Field(default=KnowledgeStatus.ACTIVE)
     validated_by: str | None = Field(None, description="Agent that validated")
     validation_date: datetime | None = Field(None)
     confidence_score: float = Field(default=0.8, ge=0.0, le=1.0)

@@ -64,13 +64,13 @@ from .routes.whiteboard import router as whiteboard_router  # HIVE Whiteboard
 # LOGGING CONFIGURATION
 # =============================================================================
 
+
 def setup_logging():
     """Configure logging based on settings."""
     settings = get_settings()
 
     logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
-        format=settings.log_format
+        level=getattr(logging, settings.log_level.upper(), logging.INFO), format=settings.log_format
     )
 
     # Reduce noise from httpx
@@ -84,6 +84,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # LIFESPAN CONTEXT MANAGER
 # =============================================================================
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -119,9 +120,16 @@ async def lifespan(app: FastAPI):
     # connect, background tasks) — each independently guarded so the gateway boots
     # with no MongoDB and no Redis running.
     db = getattr(app.state, "db", None)
+    # mongo_ok gates every Mongo-dependent startup step. The motor/pymongo
+    # `db` handle is non-None even when the server is unreachable, so a
+    # `db is not None` guard is NOT sufficient — running index creation against
+    # an unreachable server blocks on server-selection timeouts. Only proceed
+    # once the ping actually succeeds.
+    mongo_ok = False
     try:
         if db is not None:
             db.command("ping")
+            mongo_ok = True
             logger.info(f"MongoDB connection verified: {settings.db_name}")
     except Exception as e:
         logger.warning(
@@ -130,16 +138,17 @@ async def lifespan(app: FastAPI):
         )
 
     # ── Indexes (idempotent; covers all v2.0.0 collections) ──
-    if db is not None:
+    if mongo_ok:
         try:
             from ..db.indexes import create_all_indexes
+
             create_all_indexes(db)
             logger.info("MongoDB indexes ensured (create_all_indexes)")
         except Exception as e:
             logger.warning(f"Index creation skipped: {e}")
 
     # ── HIVE Whiteboard repository injection ──
-    if db is not None:
+    if mongo_ok:
         try:
             from ..db.whiteboard_indexes import initialize_whiteboard_indexes
             from ..db.whiteboard_repository import WhiteboardRepository
@@ -155,8 +164,7 @@ async def lifespan(app: FastAPI):
     try:
         async with httpx.AsyncClient() as http_client:
             response = await http_client.get(
-                f"{settings.embedding_service_url}/health",
-                timeout=5.0
+                f"{settings.embedding_service_url}/health", timeout=5.0
             )
             if response.status_code == 200:
                 logger.info("Embedding service connection verified")
@@ -176,6 +184,7 @@ async def lifespan(app: FastAPI):
     # ── Notification bus (in-process; no external infra required) ──
     try:
         from .notification_bus import get_notification_bus
+
         await get_notification_bus()
         logger.info("Notification bus started")
     except Exception as e:
@@ -205,14 +214,10 @@ async def lifespan(app: FastAPI):
         # Background outbound delivery loop (cancelled on shutdown).
         outbound_consumer = getattr(app.state, "outbound_consumer", None)
         if outbound_consumer is not None:
-            app.state.outbound_task = asyncio.create_task(
-                _run_outbound_consumer(outbound_consumer)
-            )
+            app.state.outbound_task = asyncio.create_task(_run_outbound_consumer(outbound_consumer))
             logger.info("Chat outbound consumer started")
 
-        logger.info(
-            "Real-time communication enabled (WebSocket + Presence + Router + Bridge)"
-        )
+        logger.info("Real-time communication enabled (WebSocket + Presence + Router + Bridge)")
     except Exception as e:
         logger.warning(
             f"Redis/real-time not available: {e} — real-time, chat, and bridge "
@@ -246,6 +251,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from .notification_bus import shutdown_notification_bus
+
         await shutdown_notification_bus()
         logger.info("Notification bus stopped")
     except Exception:
@@ -350,7 +356,7 @@ Requests are rate-limited per agent. Check response headers:
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
 )
 
 # Configure CORS at module level (must be done before app starts)
@@ -366,6 +372,7 @@ app.add_middleware(
 # =============================================================================
 # SUBSYSTEM WIRING (v2.0.0)
 # =============================================================================
+
 
 def _wire_subsystems(app: FastAPI) -> None:
     """Construct and mount the v2.0.0 real-time subsystems on ``app``.
@@ -540,6 +547,7 @@ def _wire_subsystems(app: FastAPI) -> None:
             from ..bridge.queue import BridgeQueueManager
             from ..bridge.routes import create_bridge_router
             from ..bridge.ws_handler import BridgeConnectionManager
+
             raw_redis = _aioredis.from_url(settings.redis_url, decode_responses=True)
 
             motor_client = motor_aio.AsyncIOMotorClient(settings.bridge_mongo_uri)
@@ -596,9 +604,7 @@ async def add_rate_limit_headers(request: Request, call_next):
 
     # Add rate limit headers if available
     if hasattr(request.state, "rate_limit_remaining"):
-        response.headers["X-RateLimit-Remaining"] = str(
-            request.state.rate_limit_remaining
-        )
+        response.headers["X-RateLimit-Remaining"] = str(request.state.rate_limit_remaining)
 
     return response
 
@@ -613,17 +619,17 @@ register_dakb_agentic_handlers(app)
 
 app.include_router(knowledge_router)
 app.include_router(moderation_router)  # ISS-048: Admin-only moderation routes
-app.include_router(messaging_router)   # Phase 3: Inter-agent messaging routes
-app.include_router(sessions_router)    # Phase 4: Session management and handoff
-app.include_router(aliases_router)     # Token Team: Agent alias management
+app.include_router(messaging_router)  # Phase 3: Inter-agent messaging routes
+app.include_router(sessions_router)  # Phase 4: Session management and handoff
+app.include_router(aliases_router)  # Token Team: Agent alias management
 app.include_router(registration_router)  # Self-Registration v1.0: Invite-only registration
-app.include_router(threads_router)     # Knowledge Threads (comments, suggestions, endorsements)
+app.include_router(threads_router)  # Knowledge Threads (comments, suggestions, endorsements)
 app.include_router(whiteboard_router)  # HIVE Whiteboard (repository injected during lifespan)
-app.include_router(mcp_router)         # Phase 1: MCP HTTP Transport (POST/GET/DELETE /mcp)
-app.include_router(admin_api_router)   # Admin Dashboard API routes
+app.include_router(mcp_router)  # Phase 1: MCP HTTP Transport (POST/GET/DELETE /mcp)
+app.include_router(admin_api_router)  # Admin Dashboard API routes
 app.include_router(admin_dashboard_router)  # Admin Dashboard UI routes
 app.include_router(admin_whiteboard_router)  # Admin Whiteboard panel (GET /admin/whiteboard)
-app.include_router(admin_ws_router)    # Admin WebSocket routes
+app.include_router(admin_ws_router)  # Admin WebSocket routes
 
 # v2.0.0 real-time subsystems (vault, agent-WS, chat webhooks, session bridge).
 # These routers are mounted here at module level so their route paths exist on the
@@ -638,8 +644,10 @@ _wire_subsystems(app)
 # REQUEST/RESPONSE MODELS
 # =============================================================================
 
+
 class HealthResponse(BaseModel):
     """Health check response."""
+
     status: str = Field(default="ok")
     service: str = Field(default="dakb-gateway")
     version: str = Field(default="1.0.0")
@@ -650,6 +658,7 @@ class HealthResponse(BaseModel):
 
 class TokenRequest(BaseModel):
     """Request model for token generation."""
+
     agent_id: str = Field(..., min_length=1, max_length=50)
     machine_id: str = Field(..., min_length=1, max_length=100)
     agent_type: str = Field(..., description="claude, gpt, gemini, grok, local")
@@ -664,29 +673,33 @@ class AgentRegistrationRequest(BaseModel):
     Phase 6 Integration: Supports the "Token Team with Aliases" pattern
     where an agent can register with an optional alias during registration.
     """
+
     agent_id: str = Field(..., min_length=1, max_length=50, description="Unique agent identifier")
     machine_id: str = Field(..., min_length=1, max_length=100, description="Machine identifier")
     agent_type: str = Field(..., description="Agent type: claude, gpt, gemini, grok, local")
-    display_name: str | None = Field(None, max_length=100, description="Human-readable display name")
+    display_name: str | None = Field(
+        None, max_length=100, description="Human-readable display name"
+    )
     role: str | None = Field(default="developer", description="Agent role for access control")
     access_levels: list[str] | None = Field(default_factory=lambda: ["public"])
     capabilities: list[str] | None = Field(default_factory=list, description="Agent capabilities")
-    specializations: list[str] | None = Field(default_factory=list, description="Agent specializations")
+    specializations: list[str] | None = Field(
+        default_factory=list, description="Agent specializations"
+    )
     # Phase 6: Alias integration
     alias: str | None = Field(
         None,
         min_length=1,
         max_length=50,
-        description="Optional alias to register (must be globally unique)"
+        description="Optional alias to register (must be globally unique)",
     )
     alias_role: str | None = Field(
         None,
         max_length=100,
-        description="Optional role for the alias (e.g., 'orchestration', 'code_review')"
+        description="Optional role for the alias (e.g., 'orchestration', 'code_review')",
     )
     alias_metadata: dict | None = Field(
-        default_factory=dict,
-        description="Optional metadata for the alias"
+        default_factory=dict, description="Optional metadata for the alias"
     )
 
 
@@ -696,6 +709,7 @@ class AgentRegistrationResponse(BaseModel):
 
     Provides detailed information about both agent and alias registration.
     """
+
     success: bool = Field(..., description="Whether registration succeeded")
     token: str = Field(..., description="JWT access token for the agent")
     expires_in_hours: int = Field(..., description="Token expiry in hours")
@@ -703,12 +717,15 @@ class AgentRegistrationResponse(BaseModel):
     messages: list[str] = Field(default_factory=list, description="Status messages")
     # Alias information
     alias_requested: str | None = Field(None, description="Alias that was requested")
-    alias_registered: bool = Field(default=False, description="Whether alias was successfully registered")
+    alias_registered: bool = Field(
+        default=False, description="Whether alias was successfully registered"
+    )
     alias_conflict: bool = Field(default=False, description="Whether alias was already taken")
 
 
 class TokenResponse(BaseModel):
     """Response model for token generation."""
+
     token: str
     expires_in_hours: int
     agent_id: str
@@ -716,6 +733,7 @@ class TokenResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Standard error response."""
+
     detail: str
     error_code: str | None = None
 
@@ -724,12 +742,13 @@ class ErrorResponse(BaseModel):
 # PUBLIC ENDPOINTS
 # =============================================================================
 
+
 @app.get(
     "/health",
     response_model=HealthResponse,
     summary="Health check",
     description="Check gateway health status. No authentication required.",
-    tags=["System"]
+    tags=["System"],
 )
 async def health_check() -> HealthResponse:
     """
@@ -756,10 +775,7 @@ async def health_check() -> HealthResponse:
     # Check embedding service
     try:
         async with httpx.AsyncClient() as http_client:
-            r = await http_client.get(
-                f"{settings.embedding_service_url}/health",
-                timeout=2.0
-            )
+            r = await http_client.get(f"{settings.embedding_service_url}/health", timeout=2.0)
             if r.status_code == 200:
                 response.embedding_service = "connected"
             else:
@@ -788,7 +804,7 @@ async def health_check() -> HealthResponse:
     response_class=PlainTextResponse,
     summary="Prometheus metrics",
     description="Export metrics in Prometheus format. No authentication required.",
-    tags=["System"]
+    tags=["System"],
 )
 async def prometheus_metrics() -> PlainTextResponse:
     """
@@ -802,17 +818,14 @@ async def prometheus_metrics() -> PlainTextResponse:
     """
     metrics = get_metrics()
     prometheus_output = metrics.export_prometheus()
-    return PlainTextResponse(
-        content=prometheus_output,
-        media_type="text/plain; charset=utf-8"
-    )
+    return PlainTextResponse(content=prometheus_output, media_type="text/plain; charset=utf-8")
 
 
 @app.get(
     "/metrics/json",
     summary="JSON metrics",
     description="Export metrics in JSON format. No authentication required.",
-    tags=["System"]
+    tags=["System"],
 )
 async def json_metrics() -> dict:
     """
@@ -825,16 +838,13 @@ async def json_metrics() -> dict:
         Dictionary of all metrics.
     """
     metrics = get_metrics()
-    return {
-        "status": "ok",
-        "service": "dakb-gateway",
-        "metrics": metrics.get_metrics()
-    }
+    return {"status": "ok", "service": "dakb-gateway", "metrics": metrics.get_metrics()}
 
 
 # =============================================================================
 # ADMIN ENDPOINTS
 # =============================================================================
+
 
 @app.post(
     "/api/v1/token",
@@ -842,11 +852,10 @@ async def json_metrics() -> dict:
     summary="Generate agent token",
     description="Generate a JWT token for an agent. Requires admin role.",
     tags=["Authentication"],
-    dependencies=[Depends(require_role(AgentRole.ADMIN))]
+    dependencies=[Depends(require_role(AgentRole.ADMIN))],
 )
 async def generate_token(
-    request: TokenRequest,
-    admin: AuthenticatedAgent = Depends(get_current_agent)
+    request: TokenRequest, admin: AuthenticatedAgent = Depends(get_current_agent)
 ) -> TokenResponse:
     """
     Generate a JWT token for an agent.
@@ -871,7 +880,7 @@ async def generate_token(
 
     # Parse access levels
     access_levels = []
-    for level_str in (request.access_levels or ["public"]):
+    for level_str in request.access_levels or ["public"]:
         try:
             access_levels.append(AccessLevel(level_str))
         except ValueError:
@@ -886,17 +895,13 @@ async def generate_token(
         machine_id=request.machine_id,
         agent_type=request.agent_type,
         role=role,
-        access_levels=access_levels
+        access_levels=access_levels,
     )
 
-    logger.info(
-        f"Token generated for {request.agent_id} by admin {admin.agent_id}"
-    )
+    logger.info(f"Token generated for {request.agent_id} by admin {admin.agent_id}")
 
     return TokenResponse(
-        token=token,
-        expires_in_hours=settings.jwt_expiry_hours,
-        agent_id=request.agent_id
+        token=token, expires_in_hours=settings.jwt_expiry_hours, agent_id=request.agent_id
     )
 
 
@@ -906,11 +911,10 @@ async def generate_token(
     summary="Register new agent (legacy)",
     description="Register a new agent and get a token. Requires admin role. Use /api/v1/register/with-alias for alias support.",
     tags=["Authentication"],
-    dependencies=[Depends(require_role(AgentRole.ADMIN))]
+    dependencies=[Depends(require_role(AgentRole.ADMIN))],
 )
 async def register_agent(
-    request: TokenRequest,
-    admin: AuthenticatedAgent = Depends(get_current_agent)
+    request: TokenRequest, admin: AuthenticatedAgent = Depends(get_current_agent)
 ) -> TokenResponse:
     """
     Register a new agent in the system (legacy endpoint).
@@ -934,10 +938,7 @@ async def register_agent(
     # Check if agent already exists
     existing = repos["agents"].get_by_id(request.agent_id)
     if existing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Agent {request.agent_id} already registered"
-        )
+        raise HTTPException(status_code=409, detail=f"Agent {request.agent_id} already registered")
 
     # Parse agent type
     try:
@@ -952,7 +953,7 @@ async def register_agent(
         agent_type=agent_type,
         machine_id=request.machine_id,
         capabilities=[],
-        specializations=[]
+        specializations=[],
     )
 
     repos["agents"].register(agent_data)
@@ -967,17 +968,13 @@ async def register_agent(
         machine_id=request.machine_id,
         agent_type=request.agent_type,
         role=role,
-        access_levels=access_levels
+        access_levels=access_levels,
     )
 
-    logger.info(
-        f"Agent {request.agent_id} registered by admin {admin.agent_id}"
-    )
+    logger.info(f"Agent {request.agent_id} registered by admin {admin.agent_id}")
 
     return TokenResponse(
-        token=token,
-        expires_in_hours=settings.jwt_expiry_hours,
-        agent_id=request.agent_id
+        token=token, expires_in_hours=settings.jwt_expiry_hours, agent_id=request.agent_id
     )
 
 
@@ -1003,11 +1000,10 @@ Multiple agents from the same token can register different aliases:
 - Messages to any alias route to the shared inbox
     """,
     tags=["Authentication"],
-    dependencies=[Depends(require_role(AgentRole.ADMIN))]
+    dependencies=[Depends(require_role(AgentRole.ADMIN))],
 )
 async def register_agent_with_alias(
-    request: AgentRegistrationRequest,
-    admin: AuthenticatedAgent = Depends(get_current_agent)
+    request: AgentRegistrationRequest, admin: AuthenticatedAgent = Depends(get_current_agent)
 ) -> AgentRegistrationResponse:
     """
     Register a new agent with optional alias.
@@ -1041,8 +1037,7 @@ async def register_agent_with_alias(
 
     if not result.success:
         raise HTTPException(
-            status_code=500,
-            detail=f"Agent registration failed: {'; '.join(result.messages)}"
+            status_code=500, detail=f"Agent registration failed: {'; '.join(result.messages)}"
         )
 
     # Generate token for the registered agent
@@ -1054,7 +1049,7 @@ async def register_agent_with_alias(
         machine_id=request.machine_id,
         agent_type=request.agent_type,
         role=role,
-        access_levels=access_levels
+        access_levels=access_levels,
     )
 
     # Log registration
@@ -1069,9 +1064,7 @@ async def register_agent_with_alias(
             f"by admin {admin.agent_id}"
         )
     else:
-        logger.info(
-            f"Agent {request.agent_id} registered by admin {admin.agent_id}"
-        )
+        logger.info(f"Agent {request.agent_id} registered by admin {admin.agent_id}")
 
     return AgentRegistrationResponse(
         success=True,
@@ -1089,13 +1082,14 @@ async def register_agent_with_alias(
 # ERROR HANDLERS
 # =============================================================================
 
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with consistent format."""
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
-        headers=getattr(exc, "headers", None)
+        headers=getattr(exc, "headers", None),
     )
 
 
@@ -1103,15 +1097,13 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions."""
     logger.error(f"Unexpected error: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"}
-    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 # =============================================================================
 # MAIN
 # =============================================================================
+
 
 def run() -> None:
     """Run the DAKB gateway server."""
@@ -1132,7 +1124,7 @@ def run() -> None:
         app,
         host=settings.gateway_host,
         port=settings.gateway_port,
-        log_level=settings.log_level.lower()
+        log_level=settings.log_level.lower(),
     )
 
 

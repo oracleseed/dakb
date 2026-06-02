@@ -82,6 +82,7 @@ logger = logging.getLogger(__name__)
 # MONGODB CONNECTION HELPER
 # =============================================================================
 
+
 def get_dakb_client():
     """
     Get MongoDB client for DAKB operations.
@@ -101,8 +102,12 @@ def get_dakb_client():
 
     from pymongo import MongoClient
 
-    mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/dakb')
-    return MongoClient(mongo_uri)
+    mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/dakb")
+    # Bounded server selection so callers fail fast — and the gateway can
+    # degrade gracefully — when MongoDB is unreachable, instead of blocking
+    # on pymongo's 30s default. Override via DAKB_MONGO_TIMEOUT_MS.
+    timeout_ms = int(os.getenv("DAKB_MONGO_TIMEOUT_MS", "5000"))
+    return MongoClient(mongo_uri, serverSelectionTimeoutMS=timeout_ms)
 
 
 # Collection names
@@ -480,11 +485,8 @@ class KnowledgeRepository:
         # Increment version
         result = self.collection.find_one_and_update(
             {"knowledge_id": knowledge_id},
-            {
-                "$set": update_fields,
-                "$inc": {"version": 1}
-            },
-            return_document=True
+            {"$set": update_fields, "$inc": {"version": 1}},
+            return_document=True,
         )
 
         if result:
@@ -510,9 +512,9 @@ class KnowledgeRepository:
                 {
                     "$set": {
                         "status": KnowledgeStatus.DELETED.value,
-                        "updated_at": datetime.utcnow()
+                        "updated_at": datetime.utcnow(),
                     }
-                }
+                },
             )
             success = result.modified_count > 0
         else:
@@ -545,10 +547,9 @@ class KnowledgeRepository:
             Updated knowledge entry or None if not found
         """
         # ISS-016 Fix: Check for existing vote from this agent
-        existing = self.collection.find_one({
-            "knowledge_id": knowledge_id,
-            "vote_details.agent_id": agent_id
-        })
+        existing = self.collection.find_one(
+            {"knowledge_id": knowledge_id, "vote_details.agent_id": agent_id}
+        )
 
         if existing:
             # Agent has already voted - update their existing vote
@@ -566,10 +567,7 @@ class KnowledgeRepository:
                 new_vote_field = f"votes.{vote_data.vote.value}"
 
                 result = self.collection.find_one_and_update(
-                    {
-                        "knowledge_id": knowledge_id,
-                        "vote_details.agent_id": agent_id
-                    },
+                    {"knowledge_id": knowledge_id, "vote_details.agent_id": agent_id},
                     {
                         "$inc": {old_vote_field: -1, new_vote_field: 1},
                         "$set": {
@@ -577,10 +575,10 @@ class KnowledgeRepository:
                             "vote_details.$.comment": vote_data.comment,
                             "vote_details.$.used_successfully": vote_data.used_successfully,
                             "vote_details.$.voted_at": datetime.utcnow(),
-                            "updated_at": datetime.utcnow()
-                        }
+                            "updated_at": datetime.utcnow(),
+                        },
                     },
-                    return_document=True
+                    return_document=True,
                 )
 
                 if result:
@@ -607,9 +605,9 @@ class KnowledgeRepository:
             {
                 "$inc": {vote_field: 1},
                 "$push": {"vote_details": vote_detail.model_dump()},
-                "$set": {"updated_at": datetime.utcnow()}
+                "$set": {"updated_at": datetime.utcnow()},
             },
-            return_document=True
+            return_document=True,
         )
 
         if result:
@@ -637,11 +635,8 @@ class KnowledgeRepository:
             {"knowledge_id": knowledge_id},
             {
                 "$inc": {"access_count": 1},
-                "$set": {
-                    "last_accessed_at": datetime.utcnow(),
-                    "last_accessed_by": agent_id
-                }
-            }
+                "$set": {"last_accessed_at": datetime.utcnow(), "last_accessed_by": agent_id},
+            },
         )
         return result.modified_count > 0
 
@@ -657,8 +652,7 @@ class KnowledgeRepository:
             True if updated successfully
         """
         result = self.collection.update_one(
-            {"knowledge_id": knowledge_id},
-            {"$set": {"embedding_indexed": indexed}}
+            {"knowledge_id": knowledge_id}, {"$set": {"embedding_indexed": indexed}}
         )
         return result.modified_count > 0
 
@@ -683,7 +677,7 @@ class KnowledgeRepository:
         """
         query: dict[str, Any] = {
             "category": category,
-            "status": {"$nin": [KnowledgeStatus.DELETED.value, KnowledgeStatus.DEPRECATED.value]}
+            "status": {"$nin": [KnowledgeStatus.DELETED.value, KnowledgeStatus.DEPRECATED.value]},
         }
         if access_level:
             query["access_level"] = access_level.value
@@ -740,10 +734,7 @@ class KnowledgeRepository:
             before = datetime.utcnow()
 
         cursor = self.collection.find(
-            {
-                "expires_at": {"$lt": before, "$ne": None}
-            },
-            {"knowledge_id": 1}
+            {"expires_at": {"$lt": before, "$ne": None}}, {"knowledge_id": 1}
         )
         return [doc["knowledge_id"] for doc in cursor]
 
@@ -757,13 +748,12 @@ class KnowledgeRepository:
         cursor = self.collection.find(
             {
                 "embedding_indexed": True,
-                "status": {"$nin": [KnowledgeStatus.DEPRECATED.value, KnowledgeStatus.DELETED.value]},
-                "$or": [
-                    {"expires_at": None},
-                    {"expires_at": {"$gt": datetime.utcnow()}}
-                ]
+                "status": {
+                    "$nin": [KnowledgeStatus.DEPRECATED.value, KnowledgeStatus.DELETED.value]
+                },
+                "$or": [{"expires_at": None}, {"expires_at": {"$gt": datetime.utcnow()}}],
             },
-            {"knowledge_id": 1, "title": 1, "content": 1}
+            {"knowledge_id": 1, "title": 1, "content": 1},
         )
         return list(cursor)
 
@@ -786,9 +776,7 @@ class KnowledgeRepository:
         now = datetime.utcnow()
 
         # Base filter: exclude deleted entries
-        base_filter = {
-            "status": {"$ne": KnowledgeStatus.DELETED.value}
-        }
+        base_filter = {"status": {"$ne": KnowledgeStatus.DELETED.value}}
 
         # Total entries count
         total_entries = self.collection.count_documents(base_filter)
@@ -796,7 +784,7 @@ class KnowledgeRepository:
         # Count by category using aggregation
         category_pipeline = [
             {"$match": base_filter},
-            {"$group": {"_id": "$category", "count": {"$sum": 1}}}
+            {"$group": {"_id": "$category", "count": {"$sum": 1}}},
         ]
         by_category = {}
         for doc in self.collection.aggregate(category_pipeline):
@@ -806,7 +794,7 @@ class KnowledgeRepository:
         # Count by content_type using aggregation
         content_type_pipeline = [
             {"$match": base_filter},
-            {"$group": {"_id": "$content_type", "count": {"$sum": 1}}}
+            {"$group": {"_id": "$content_type", "count": {"$sum": 1}}},
         ]
         by_content_type = {}
         for doc in self.collection.aggregate(content_type_pipeline):
@@ -816,7 +804,7 @@ class KnowledgeRepository:
         # Count by access_level using aggregation
         access_level_pipeline = [
             {"$match": base_filter},
-            {"$group": {"_id": "$access_level", "count": {"$sum": 1}}}
+            {"$group": {"_id": "$access_level", "count": {"$sum": 1}}},
         ]
         by_access_level = {}
         for doc in self.collection.aggregate(access_level_pipeline):
@@ -829,7 +817,7 @@ class KnowledgeRepository:
             {"$unwind": "$tags"},
             {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-            {"$limit": 20}
+            {"$limit": 20},
         ]
         top_tags = []
         for doc in self.collection.aggregate(tags_pipeline):
@@ -837,16 +825,12 @@ class KnowledgeRepository:
                 top_tags.append({"tag": doc["_id"], "count": doc["count"]})
 
         # Count indexed entries
-        indexed_count = self.collection.count_documents({
-            **base_filter,
-            "embedding_indexed": True
-        })
+        indexed_count = self.collection.count_documents({**base_filter, "embedding_indexed": True})
 
         # Count expired entries
-        expired_count = self.collection.count_documents({
-            **base_filter,
-            "expires_at": {"$lt": now, "$ne": None}
-        })
+        expired_count = self.collection.count_documents(
+            {**base_filter, "expires_at": {"$lt": now, "$ne": None}}
+        )
 
         return {
             "total_entries": total_entries,
@@ -855,7 +839,7 @@ class KnowledgeRepository:
             "by_access_level": by_access_level,
             "top_tags": top_tags,
             "indexed_count": indexed_count,
-            "expired_count": expired_count
+            "expired_count": expired_count,
         }
 
 
@@ -907,7 +891,9 @@ class MessageRepository:
         doc = message.model_dump()
         self.collection.insert_one(doc)
 
-        logger.info(f"Message sent: {message.message_id} from {from_agent} to {data.to_agent or data.to_topic}")
+        logger.info(
+            f"Message sent: {message.message_id} from {from_agent} to {data.to_agent or data.to_topic}"
+        )
         return message
 
     def get_by_id(self, message_id: str) -> DakbMessage | None:
@@ -939,10 +925,16 @@ class MessageRepository:
         if status:
             query["status"] = status.value
 
-        cursor = self.collection.find(query).sort([
-            ("priority", -1),  # Urgent first
-            ("created_at", -1)
-        ]).limit(limit)
+        cursor = (
+            self.collection.find(query)
+            .sort(
+                [
+                    ("priority", -1),  # Urgent first
+                    ("created_at", -1),
+                ]
+            )
+            .limit(limit)
+        )
 
         results = []
         for doc in cursor:
@@ -983,12 +975,7 @@ class MessageRepository:
         """Mark message as delivered."""
         result = self.collection.update_one(
             {"message_id": message_id},
-            {
-                "$set": {
-                    "status": MessageStatus.DELIVERED.value,
-                    "delivered_at": datetime.utcnow()
-                }
-            }
+            {"$set": {"status": MessageStatus.DELIVERED.value, "delivered_at": datetime.utcnow()}},
         )
         return result.modified_count > 0
 
@@ -997,21 +984,20 @@ class MessageRepository:
         result = self.collection.update_one(
             {"message_id": message_id},
             {
-                "$set": {
-                    "status": MessageStatus.READ.value,
-                    "read_at": datetime.utcnow()
-                },
-                "$addToSet": {"read_by": agent_id}
-            }
+                "$set": {"status": MessageStatus.READ.value, "read_at": datetime.utcnow()},
+                "$addToSet": {"read_by": agent_id},
+            },
         )
         return result.modified_count > 0
 
     def count_unread(self, agent_id: str) -> int:
         """Count unread messages for an agent."""
-        return self.collection.count_documents({
-            "to_agent": agent_id,
-            "status": {"$in": [MessageStatus.PENDING.value, MessageStatus.DELIVERED.value]}
-        })
+        return self.collection.count_documents(
+            {
+                "to_agent": agent_id,
+                "status": {"$in": [MessageStatus.PENDING.value, MessageStatus.DELIVERED.value]},
+            }
+        )
 
 
 class AgentRepository:
@@ -1074,9 +1060,7 @@ class AgentRepository:
         update_fields["updated_at"] = datetime.utcnow()
 
         result = self.collection.find_one_and_update(
-            {"agent_id": agent_id},
-            {"$set": update_fields},
-            return_document=True
+            {"agent_id": agent_id}, {"$set": update_fields}, return_document=True
         )
 
         if result:
@@ -1098,37 +1082,28 @@ class AgentRepository:
         update = {
             "status": AgentStatus.ACTIVE.value,
             "last_seen": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
         if activity:
             update["last_activity"] = activity
 
-        result = self.collection.update_one(
-            {"agent_id": agent_id},
-            {"$set": update}
-        )
+        result = self.collection.update_one({"agent_id": agent_id}, {"$set": update})
         return result.modified_count > 0
 
     def set_offline(self, agent_id: str) -> bool:
         """Mark agent as offline."""
         result = self.collection.update_one(
             {"agent_id": agent_id},
-            {
-                "$set": {
-                    "status": AgentStatus.OFFLINE.value,
-                    "updated_at": datetime.utcnow()
-                }
-            }
+            {"$set": {"status": AgentStatus.OFFLINE.value, "updated_at": datetime.utcnow()}},
         )
         return result.modified_count > 0
 
     def find_active(self, since_minutes: int = 5) -> list[DakbAgent]:
         """Find agents active within the specified time."""
         since = datetime.utcnow() - timedelta(minutes=since_minutes)
-        cursor = self.collection.find({
-            "status": AgentStatus.ACTIVE.value,
-            "last_seen": {"$gte": since}
-        })
+        cursor = self.collection.find(
+            {"status": AgentStatus.ACTIVE.value, "last_seen": {"$gte": since}}
+        )
 
         results = []
         for doc in cursor:
@@ -1138,10 +1113,9 @@ class AgentRepository:
 
     def find_by_capability(self, capability: str) -> list[DakbAgent]:
         """Find agents with a specific capability."""
-        cursor = self.collection.find({
-            "capabilities": capability,
-            "status": {"$ne": AgentStatus.SUSPENDED.value}
-        })
+        cursor = self.collection.find(
+            {"capabilities": capability, "status": {"$ne": AgentStatus.SUSPENDED.value}}
+        )
 
         results = []
         for doc in cursor:
@@ -1168,10 +1142,7 @@ class AgentRepository:
         if not inc:
             return True
 
-        result = self.collection.update_one(
-            {"agent_id": agent_id},
-            {"$inc": inc}
-        )
+        result = self.collection.update_one({"agent_id": agent_id}, {"$inc": inc})
         return result.modified_count > 0
 
 
@@ -1227,11 +1198,13 @@ class SessionRepository:
 
     def get_active_for_agent(self, agent_id: str) -> DakbSession | None:
         """Get active session for an agent."""
-        doc = self.collection.find_one({
-            "agent_id": agent_id,
-            "ended_at": None,
-            "task_status": {"$in": [TaskStatus.IN_PROGRESS.value, TaskStatus.PAUSED.value]}
-        })
+        doc = self.collection.find_one(
+            {
+                "agent_id": agent_id,
+                "ended_at": None,
+                "task_status": {"$in": [TaskStatus.IN_PROGRESS.value, TaskStatus.PAUSED.value]},
+            }
+        )
         if doc:
             doc.pop("_id", None)
             return DakbSession(**doc)
@@ -1246,9 +1219,7 @@ class SessionRepository:
         update_fields["last_activity"] = datetime.utcnow()
 
         result = self.collection.find_one_and_update(
-            {"session_id": session_id},
-            {"$set": update_fields},
-            return_document=True
+            {"session_id": session_id}, {"$set": update_fields}, return_document=True
         )
 
         if result:
@@ -1262,8 +1233,8 @@ class SessionRepository:
             {"session_id": session_id},
             {
                 "$addToSet": {"knowledge_ids": knowledge_id},
-                "$set": {"last_activity": datetime.utcnow()}
-            }
+                "$set": {"last_activity": datetime.utcnow()},
+            },
         )
         return result.modified_count > 0
 
@@ -1275,9 +1246,9 @@ class SessionRepository:
                 "$set": {
                     "ended_at": datetime.utcnow(),
                     "task_status": TaskStatus.COMPLETED.value,
-                    "last_activity": datetime.utcnow()
+                    "last_activity": datetime.utcnow(),
                 }
-            }
+            },
         )
         if result.modified_count > 0:
             logger.info(f"Session ended: {session_id}")
@@ -1309,9 +1280,9 @@ class SessionRepository:
                     "handoff_notes": notes,
                     "handoff_timestamp": datetime.utcnow(),
                     "task_status": TaskStatus.HANDED_OFF.value,
-                    "last_activity": datetime.utcnow()
+                    "last_activity": datetime.utcnow(),
                 }
-            }
+            },
         )
         if result.modified_count > 0:
             logger.info(f"Session {session_id} handed off to {to_agent}")
@@ -1416,10 +1387,11 @@ class AuditRepository:
         limit: int = 100,
     ) -> list[DakbAuditLog]:
         """Find audit logs for a specific resource."""
-        cursor = self.collection.find({
-            "resource_type": resource_type.value,
-            "resource_id": resource_id
-        }).sort("timestamp", -1).limit(limit)
+        cursor = (
+            self.collection.find({"resource_type": resource_type.value, "resource_id": resource_id})
+            .sort("timestamp", -1)
+            .limit(limit)
+        )
 
         results = []
         for doc in cursor:
@@ -1466,6 +1438,7 @@ class AuditRepository:
 # =============================================================================
 # REPUTATION REPOSITORY (Step 2.3)
 # =============================================================================
+
 
 class ReputationRepository:
     """
@@ -1533,14 +1506,11 @@ class ReputationRepository:
             {"agent_id": agent_id},
             {
                 "$inc": {"knowledge_contributed": 1},
-                "$set": {
-                    "updated_at": now,
-                    "last_contribution_at": now
-                },
-                "$setOnInsert": {"first_contribution_at": now}
+                "$set": {"updated_at": now, "last_contribution_at": now},
+                "$setOnInsert": {"first_contribution_at": now},
             },
             upsert=True,
-            return_document=True
+            return_document=True,
         )
 
         if result:
@@ -1555,7 +1525,7 @@ class ReputationRepository:
                 previous_score=old_score,
                 new_score=new_score,
                 change_reason="knowledge_created",
-                change_source=knowledge_id
+                change_source=knowledge_id,
             )
 
             # Update with new score and history
@@ -1566,23 +1536,22 @@ class ReputationRepository:
                     "$push": {
                         "reputation_history": {
                             "$each": [history_entry.model_dump()],
-                            "$slice": -100  # Keep last 100 entries
+                            "$slice": -100,  # Keep last 100 entries
                         }
-                    }
-                }
+                    },
+                },
             )
 
             reputation.reputation_score = new_score
-            logger.info(f"Reputation updated for {agent_id}: {old_score} -> {new_score} (knowledge created)")
+            logger.info(
+                f"Reputation updated for {agent_id}: {old_score} -> {new_score} (knowledge created)"
+            )
             return reputation
 
         return current
 
     def update_on_vote_received(
-        self,
-        agent_id: str,
-        vote_type: VoteType,
-        knowledge_id: str
+        self, agent_id: str, vote_type: VoteType, knowledge_id: str
     ) -> AgentReputation:
         """
         Update reputation when agent's knowledge receives a vote.
@@ -1613,11 +1582,8 @@ class ReputationRepository:
         # Increment vote counter
         result = self.collection.find_one_and_update(
             {"agent_id": agent_id},
-            {
-                "$inc": {field: 1},
-                "$set": {"updated_at": datetime.utcnow()}
-            },
-            return_document=True
+            {"$inc": {field: 1}, "$set": {"updated_at": datetime.utcnow()}},
+            return_document=True,
         )
 
         if result:
@@ -1646,7 +1612,7 @@ class ReputationRepository:
                 previous_score=old_score,
                 new_score=new_score,
                 change_reason=f"vote_received_{vote_type.value}",
-                change_source=knowledge_id
+                change_source=knowledge_id,
             )
 
             # Update with new score, rates, and history
@@ -1656,15 +1622,15 @@ class ReputationRepository:
                     "$set": {
                         "reputation_score": new_score,
                         "accuracy_rate": accuracy_rate,
-                        "helpfulness_rate": helpfulness_rate
+                        "helpfulness_rate": helpfulness_rate,
                     },
                     "$push": {
                         "reputation_history": {
                             "$each": [history_entry.model_dump()],
-                            "$slice": -100
+                            "$slice": -100,
                         }
-                    }
-                }
+                    },
+                },
             )
 
             reputation.reputation_score = new_score
@@ -1678,11 +1644,7 @@ class ReputationRepository:
 
         return current
 
-    def update_on_vote_cast(
-        self,
-        agent_id: str,
-        vote_type: VoteType
-    ) -> AgentReputation:
+    def update_on_vote_cast(self, agent_id: str, vote_type: VoteType) -> AgentReputation:
         """
         Update reputation when agent casts a vote.
 
@@ -1701,12 +1663,9 @@ class ReputationRepository:
 
         result = self.collection.find_one_and_update(
             {"agent_id": agent_id},
-            {
-                "$inc": inc_fields,
-                "$set": {"updated_at": datetime.utcnow()}
-            },
+            {"$inc": inc_fields, "$set": {"updated_at": datetime.utcnow()}},
             upsert=True,
-            return_document=True
+            return_document=True,
         )
 
         if result:
@@ -1731,9 +1690,7 @@ class ReputationRepository:
         return reputation.calculate_vote_weight()
 
     def get_leaderboard(
-        self,
-        metric: str = "reputation",
-        limit: int = 10
+        self, metric: str = "reputation", limit: int = 10
     ) -> list[LeaderboardEntry]:
         """
         Get agent leaderboard by specified metric.
@@ -1754,19 +1711,19 @@ class ReputationRepository:
 
         sort_field = field_map.get(metric, "reputation_score")
 
-        cursor = self.collection.find(
-            {},
-            {"agent_id": 1, sort_field: 1}
-        ).sort(sort_field, -1).limit(limit)
+        cursor = (
+            self.collection.find({}, {"agent_id": 1, sort_field: 1})
+            .sort(sort_field, -1)
+            .limit(limit)
+        )
 
         entries = []
         for rank, doc in enumerate(cursor, 1):
-            entries.append(LeaderboardEntry(
-                rank=rank,
-                agent_id=doc["agent_id"],
-                score=doc.get(sort_field, 0),
-                metric=metric
-            ))
+            entries.append(
+                LeaderboardEntry(
+                    rank=rank, agent_id=doc["agent_id"], score=doc.get(sort_field, 0), metric=metric
+                )
+            )
 
         return entries
 
@@ -1799,9 +1756,7 @@ class ReputationRepository:
             agent_score = agent.reputation_score
 
         # Count agents with higher scores
-        higher_count = self.collection.count_documents({
-            sort_field: {"$gt": agent_score}
-        })
+        higher_count = self.collection.count_documents({sort_field: {"$gt": agent_score}})
 
         return higher_count + 1
 
@@ -1809,6 +1764,7 @@ class ReputationRepository:
 # =============================================================================
 # QUALITY REPOSITORY (Step 2.3)
 # =============================================================================
+
 
 class QualityRepository:
     """
@@ -1874,10 +1830,7 @@ class QualityRepository:
         Returns:
             True if agent has already voted
         """
-        doc = self.collection.find_one({
-            "knowledge_id": knowledge_id,
-            "voter_agents": agent_id
-        })
+        doc = self.collection.find_one({"knowledge_id": knowledge_id, "voter_agents": agent_id})
         return doc is not None
 
     def record_vote(
@@ -1885,7 +1838,7 @@ class QualityRepository:
         knowledge_id: str,
         vote_type: VoteType,
         vote_weight: float = 1.0,
-        agent_id: str | None = None
+        agent_id: str | None = None,
     ) -> KnowledgeQuality:
         """
         Record a weighted vote on knowledge quality.
@@ -1924,10 +1877,7 @@ class QualityRepository:
             return self.get_or_create(knowledge_id)
 
         # Build increment operations
-        inc_ops: dict[str, Any] = {
-            field: vote_weight,
-            "total_votes": 1
-        }
+        inc_ops: dict[str, Any] = {field: vote_weight, "total_votes": 1}
 
         # ISS-046: Track raw counts for outdated/incorrect (used in formula)
         if vote_type == VoteType.OUTDATED:
@@ -1936,10 +1886,7 @@ class QualityRepository:
             inc_ops["incorrect_count"] = 1
 
         # Build update operations
-        update_ops: dict[str, Any] = {
-            "$inc": inc_ops,
-            "$set": {"updated_at": datetime.utcnow()}
-        }
+        update_ops: dict[str, Any] = {"$inc": inc_ops, "$set": {"updated_at": datetime.utcnow()}}
 
         # ISS-047: Add agent to voter_agents array if provided
         if agent_id:
@@ -1947,10 +1894,7 @@ class QualityRepository:
 
         # Update vote counts
         result = self.collection.find_one_and_update(
-            {"knowledge_id": knowledge_id},
-            update_ops,
-            upsert=True,
-            return_document=True
+            {"knowledge_id": knowledge_id}, update_ops, upsert=True, return_document=True
         )
 
         if result:
@@ -1968,9 +1912,9 @@ class QualityRepository:
                 {
                     "$set": {
                         "quality_score": new_score,
-                        "auto_deprecation_warning": should_deprecate
+                        "auto_deprecation_warning": should_deprecate,
                     }
-                }
+                },
             )
 
             quality.quality_score = new_score
@@ -1998,10 +1942,7 @@ class QualityRepository:
         """
         result = self.collection.update_one(
             {"knowledge_id": knowledge_id},
-            {
-                "$inc": {"usage_count": 1},
-                "$set": {"updated_at": datetime.utcnow()}
-            }
+            {"$inc": {"usage_count": 1}, "$set": {"updated_at": datetime.utcnow()}},
         )
         return result.modified_count > 0
 
@@ -2016,9 +1957,11 @@ class QualityRepository:
         Returns:
             List of low-quality knowledge records
         """
-        cursor = self.collection.find(
-            {"quality_score": {"$lt": threshold}}
-        ).sort("quality_score", 1).limit(limit)
+        cursor = (
+            self.collection.find({"quality_score": {"$lt": threshold}})
+            .sort("quality_score", 1)
+            .limit(limit)
+        )
 
         results = []
         for doc in cursor:
@@ -2033,16 +1976,14 @@ class QualityRepository:
         Returns:
             List of knowledge IDs
         """
-        cursor = self.collection.find(
-            {"auto_deprecation_warning": True},
-            {"knowledge_id": 1}
-        )
+        cursor = self.collection.find({"auto_deprecation_warning": True}, {"knowledge_id": 1})
         return [doc["knowledge_id"] for doc in cursor]
 
 
 # =============================================================================
 # FLAG REPOSITORY (Step 2.3)
 # =============================================================================
+
 
 class FlagRepository:
     """
@@ -2056,11 +1997,7 @@ class FlagRepository:
         self.collection = collection
 
     def create_flag(
-        self,
-        knowledge_id: str,
-        flagged_by: str,
-        reason: FlagReason,
-        details: str | None = None
+        self, knowledge_id: str, flagged_by: str, reason: FlagReason, details: str | None = None
     ) -> KnowledgeFlag:
         """
         Flag knowledge for review.
@@ -2075,10 +2012,7 @@ class FlagRepository:
             Created flag
         """
         flag = KnowledgeFlag(
-            knowledge_id=knowledge_id,
-            flagged_by=flagged_by,
-            reason=reason,
-            details=details
+            knowledge_id=knowledge_id, flagged_by=flagged_by, reason=reason, details=details
         )
 
         self.collection.insert_one(flag.model_dump())
@@ -2103,9 +2037,7 @@ class FlagRepository:
         Returns:
             List of pending flags
         """
-        cursor = self.collection.find(
-            {"status": "pending"}
-        ).sort("created_at", 1).limit(limit)
+        cursor = self.collection.find({"status": "pending"}).sort("created_at", 1).limit(limit)
 
         results = []
         for doc in cursor:
@@ -2123,9 +2055,7 @@ class FlagRepository:
         Returns:
             List of flags
         """
-        cursor = self.collection.find(
-            {"knowledge_id": knowledge_id}
-        ).sort("created_at", -1)
+        cursor = self.collection.find({"knowledge_id": knowledge_id}).sort("created_at", -1)
 
         results = []
         for doc in cursor:
@@ -2133,12 +2063,7 @@ class FlagRepository:
             results.append(KnowledgeFlag(**doc))
         return results
 
-    def resolve_flag(
-        self,
-        flag_id: str,
-        reviewed_by: str,
-        resolution: str
-    ) -> KnowledgeFlag | None:
+    def resolve_flag(self, flag_id: str, reviewed_by: str, resolution: str) -> KnowledgeFlag | None:
         """
         Resolve a flag.
 
@@ -2157,10 +2082,10 @@ class FlagRepository:
                     "status": "resolved",
                     "reviewed_by": reviewed_by,
                     "reviewed_at": datetime.utcnow(),
-                    "resolution": resolution
+                    "resolution": resolution,
                 }
             },
-            return_document=True
+            return_document=True,
         )
 
         if result:
@@ -2177,6 +2102,7 @@ class FlagRepository:
 # =============================================================================
 # ALIAS REPOSITORY (Token Team with Agent Aliases)
 # =============================================================================
+
 
 class AliasRepository:
     """
@@ -2204,11 +2130,7 @@ class AliasRepository:
         self.agents_collection = agents_collection
 
     def register_alias(
-        self,
-        token_id: str,
-        alias: str,
-        role: str | None = None,
-        metadata: dict | None = None
+        self, token_id: str, alias: str, role: str | None = None, metadata: dict | None = None
     ) -> DakbAgentAlias:
         """
         Register a new alias for a token.
@@ -2235,15 +2157,14 @@ class AliasRepository:
             alias=alias,
             role=role,
             registered_by=token_id,  # Must match token_id
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
         try:
             doc = alias_record.model_dump()
             self.collection.insert_one(doc)
             logger.info(
-                f"Alias registered: '{alias}' for token '{token_id}' "
-                f"(role: {role or 'none'})"
+                f"Alias registered: '{alias}' for token '{token_id}' (role: {role or 'none'})"
             )
             return alias_record
 
@@ -2254,7 +2175,9 @@ class AliasRepository:
                 "Aliases must be globally unique across all tokens."
             )
 
-    def get_aliases_for_token(self, token_id: str, active_only: bool = True) -> list[DakbAgentAlias]:
+    def get_aliases_for_token(
+        self, token_id: str, active_only: bool = True
+    ) -> list[DakbAgentAlias]:
         """
         Get all aliases registered to a token.
 
@@ -2294,10 +2217,7 @@ class AliasRepository:
             token_id/agent_id for message routing, None if not found
         """
         # First, try to resolve as an alias
-        doc = self.collection.find_one({
-            "alias": alias_or_agent_id,
-            "is_active": True
-        })
+        doc = self.collection.find_one({"alias": alias_or_agent_id, "is_active": True})
 
         if doc:
             token_id = doc.get("token_id")
@@ -2306,10 +2226,12 @@ class AliasRepository:
 
         # If not found as alias, check if it's a direct agent_id
         if self.agents_collection is not None:
-            agent_doc = self.agents_collection.find_one({
-                "agent_id": alias_or_agent_id,
-                "status": {"$ne": "suspended"}  # Don't route to suspended agents
-            })
+            agent_doc = self.agents_collection.find_one(
+                {
+                    "agent_id": alias_or_agent_id,
+                    "status": {"$ne": "suspended"},  # Don't route to suspended agents
+                }
+            )
 
             if agent_doc:
                 logger.debug(f"Direct agent_id '{alias_or_agent_id}' found, routing directly")
@@ -2336,13 +2258,13 @@ class AliasRepository:
             {
                 "alias": alias,
                 "token_id": token_id,  # Ownership check
-                "is_active": True
+                "is_active": True,
             },
             {
                 "$set": {
                     "is_active": False,
                 }
-            }
+            },
         )
 
         if result.modified_count > 0:
@@ -2377,8 +2299,7 @@ class AliasRepository:
             is_active = doc.get("is_active", True)
             owner = doc.get("token_id", "unknown")
             logger.debug(
-                f"Alias '{alias}' is not available "
-                f"(owned by '{owner}', active={is_active})"
+                f"Alias '{alias}' is not available (owned by '{owner}', active={is_active})"
             )
 
         return available
@@ -2418,12 +2339,7 @@ class AliasRepository:
             return DakbAgentAlias(**doc)
         return None
 
-    def update_alias(
-        self,
-        token_id: str,
-        alias: str,
-        data: AliasUpdate
-    ) -> DakbAgentAlias | None:
+    def update_alias(self, token_id: str, alias: str, data: AliasUpdate) -> DakbAgentAlias | None:
         """
         Update an alias's metadata.
 
@@ -2444,10 +2360,10 @@ class AliasRepository:
         result = self.collection.find_one_and_update(
             {
                 "alias": alias,
-                "token_id": token_id  # Ownership check
+                "token_id": token_id,  # Ownership check
             },
             {"$set": update_fields},
-            return_document=True
+            return_document=True,
         )
 
         if result:
@@ -2475,11 +2391,9 @@ class AliasRepository:
             {
                 "alias": alias,
                 "token_id": token_id,  # Ownership check
-                "is_active": False
+                "is_active": False,
             },
-            {
-                "$set": {"is_active": True}
-            }
+            {"$set": {"is_active": True}},
         )
 
         if result.modified_count > 0:
@@ -2502,10 +2416,12 @@ class AliasRepository:
         Returns:
             True if deleted successfully
         """
-        result = self.collection.delete_one({
-            "alias": alias,
-            "token_id": token_id  # Ownership check
-        })
+        result = self.collection.delete_one(
+            {
+                "alias": alias,
+                "token_id": token_id,  # Ownership check
+            }
+        )
 
         if result.deleted_count > 0:
             logger.info(f"Alias '{alias}' permanently deleted by token '{token_id}'")
@@ -2552,10 +2468,7 @@ class AliasRepository:
         return [a.alias for a in aliases]
 
     def list_all_aliases(
-        self,
-        active_only: bool = True,
-        limit: int = 100,
-        skip: int = 0
+        self, active_only: bool = True, limit: int = 100, skip: int = 0
     ) -> list[DakbAgentAlias]:
         """
         List all aliases in the system.
@@ -2588,6 +2501,7 @@ class AliasRepository:
 # THREAD REPOSITORY (Knowledge Threads)
 # =============================================================================
 
+
 class ThreadRepository:
     """Repository for dakb_knowledge_threads CRUD."""
 
@@ -2606,7 +2520,9 @@ class ThreadRepository:
             type=data.type,
             content=data.content,
             parent_id=data.parent_id,
-            thread_depth=0 if data.parent_id is None else self._get_parent_depth(data.parent_id) + 1,
+            thread_depth=0
+            if data.parent_id is None
+            else self._get_parent_depth(data.parent_id) + 1,
             author_agent_id=agent_id,
             author_alias=alias,
         )
@@ -2616,8 +2532,8 @@ class ThreadRepository:
             {"knowledge_id": data.knowledge_id},
             {
                 "$inc": {"thread_summary.count": 1},
-                "$set": {"thread_summary.last_activity": datetime.utcnow()}
-            }
+                "$set": {"thread_summary.last_activity": datetime.utcnow()},
+            },
         )
         logger.info(f"Thread post created: {post.thread_id} on {data.knowledge_id}")
         return post
@@ -2652,7 +2568,13 @@ class ThreadRepository:
         else:
             query["parent_id"] = None  # Top-level only by default
 
-        sort_key = ("created_at", -1) if sort == "newest" else ("created_at", 1) if sort == "oldest" else ("votes.helpful", -1)
+        sort_key = (
+            ("created_at", -1)
+            if sort == "newest"
+            else ("created_at", 1)
+            if sort == "oldest"
+            else ("votes.helpful", -1)
+        )
         skip = (page - 1) * page_size
 
         cursor = self.collection.find(query).sort([sort_key]).skip(skip).limit(page_size)
@@ -2663,15 +2585,11 @@ class ThreadRepository:
         return results
 
     def count_threads(self, knowledge_id: str) -> int:
-        return self.collection.count_documents({
-            "knowledge_id": knowledge_id,
-            "status": "active"
-        })
+        return self.collection.count_documents({"knowledge_id": knowledge_id, "status": "active"})
 
     def update_status(self, thread_id: str, status: str) -> bool:
         result = self.collection.update_one(
-            {"thread_id": thread_id},
-            {"$set": {"status": status, "updated_at": datetime.utcnow()}}
+            {"thread_id": thread_id}, {"$set": {"status": status, "updated_at": datetime.utcnow()}}
         )
         return result.modified_count > 0
 
@@ -2679,6 +2597,7 @@ class ThreadRepository:
 # =============================================================================
 # VERSION REPOSITORY (Knowledge Version History)
 # =============================================================================
+
 
 class VersionRepository:
     """Repository for dakb_knowledge_versions CRUD."""
@@ -2714,9 +2633,9 @@ class VersionRepository:
         knowledge_id: str,
         limit: int = 10,
     ) -> list[KnowledgeVersion]:
-        cursor = self.collection.find(
-            {"knowledge_id": knowledge_id}
-        ).sort("version", -1).limit(limit)
+        cursor = (
+            self.collection.find({"knowledge_id": knowledge_id}).sort("version", -1).limit(limit)
+        )
         results = []
         for doc in cursor:
             doc.pop("_id", None)
@@ -2743,6 +2662,7 @@ class VersionRepository:
 # =============================================================================
 # FACTORY FUNCTION
 # =============================================================================
+
 
 def get_dakb_repositories(mongo_client: MongoClient, db_name: str = "dakb") -> dict:
     """

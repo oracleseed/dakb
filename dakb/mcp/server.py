@@ -86,7 +86,7 @@ class DAKBMCPServer:
 
     # Server metadata
     SERVER_NAME = "dakb-mcp-server"
-    SERVER_VERSION = "1.2.0"
+    SERVER_VERSION = "2.0.0"
     PROTOCOL_VERSION = "2025-06-18"
 
     def __init__(self):

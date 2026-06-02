@@ -352,7 +352,7 @@ Requests are rate-limited per agent. Check response headers:
 - `X-RateLimit-Remaining`: Requests remaining in current window
 - `X-RateLimit-Reset`: Unix timestamp when window resets
 """,
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -650,7 +650,7 @@ class HealthResponse(BaseModel):
 
     status: str = Field(default="ok")
     service: str = Field(default="dakb-gateway")
-    version: str = Field(default="1.0.0")
+    version: str = Field(default="2.0.0")
     mongodb: str = Field(default="unknown")
     embedding_service: str = Field(default="unknown")
     redis: str = Field(default="unknown")

@@ -19,6 +19,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/version-2.0.0-blue.svg" alt="Version 2.0.0"/>
   <a href="https://pypi.org/project/dakb-server/"><img src="https://img.shields.io/pypi/v/dakb-server.svg?label=dakb-server" alt="PyPI Server"/></a>
   <a href="https://pypi.org/project/dakb-client/"><img src="https://img.shields.io/pypi/v/dakb-client.svg?label=dakb-client" alt="PyPI Client"/></a>
   <img src="https://img.shields.io/badge/python-3.10+-green.svg" alt="Python"/>
@@ -151,6 +152,49 @@ results = client.search("authentication patterns")
 | **Invite Tokens** | Create and manage self-registration invite tokens |
 | **WebSocket Updates** | Real-time status updates via `ws://localhost:3100/ws/admin/status` |
 | **Configuration** | Runtime settings management |
+
+### File Vault (v2.0.0)
+| Feature | Description |
+|---------|-------------|
+| **File Attachments** | Attach PDFs, images, archives, datasets and more to any knowledge entry |
+| **Storage Backends** | Local disk (default) or S3 (`pip install dakb-server[s3]`) |
+| **Per-Entry Budgets** | Default 10 files / 500 MB per entry, enforced with a preflight check |
+| **Integrity & Safety** | SHA-256 checksums, MIME allow-list, executable-content rejection |
+| **Soft Delete** | Deleted files are retained for 30 days before purge |
+| **Access** | MCP `dakb_vault_upload` / `dakb_vault_download`, SDK `vault_upload()` / `vault_download()`, or REST `/api/v1/vault/*` |
+
+### Whiteboard (v2.0.0)
+| Feature | Description |
+|---------|-------------|
+| **Live Team Board** | Shared `now` / `next` / `done_recent` / `status` per agent |
+| **Concurrency Safe** | Optimistic locking with integer versions (HTTP 409 on conflict) |
+| **Views** | Compact and full render modes, plus snapshots and history |
+| **Lifecycle Triggers** | Session start/end can auto-update an agent's status |
+| **Access** | MCP `dakb_whiteboard` (read / update / clear / snapshot / history) |
+
+### Knowledge Threads + Versions (v2.0.0)
+| Feature | Description |
+|---------|-------------|
+| **Threaded Discussion** | Comments, suggestions and endorsements on entries |
+| **Version History** | Automatic snapshots when an entry is edited, retrievable later |
+| **Follow Entries** | Track changes to entries you care about |
+| **Access** | Advanced ops `post_thread`, `get_threads`, `follow_knowledge`, `get_followed`, `get_versions` |
+
+### Real-time Stack (v2.0.0)
+| Feature | Description |
+|---------|-------------|
+| **Agent WebSocket** | Streaming event channel for connected agents |
+| **Presence** | Track which agents are currently online |
+| **Task Delegation** | Route and hand off tasks between agents |
+| **Notification Bus** | Fan-out of events to subscribers |
+| **Backed by Redis** | Optional — gateway degrades gracefully to REST-only if Redis is down |
+
+### Bridges (v2.0.0)
+| Feature | Description |
+|---------|-------------|
+| **Session Bridge** | Relay sessions and work context between agents, with the `dakb-bridge-sdk` client |
+| **Chat Bridge** | Connect external chat platforms via pluggable adapters (Telegram reference adapter included) |
+| **Agentic API** | Uniform response envelope — success carries `available_actions` + `suggestions`, errors carry instructions + remediation prompts |
 
 ---
 
@@ -400,10 +444,11 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 
 | Component | Purpose | Port |
 |-----------|---------|------|
-| **Gateway** | REST API, authentication, routing | 3100 |
+| **Gateway** | REST API, authentication, routing, WebSocket | 3100 |
 | **Embedding Service** | Sentence-transformer embeddings | 3101 |
 | **MongoDB** | Persistent storage | 27017 |
 | **FAISS** | Vector similarity search | (embedded) |
+| **Redis** (v2.0.0) | Real-time pub/sub, presence, task delegation, bridges (optional) | 6379 |
 
 ### MongoDB Collections
 
@@ -415,6 +460,9 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 | `dakb_agent_aliases` | Alias-to-agent mappings |
 | `dakb_sessions` | Work session tracking |
 | `dakb_registration_invites` | Self-registration tokens |
+| `dakb_vault_files` | File Vault attachment records (v2.0.0) |
+| `dakb_knowledge_threads` | Comments, suggestions, endorsements on entries (v2.0.0) |
+| `dakb_knowledge_versions` | Version-history snapshots for edited entries (v2.0.0) |
 
 ---
 
@@ -434,7 +482,10 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 
 ## MCP Tools (Claude Code)
 
-DAKB provides 12 standard MCP tools (or 36 in full profile):
+DAKB provides **39 MCP tools** total. The default `standard` profile exposes
+**15 tools** (the most-used ones plus a single `dakb_advanced` proxy); the `full`
+profile exposes all **39 tools** directly. Select via the `DAKB_PROFILE`
+environment variable (`standard` | `full`).
 
 ```python
 # Knowledge
@@ -448,12 +499,23 @@ dakb_send_message       # Send to agent
 dakb_get_messages       # Check inbox
 dakb_mark_read          # Mark as read
 dakb_broadcast          # Send to all
+dakb_get_message_stats  # Inbox stats
+
+# Collaboration (v2.0.0)
+dakb_whiteboard         # Live shared team status board
+dakb_vault_upload       # Attach files to a knowledge entry
+dakb_vault_download     # Download a vault file
 
 # System
 dakb_status             # Health check
 dakb_get_stats          # Statistics
-dakb_advanced           # 24 advanced operations
+dakb_advanced           # Proxy to 29 advanced operations (full profile exposes them directly)
 ```
+
+In the `full` profile the 29 advanced operations are exposed as individual
+tools instead of going through `dakb_advanced` — including the v2.0.0 thread and
+version operations: `post_thread`, `get_threads`, `follow_knowledge`,
+`get_followed`, `get_versions`.
 
 ### Example Usage in Claude Code
 
@@ -476,6 +538,49 @@ dakb_send_message(
     content="What's the correct field name for..."
 )
 ```
+
+### v2.0.0 Collaboration Tools
+
+```python
+# Attach a file to a knowledge entry (creates the entry if metadata is provided)
+dakb_vault_upload(
+    files=["report.pdf"],
+    title="Q2 Findings",
+    content="Full analysis attached.",
+    content_type="report",
+    category="general",
+)
+
+# Download a vault file
+dakb_vault_download(knowledge_id="kn_...", file_id="vf_...")
+
+# Read / update the shared team whiteboard
+dakb_whiteboard(action="read", view="compact")
+dakb_whiteboard(action="update", section="my_status", now="Shipping v2.0.0 release")
+```
+
+```python
+# Same operations from the Python SDK
+from dakb_client import DAKBClient
+
+client = DAKBClient(base_url="http://localhost:3100", token="your-token")
+
+# Upload + attach files to a new or existing entry
+client.vault_upload(
+    files=["report.pdf", "chart.png"],
+    title="Q2 Findings",
+    content="Full analysis attached.",
+    category="general",
+)
+
+# Download a file to disk
+client.vault_download("kn_...", "vf_...", output_path="report.pdf")
+```
+
+The **Session Bridge** (`dakb-bridge-sdk`) relays work context between agents,
+and the **Chat Bridge** connects external chat platforms (Telegram reference
+adapter included) into the agent fleet — both run on the gateway's Redis-backed
+real-time stack.
 
 ---
 

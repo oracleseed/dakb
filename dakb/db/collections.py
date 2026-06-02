@@ -30,6 +30,7 @@ from .repositories.registration import (
     InviteTokenRepository,
     RegistrationAuditRepository,
 )
+from .repositories.vault_repository import VaultFileRepository
 from .schemas import (
     # Enums
     AccessLevel,
@@ -57,6 +58,8 @@ from .schemas import (
     KnowledgeSource,
     KnowledgeStatus,
     KnowledgeUpdate,
+    # Knowledge Threads & Version History
+    KnowledgeVersion,
     LeaderboardEntry,
     MessageCreate,
     MessageStatus,
@@ -65,6 +68,8 @@ from .schemas import (
     SessionCreate,
     SessionUpdate,
     TaskStatus,
+    ThreadPost,
+    ThreadPostCreate,
     VoteCreate,
     VoteDetail,
     VoteType,
@@ -115,6 +120,34 @@ COLLECTION_ALIASES = "dakb_agent_aliases"
 # Self-Registration v1.0 (Invite-Only)
 COLLECTION_INVITE_TOKENS = "dakb_invite_tokens"
 COLLECTION_REGISTRATION_AUDIT = "dakb_registration_audit"
+# HIVE File Vault
+COLLECTION_VAULT_FILES = "dakb_vault_files"
+COLLECTION_VAULT_HOLDS = "dakb_vault_holds"
+# Knowledge Threads & Version History
+COLLECTION_THREADS = "dakb_knowledge_threads"
+COLLECTION_VERSIONS = "dakb_knowledge_versions"
+# Whiteboard (managed via whiteboard_repository, registered here for discovery)
+COLLECTION_WHITEBOARD_BOARDS = "dakb_whiteboard_boards"
+COLLECTION_WHITEBOARD_SECTIONS = "dakb_whiteboard_sections"
+COLLECTION_WHITEBOARD_SNAPSHOTS = "dakb_whiteboard_snapshots"
+# Real-Time Communication: task delegation
+COLLECTION_TASKS = "dakb_tasks"
+# Chat Bridge: external chat sessions + alert routing (models in chat_bridge/)
+COLLECTION_CHAT_SESSIONS = "dakb_chat_sessions"
+COLLECTION_ALERT_CONFIG = "dakb_alert_config"
+# Session Bridge: session<->chat link records + offline message queue (models in bridge/)
+COLLECTION_BRIDGE_LINKS = "dakb_bridge_links"
+COLLECTION_BRIDGE_QUEUE = "dakb_bridge_queue"
+
+# Reputation points for thread actions
+THREAD_REPUTATION_POINTS = {
+    "comment": 2,
+    "suggestion": 3,
+    "endorsement": 1,
+    "incorporated": 10,
+    "thread_helpful_vote": 3,
+    "thread_unhelpful_vote": -1,
+}
 
 ALL_COLLECTIONS = [
     COLLECTION_KNOWLEDGE,
@@ -128,6 +161,18 @@ ALL_COLLECTIONS = [
     COLLECTION_ALIASES,
     COLLECTION_INVITE_TOKENS,
     COLLECTION_REGISTRATION_AUDIT,
+    COLLECTION_VAULT_FILES,
+    COLLECTION_VAULT_HOLDS,
+    COLLECTION_THREADS,
+    COLLECTION_VERSIONS,
+    COLLECTION_WHITEBOARD_BOARDS,
+    COLLECTION_WHITEBOARD_SECTIONS,
+    COLLECTION_WHITEBOARD_SNAPSHOTS,
+    COLLECTION_TASKS,
+    COLLECTION_CHAT_SESSIONS,
+    COLLECTION_ALERT_CONFIG,
+    COLLECTION_BRIDGE_LINKS,
+    COLLECTION_BRIDGE_QUEUE,
 ]
 
 
@@ -209,6 +254,66 @@ class DAKBCollections:
     def registration_audit(self) -> Collection:
         """Get dakb_registration_audit collection (Self-Registration v1.0)."""
         return self._collections[COLLECTION_REGISTRATION_AUDIT]
+
+    @property
+    def vault_files(self) -> Collection:
+        """Get dakb_vault_files collection (HIVE File Vault)."""
+        return self._collections[COLLECTION_VAULT_FILES]
+
+    @property
+    def vault_holds(self) -> Collection:
+        """Get dakb_vault_holds collection (HIVE File Vault temporary holds)."""
+        return self._collections[COLLECTION_VAULT_HOLDS]
+
+    @property
+    def threads(self) -> Collection:
+        """Get dakb_knowledge_threads collection."""
+        return self._collections[COLLECTION_THREADS]
+
+    @property
+    def versions(self) -> Collection:
+        """Get dakb_knowledge_versions collection."""
+        return self._collections[COLLECTION_VERSIONS]
+
+    @property
+    def whiteboard_boards(self) -> Collection:
+        """Get dakb_whiteboard_boards collection."""
+        return self._collections[COLLECTION_WHITEBOARD_BOARDS]
+
+    @property
+    def whiteboard_sections(self) -> Collection:
+        """Get dakb_whiteboard_sections collection."""
+        return self._collections[COLLECTION_WHITEBOARD_SECTIONS]
+
+    @property
+    def whiteboard_snapshots(self) -> Collection:
+        """Get dakb_whiteboard_snapshots collection."""
+        return self._collections[COLLECTION_WHITEBOARD_SNAPSHOTS]
+
+    @property
+    def tasks(self) -> Collection:
+        """Get dakb_tasks collection (real-time task delegation)."""
+        return self._collections[COLLECTION_TASKS]
+
+    @property
+    def chat_sessions(self) -> Collection:
+        """Get dakb_chat_sessions collection (Chat Bridge)."""
+        return self._collections[COLLECTION_CHAT_SESSIONS]
+
+    @property
+    def alert_config(self) -> Collection:
+        """Get dakb_alert_config collection (Chat Bridge alert routing)."""
+        return self._collections[COLLECTION_ALERT_CONFIG]
+
+    @property
+    def bridge_links(self) -> Collection:
+        """Get dakb_bridge_links collection (Session Bridge link records)."""
+        return self._collections[COLLECTION_BRIDGE_LINKS]
+
+    @property
+    def bridge_queue(self) -> Collection:
+        """Get dakb_bridge_queue collection (Session Bridge offline queue)."""
+        return self._collections[COLLECTION_BRIDGE_QUEUE]
 
     def verify_collections(self) -> dict[str, bool]:
         """
@@ -2480,6 +2585,162 @@ class AliasRepository:
 
 
 # =============================================================================
+# THREAD REPOSITORY (Knowledge Threads)
+# =============================================================================
+
+class ThreadRepository:
+    """Repository for dakb_knowledge_threads CRUD."""
+
+    def __init__(self, collection: Collection, knowledge_collection: Collection):
+        self.collection = collection
+        self.knowledge_collection = knowledge_collection
+
+    def create_post(
+        self,
+        data: ThreadPostCreate,
+        agent_id: str,
+        alias: str,
+    ) -> ThreadPost:
+        post = ThreadPost(
+            knowledge_id=data.knowledge_id,
+            type=data.type,
+            content=data.content,
+            parent_id=data.parent_id,
+            thread_depth=0 if data.parent_id is None else self._get_parent_depth(data.parent_id) + 1,
+            author_agent_id=agent_id,
+            author_alias=alias,
+        )
+        self.collection.insert_one(post.model_dump())
+        # Update thread_summary on parent KB entry
+        self.knowledge_collection.update_one(
+            {"knowledge_id": data.knowledge_id},
+            {
+                "$inc": {"thread_summary.count": 1},
+                "$set": {"thread_summary.last_activity": datetime.utcnow()}
+            }
+        )
+        logger.info(f"Thread post created: {post.thread_id} on {data.knowledge_id}")
+        return post
+
+    def _get_parent_depth(self, parent_id: str) -> int:
+        doc = self.collection.find_one({"thread_id": parent_id}, {"thread_depth": 1})
+        if doc:
+            return doc.get("thread_depth", 0)
+        return 0
+
+    def get_by_id(self, thread_id: str) -> ThreadPost | None:
+        doc = self.collection.find_one({"thread_id": thread_id})
+        if doc:
+            doc.pop("_id", None)
+            return ThreadPost(**doc)
+        return None
+
+    def get_threads(
+        self,
+        knowledge_id: str,
+        post_type: str | None = None,
+        parent_id: str | None = None,
+        sort: str = "newest",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> list[ThreadPost]:
+        query: dict[str, Any] = {"knowledge_id": knowledge_id, "status": "active"}
+        if post_type:
+            query["type"] = post_type
+        if parent_id is not None:
+            query["parent_id"] = parent_id
+        else:
+            query["parent_id"] = None  # Top-level only by default
+
+        sort_key = ("created_at", -1) if sort == "newest" else ("created_at", 1) if sort == "oldest" else ("votes.helpful", -1)
+        skip = (page - 1) * page_size
+
+        cursor = self.collection.find(query).sort([sort_key]).skip(skip).limit(page_size)
+        results = []
+        for doc in cursor:
+            doc.pop("_id", None)
+            results.append(ThreadPost(**doc))
+        return results
+
+    def count_threads(self, knowledge_id: str) -> int:
+        return self.collection.count_documents({
+            "knowledge_id": knowledge_id,
+            "status": "active"
+        })
+
+    def update_status(self, thread_id: str, status: str) -> bool:
+        result = self.collection.update_one(
+            {"thread_id": thread_id},
+            {"$set": {"status": status, "updated_at": datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+
+
+# =============================================================================
+# VERSION REPOSITORY (Knowledge Version History)
+# =============================================================================
+
+class VersionRepository:
+    """Repository for dakb_knowledge_versions CRUD."""
+
+    def __init__(self, collection: Collection):
+        self.collection = collection
+
+    def create_version(
+        self,
+        knowledge_id: str,
+        version: int,
+        title: str,
+        content: str,
+        edited_by: str,
+        editor_alias: str = "",
+        change_summary: str | None = None,
+    ) -> KnowledgeVersion:
+        ver = KnowledgeVersion(
+            knowledge_id=knowledge_id,
+            version=version,
+            title=title,
+            content=content,
+            edited_by=edited_by,
+            editor_alias=editor_alias,
+            change_summary=change_summary,
+        )
+        self.collection.insert_one(ver.model_dump())
+        logger.info(f"Version {version} created for {knowledge_id}")
+        return ver
+
+    def get_versions(
+        self,
+        knowledge_id: str,
+        limit: int = 10,
+    ) -> list[KnowledgeVersion]:
+        cursor = self.collection.find(
+            {"knowledge_id": knowledge_id}
+        ).sort("version", -1).limit(limit)
+        results = []
+        for doc in cursor:
+            doc.pop("_id", None)
+            results.append(KnowledgeVersion(**doc))
+        return results
+
+    def get_version(self, knowledge_id: str, version: int) -> KnowledgeVersion | None:
+        doc = self.collection.find_one({"knowledge_id": knowledge_id, "version": version})
+        if doc:
+            doc.pop("_id", None)
+            return KnowledgeVersion(**doc)
+        return None
+
+    def get_latest_version(self, knowledge_id: str) -> int | None:
+        doc = self.collection.find_one(
+            {"knowledge_id": knowledge_id},
+            sort=[("version", -1)],
+        )
+        if doc:
+            return doc.get("version")
+        return None
+
+
+# =============================================================================
 # FACTORY FUNCTION
 # =============================================================================
 
@@ -2512,4 +2773,9 @@ def get_dakb_repositories(mongo_client: MongoClient, db_name: str = "dakb") -> d
         # Self-Registration v1.0 (Invite-Only)
         "invite_tokens": InviteTokenRepository(collections.invite_tokens),
         "registration_audit": RegistrationAuditRepository(collections.registration_audit),
+        # Knowledge Threads & Version History
+        "threads": ThreadRepository(collections.threads, collections.knowledge),
+        "versions": VersionRepository(collections.versions),
+        # Vault Files (HIVE File Vault)
+        "vault_files": VaultFileRepository(collections.vault_files, collections.knowledge),
     }

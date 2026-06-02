@@ -12,7 +12,7 @@ def test_dakb_import() -> None:
 def test_dakb_version() -> None:
     """Test that dakb has a version."""
     from dakb import __version__
-    assert __version__ == "1.2.1"
+    assert __version__ == "2.0.0"
 
 
 def test_embeddings_module_exists() -> None:

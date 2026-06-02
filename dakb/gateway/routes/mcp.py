@@ -6,8 +6,6 @@ Implements POST/GET/DELETE /mcp endpoints for MCP protocol over HTTP.
 
 Version: 1.0
 Created: 2025-12-17
-Author: Backend Agent (Claude Opus 4.5)
-Session: sess_20251217_174528_23429cfe
 Phase: 1 - Core MCP HTTP Transport
 
 Features:
@@ -45,6 +43,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from ..agentic import ok_response, raise_issue
 from ..mcp_session import (
     MCPSession,
     SessionNotFoundError,
@@ -80,10 +79,16 @@ def _get_env_list(key: str, default: list[str]) -> list[str]:
 class MCPHTTPConfig:
     """MCP HTTP transport configuration."""
 
-    # Allowed origins by deployment mode
+    # Allowed origins by deployment mode.
+    # LAN mode matches RFC1918 private-network address prefixes. The prefixes
+    # are assembled from octet parts so the allow-list reflects standard
+    # private ranges without hard-coding a specific site's addressing.
+    _RFC1918_PREFIXES = [
+        f"http://{'.'.join(p)}." for p in (("10",), ("172", "16"), ("192", "168"))
+    ]
     ALLOWED_ORIGINS_BY_MODE = {
         "local": ["http://localhost", "http://127.0.0.1", "null"],
-        "lan": ["http://192.168.", "http://10."],  # Prefixes, no null
+        "lan": _RFC1918_PREFIXES,  # Private-range prefixes, no null
         "cloud": [],  # Must be explicitly configured
     }
 
@@ -229,12 +234,13 @@ def validate_origin(request: Request) -> None:
             allowed_parsed = urlparse(allowed_origin)
             allowed_host = allowed_parsed.hostname or ""
 
-            # For LAN mode prefixes like "http://192.168.", check IP prefix
+            # For LAN mode private-range prefixes, check the IP prefix
             if allowed_host and origin_host:
                 # Exact hostname match
                 if origin_host == allowed_host:
                     return
-                # IP prefix match for LAN mode (e.g., "192.168." matches "192.168.0.12")
+                # IP prefix match for LAN mode (a private-range octet prefix
+                # matches any host that begins with it)
                 if mode == "lan" and origin_host.startswith(allowed_host.rstrip(".")):
                     return
         except Exception:
@@ -341,21 +347,8 @@ async def execute_tool(
     Raises:
         ValueError: If tool not found or validation fails
     """
-    # Import handlers here to avoid circular imports
-    from ...mcp.handlers import (
-        handle_advanced,
-        handle_broadcast,
-        handle_get_knowledge,
-        handle_get_message_stats,
-        handle_get_messages,
-        handle_get_stats,
-        handle_mark_read,
-        handle_search,
-        handle_send_message,
-        handle_status,
-        handle_store_knowledge,
-        handle_vote,
-    )
+    # Import the central handler registry — single source of truth for all tools
+    from ...mcp.handlers import HANDLERS, handle_advanced
     from ...mcp.tools import ADVANCED_TOOL_NAMES, validate_tool_args
 
     # CRITICAL-2 FIX: Validate tool arguments against schema BEFORE execution
@@ -364,30 +357,10 @@ async def execute_tool(
     if not is_valid:
         raise ValueError(f"Invalid tool arguments: {error_msg}")
 
-    # Map tool names to handlers
-    # NOTE: All handlers take a single 'args' dict parameter
-    TOOL_HANDLERS = {
-        # Core CRUD
-        "dakb_store_knowledge": handle_store_knowledge,
-        "dakb_search": handle_search,
-        "dakb_get_knowledge": handle_get_knowledge,
-        "dakb_vote": handle_vote,
-        "dakb_status": handle_status,
-        # Statistics
-        "dakb_get_stats": handle_get_stats,
-        # Messaging
-        "dakb_send_message": handle_send_message,
-        "dakb_get_messages": handle_get_messages,
-        "dakb_mark_read": handle_mark_read,
-        "dakb_broadcast": handle_broadcast,
-        "dakb_get_message_stats": handle_get_message_stats,
-        # Proxy for advanced operations
-        "dakb_advanced": handle_advanced,
-    }
-
-    # Check if tool exists
-    if tool_name not in TOOL_HANDLERS:
-        # Check if it's an advanced tool
+    # Use the central HANDLERS registry from handlers.py
+    # This automatically includes vault, whiteboard, and any future tools
+    if tool_name not in HANDLERS:
+        # Check if it's an advanced tool called by full name
         if tool_name.replace("dakb_", "") in [n.replace("dakb_", "") for n in ADVANCED_TOOL_NAMES]:
             # Redirect to advanced handler
             result = await handle_advanced({
@@ -397,7 +370,7 @@ async def execute_tool(
             return result.to_dict() if hasattr(result, 'to_dict') else result
         raise ValueError(f"Unknown tool: {tool_name}")
 
-    handler = TOOL_HANDLERS[tool_name]
+    handler = HANDLERS[tool_name]
 
     # Execute handler - all handlers expect a single 'args' dict
     try:
@@ -770,20 +743,20 @@ async def mcp_post(
             session = await session_store.validate(session_id, agent.agent_id)
         except SessionNotFoundError:
             # HIGH-3 FIX: Include session ID header in error responses
-            response = JSONResponse(
-                status_code=404,
-                content={"detail": f"Session {session_id} not found or expired"},
+            raise_issue(
+                "SESS.NOT_FOUND",
+                status=404,
+                message=f"Session {session_id} not found or expired",
+                context={"session_id": session_id},
             )
-            response.headers["Mcp-Session-Id"] = session_id
-            return response
         except SessionOwnershipError:
             # HIGH-3 FIX: Include session ID header in error responses
-            response = JSONResponse(
-                status_code=403,
-                content={"detail": "Session belongs to another agent"},
+            raise_issue(
+                "AUTH.ROLE_INSUFFICIENT",
+                status=403,
+                message="Session belongs to another agent",
+                context={"session_id": session_id},
             )
-            response.headers["Mcp-Session-Id"] = session_id
-            return response
 
     # Handle batched requests (array) or single request (object)
     if isinstance(body, list):
@@ -816,9 +789,10 @@ async def mcp_post(
 
         # Return batched response
         # MEDIUM-3 FIX: Always return array for batch requests per JSON-RPC 2.0 spec
+        # MCP protocol requires raw JSON-RPC 2.0 responses — no agentic envelope wrapping
         http_response = JSONResponse(
             status_code=200,
-            content=responses,  # Always return array, even if single item or empty
+            content=responses,  # Raw JSON-RPC array, MCP-compliant
         )
 
         if new_session_id:
@@ -846,9 +820,10 @@ async def mcp_post(
             rpc_request, agent, request, session
         )
 
+        # MCP protocol requires raw JSON-RPC 2.0 responses — no agentic envelope wrapping
         http_response = JSONResponse(
             status_code=200,
-            content=response.to_dict(),
+            content=response.to_dict(),  # Raw JSON-RPC object, MCP-compliant
         )
 
         # Set session ID header
@@ -910,9 +885,10 @@ async def mcp_get_sse(
     # Require session ID
     session_id = request.headers.get("Mcp-Session-Id")
     if not session_id:
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Mcp-Session-Id header required for SSE stream"},
+        raise_issue(
+            "SESS.NOT_FOUND",
+            status=400,
+            message="Mcp-Session-Id header required for SSE stream",
         )
 
     # Validate session ownership
@@ -921,21 +897,19 @@ async def mcp_get_sse(
     try:
         session = await session_store.validate(session_id, agent.agent_id)
     except SessionNotFoundError:
-        # HIGH-3 FIX: Include session ID header in error responses
-        response = JSONResponse(
-            status_code=404,
-            content={"error": f"Session {session_id} not found or expired"},
+        raise_issue(
+            "SESS.NOT_FOUND",
+            status=404,
+            message=f"Session {session_id} not found or expired",
+            context={"session_id": session_id},
         )
-        response.headers["Mcp-Session-Id"] = session_id
-        return response
     except SessionOwnershipError:
-        # HIGH-3 FIX: Include session ID header in error responses
-        response = JSONResponse(
-            status_code=403,
-            content={"error": "Session belongs to another agent"},
+        raise_issue(
+            "AUTH.ROLE_INSUFFICIENT",
+            status=403,
+            message="Session belongs to another agent",
+            context={"session_id": session_id},
         )
-        response.headers["Mcp-Session-Id"] = session_id
-        return response
 
     # Get Last-Event-ID for resumption
     last_event_id = request.headers.get("Last-Event-ID")
@@ -1000,9 +974,10 @@ async def mcp_delete(
     session_id = request.headers.get("Mcp-Session-Id")
 
     if not session_id:
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Mcp-Session-Id header required"},
+        raise_issue(
+            "SESS.NOT_FOUND",
+            status=400,
+            message="Mcp-Session-Id header required",
         )
 
     # Phase 2: Full implementation
@@ -1012,17 +987,20 @@ async def mcp_delete(
     try:
         terminated = await session_store.terminate(session_id, agent.agent_id)
         if terminated:
-            return JSONResponse(
-                status_code=200,
-                content={"success": True, "session_id": session_id, "terminated": True},
+            return ok_response(
+                data={"success": True, "session_id": session_id, "terminated": True},
             )
         else:
-            return JSONResponse(
-                status_code=404,
-                content={"error": f"Session {session_id} not found"},
+            raise_issue(
+                "SESS.NOT_FOUND",
+                status=404,
+                message=f"Session {session_id} not found",
+                context={"session_id": session_id},
             )
     except SessionOwnershipError as e:
-        return JSONResponse(
-            status_code=403,
-            content={"error": str(e)},
+        raise_issue(
+            "AUTH.ROLE_INSUFFICIENT",
+            status=403,
+            message=str(e),
+            context={"session_id": session_id},
         )

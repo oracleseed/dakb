@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dakb-server"
-version = "1.2.1"
+version = "2.0.0"
 description = "Distributed Agent Knowledge Base Server - A shared knowledge system for multi-agent AI collaboration"
 readme = "README.md"
 license = "Apache-2.0"
@@ -56,6 +56,11 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "mcp>=1.0.0",
     "click>=8.0.0",
+    # --- v2.0.0 runtime additions ---
+    "redis>=5.0",          # Real-time stack: WebSocket pub/sub, presence, task delegation, notification bus, session/chat bridge
+    "websockets>=12.0",    # Agent WebSocket transport + Session Bridge relay
+    "aiofiles",            # File Vault local storage backend (async file IO)
+    "python-magic",        # File Vault MIME sniffing + executable-content detection (requires libmagic)
 ]
 
 [project.optional-dependencies]
@@ -75,6 +80,11 @@ gpu = [
     "faiss-gpu>=1.7.4",
 ]
 
+# S3 vault backend (only needed when FILE_VAULT_BACKEND=s3; local backend is the default)
+s3 = [
+    "boto3",
+]
+
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.0.0",
@@ -82,7 +92,7 @@ docs = [
 ]
 
 all = [
-    "dakb[dev,docs]",
+    "dakb[dev,docs,s3]",
 ]
 
 [project.urls]

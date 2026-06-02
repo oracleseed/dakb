@@ -35,4 +35,11 @@ Environment Variables:
 - DAKB_PROFILE: Tool profile - "standard" or "full" (default: standard)
 """
 
-__all__ = ["server", "run"]
+# Eagerly load the dispatch layer when the package is imported. This fully
+# initializes `handlers` (and the vault/whiteboard handler registration at its
+# module bottom) before any submodule is imported in isolation, avoiding a
+# partial-initialization circular import when e.g. `dakb.mcp.vault_handler` is
+# imported as the first module.
+from . import handlers  # noqa: F401,E402
+
+__all__ = ["handlers", "server", "run"]

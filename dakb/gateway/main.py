@@ -22,19 +22,26 @@ Security:
 Port: 3100 (configurable via DAKB_GATEWAY_PORT)
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from ..admin import admin_api_router, admin_dashboard_router, admin_ws_router
+from ..admin import (
+    admin_api_router,
+    admin_dashboard_router,
+    admin_whiteboard_router,
+    admin_ws_router,
+)
 from ..db import AccessLevel, AgentRole, get_dakb_repositories
 from ..db.collections import get_dakb_client
 from ..monitoring.metrics import get_metrics  # Phase 8: Prometheus metrics
+from .agentic import register_dakb_agentic_handlers  # Agentic API exception handlers
 from .config import get_settings, validate_settings
 from .middleware.auth import (
     AuthenticatedAgent,
@@ -50,6 +57,8 @@ from .routes.messaging import router as messaging_router
 from .routes.moderation import router as moderation_router
 from .routes.registration import router as registration_router
 from .routes.sessions import router as sessions_router
+from .routes.threads import router as threads_router  # Knowledge Threads
+from .routes.whiteboard import router as whiteboard_router  # HIVE Whiteboard
 
 # =============================================================================
 # LOGGING CONFIGURATION
@@ -84,36 +93,65 @@ async def lifespan(app: FastAPI):
     Handles:
     - Startup: Validate settings, check connections, initialize services
     - Shutdown: Cleanup and logging
+
+    Graceful degradation: every optional subsystem (MongoDB-backed features,
+    Redis real-time, chat bridge, session bridge) is wrapped in try/except.
+    The app starts even when MongoDB and Redis are completely unavailable —
+    affected features simply stay disabled with a warning log.
     """
     # STARTUP
     logger.info("Starting DAKB Gateway Service...")
 
-    # Validate settings
-    is_valid, errors = validate_settings()
-    if not is_valid:
-        for error in errors:
-            logger.error(f"Configuration error: {error}")
-        raise RuntimeError("Invalid configuration. Check environment variables.")
-
-    settings = get_settings()
-
     # Setup logging
     setup_logging()
 
-    # Note: CORS is configured at module level after app creation
+    # Validate settings (warn, never crash — allows boot without full env)
+    is_valid, errors = validate_settings()
+    if not is_valid:
+        for error in errors:
+            logger.warning(f"Configuration warning: {error}")
 
-    # Verify MongoDB connection
+    settings = get_settings()
+
+    # ── MongoDB (optional — features that need it are skipped if unavailable) ──
+    # Subsystem routers are already MOUNTED at module level (see _wire_subsystems);
+    # here we only perform LIVE operations (ping, index creation, repo injection,
+    # connect, background tasks) — each independently guarded so the gateway boots
+    # with no MongoDB and no Redis running.
+    db = getattr(app.state, "db", None)
     try:
-        client = get_dakb_client()
-        db = client[settings.db_name]
-        # Quick ping
-        db.command("ping")
-        logger.info(f"MongoDB connection verified: {settings.db_name}")
+        if db is not None:
+            db.command("ping")
+            logger.info(f"MongoDB connection verified: {settings.db_name}")
     except Exception as e:
-        logger.error(f"MongoDB connection failed: {e}")
-        raise RuntimeError("Cannot connect to MongoDB")
+        logger.warning(
+            f"MongoDB not available: {e} — knowledge/whiteboard/vault/bridge "
+            "features will operate in degraded mode"
+        )
 
-    # Verify embedding service (optional - may not be running yet)
+    # ── Indexes (idempotent; covers all v2.0.0 collections) ──
+    if db is not None:
+        try:
+            from ..db.indexes import create_all_indexes
+            create_all_indexes(db)
+            logger.info("MongoDB indexes ensured (create_all_indexes)")
+        except Exception as e:
+            logger.warning(f"Index creation skipped: {e}")
+
+    # ── HIVE Whiteboard repository injection ──
+    if db is not None:
+        try:
+            from ..db.whiteboard_indexes import initialize_whiteboard_indexes
+            from ..db.whiteboard_repository import WhiteboardRepository
+            from .routes.whiteboard import set_repository as set_whiteboard_repo
+
+            set_whiteboard_repo(WhiteboardRepository(db))
+            initialize_whiteboard_indexes(db)
+            logger.info("Whiteboard repository initialized")
+        except Exception as e:
+            logger.warning(f"Whiteboard not available: {e}")
+
+    # ── Embedding service (optional — semantic search degrades without it) ──
     try:
         async with httpx.AsyncClient() as http_client:
             response = await http_client.get(
@@ -128,12 +166,59 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Embedding service not available: {e}")
         logger.warning("Semantic search will be unavailable until embedding service starts")
 
-    # Initialize rate limiter
+    # ── Rate limiter ──
     get_rate_limiter()
     logger.info(
         f"Rate limiter initialized: {settings.rate_limit_requests} requests "
         f"per {settings.rate_limit_window}s window"
     )
+
+    # ── Notification bus (in-process; no external infra required) ──
+    try:
+        from .notification_bus import get_notification_bus
+        await get_notification_bus()
+        logger.info("Notification bus started")
+    except Exception as e:
+        logger.warning(f"Notification bus not available: {e}")
+
+    # ── Redis real-time stack (optional — disabled cleanly if Redis is down) ──
+    # The RedisClient, managers, routers and bridge objects were all built at
+    # module level by _wire_subsystems() and stored on app.state. Here we only
+    # establish the live connection and start the monitors / background tasks.
+    redis_client = getattr(app.state, "redis_client", None)
+    try:
+        if redis_client is None:
+            raise RuntimeError("Redis client not constructed")
+
+        connected = await redis_client.connect()
+        if not connected:
+            raise RuntimeError(f"Redis connect() returned False ({settings.redis_url})")
+        logger.info(f"Redis connected: {settings.redis_url}")
+        app.state.redis_connected = True
+
+        # Task timeout monitor (needs MongoDB-backed TaskRouter).
+        task_monitor = getattr(app.state, "task_monitor", None)
+        if task_monitor is not None:
+            asyncio.create_task(task_monitor.start())
+            logger.info("Task delegation enabled (TaskRouter + TaskTimeoutMonitor)")
+
+        # Background outbound delivery loop (cancelled on shutdown).
+        outbound_consumer = getattr(app.state, "outbound_consumer", None)
+        if outbound_consumer is not None:
+            app.state.outbound_task = asyncio.create_task(
+                _run_outbound_consumer(outbound_consumer)
+            )
+            logger.info("Chat outbound consumer started")
+
+        logger.info(
+            "Real-time communication enabled (WebSocket + Presence + Router + Bridge)"
+        )
+    except Exception as e:
+        logger.warning(
+            f"Redis/real-time not available: {e} — real-time, chat, and bridge "
+            "live features disabled (routes remain mounted but degrade gracefully)"
+        )
+        app.state.redis_connected = False
 
     logger.info(f"DAKB Gateway ready on port {settings.gateway_port}")
 
@@ -141,6 +226,90 @@ async def lifespan(app: FastAPI):
 
     # SHUTDOWN
     logger.info("Shutting down DAKB Gateway Service...")
+
+    outbound_task = getattr(app.state, "outbound_task", None)
+    if outbound_task:
+        outbound_task.cancel()
+        try:
+            await outbound_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        logger.info("Outbound consumer task stopped")
+
+    task_monitor = getattr(app.state, "task_monitor", None)
+    if task_monitor:
+        try:
+            await task_monitor.stop()
+            logger.info("Task monitor stopped")
+        except Exception as e:
+            logger.warning(f"Task monitor stop failed: {e}")
+
+    try:
+        from .notification_bus import shutdown_notification_bus
+        await shutdown_notification_bus()
+        logger.info("Notification bus stopped")
+    except Exception:
+        pass
+
+    motor_client = getattr(app.state, "motor_client", None)
+    if motor_client:
+        motor_client.close()
+        logger.info("Motor client closed")
+
+    bridge_raw_redis = getattr(app.state, "bridge_raw_redis", None)
+    if bridge_raw_redis:
+        try:
+            await bridge_raw_redis.aclose()
+        except Exception:
+            pass
+
+    if getattr(app.state, "redis_client", None):
+        try:
+            await app.state.redis_client.disconnect()
+            logger.info("Redis disconnected")
+        except Exception:
+            pass
+
+
+async def _run_outbound_consumer(consumer, poll_interval: float = 1.0) -> None:
+    """Background loop draining the chat outbound stream.
+
+    The open ``OutboundConsumer`` exposes ``run_once(count)`` (a single batch
+    read) rather than a built-in loop, so we drive it here as a cancellable
+    background task. Errors are logged and swallowed so a transient Redis hiccup
+    never kills the loop.
+    """
+    while True:
+        try:
+            await consumer.run_once()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"Outbound consumer batch failed: {e}")
+        await asyncio.sleep(poll_interval)
+
+
+async def handle_bridge_ws(websocket, session_id: str, bridge_conn) -> None:
+    """WebSocket handler for bridge clients (``/ws/bridge/{session_id}``).
+
+    Accepts the connection, registers it with the BridgeConnectionManager,
+    delivers any queued backlog, then pumps inbound frames as heartbeats until
+    the client disconnects. Cleanup always runs.
+    """
+    from starlette.websockets import WebSocketDisconnect
+
+    await websocket.accept()
+    try:
+        await bridge_conn.on_connect(session_id, websocket)
+        while True:
+            await websocket.receive_text()
+            await bridge_conn.update_heartbeat(session_id)
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.warning(f"Bridge WS error for {session_id}: {e}")
+    finally:
+        await bridge_conn.cleanup(session_id)
 
 
 # =============================================================================
@@ -195,6 +364,225 @@ app.add_middleware(
 
 
 # =============================================================================
+# SUBSYSTEM WIRING (v2.0.0)
+# =============================================================================
+
+def _wire_subsystems(app: FastAPI) -> None:
+    """Construct and mount the v2.0.0 real-time subsystems on ``app``.
+
+    Runs once at module import. Everything here is build-safe: dependency
+    objects are constructed lazily (pymongo/motor handles do not connect until a
+    query is issued, the local vault backend only resolves a path, the chat
+    adapter registry reads env only). No network call happens at import time.
+
+    Each subsystem is independently guarded — a failure to wire one never
+    prevents the app object from being built. Live connection / monitor / index
+    work is deferred to the lifespan, which degrades gracefully if Redis or
+    MongoDB are down. Handles are stashed on ``app.state`` for the lifespan and
+    for request-time dependency injection.
+    """
+    settings = get_settings()
+
+    # Initialise tracked lifecycle handles.
+    app.state.db = None
+    app.state.redis_client = None
+    app.state.task_monitor = None
+    app.state.task_router = None
+    app.state.outbound_consumer = None
+    app.state.outbound_task = None
+    app.state.motor_client = None
+    app.state.settings = settings
+
+    # ── MongoDB handle (lazy; does not connect here) ──
+    db = None
+    try:
+        db = get_dakb_client()[settings.db_name]
+        app.state.db = db
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning(f"MongoDB client unavailable at wiring time: {e}")
+
+    # ── HIVE File Vault router ──
+    try:
+        from ..db.collections import KnowledgeRepository
+        from ..db.repositories.vault_repository import VaultFileRepository
+        from ..vault import create_vault_backend
+        from .routes.vault import create_vault_router
+
+        if db is not None:
+            knowledge_col = db["dakb_knowledge"]
+            vault_repo = VaultFileRepository(db["dakb_vault_files"], knowledge_col)
+            knowledge_repo = KnowledgeRepository(knowledge_col)
+        else:
+            vault_repo = None
+            knowledge_repo = None
+        vault_backend = create_vault_backend(settings.vault.to_backend_config())
+        app.include_router(
+            create_vault_router(
+                vault_repo,
+                vault_backend,
+                settings.vault,
+                knowledge_repo=knowledge_repo,
+            )
+        )
+        logger.info(f"File Vault router mounted (backend={settings.vault.backend})")
+    except Exception as e:
+        logger.warning(f"File Vault router not mounted: {e}")
+
+    # ── Redis client + real-time managers (constructed, not yet connected) ──
+    try:
+        from .agent_websocket import AgentConnectionManager
+        from .agent_websocket import router as agent_ws_router
+        from .message_router import MessageRouter
+        from .presence import PresenceManager
+        from .redis_client import RedisClient
+        from .ws_rate_limiter import WSRateLimiter
+
+        redis_client = RedisClient(settings.redis_url)
+        conn_manager = AgentConnectionManager()
+        presence_manager = PresenceManager(redis_client=redis_client)
+        ws_rate_limiter = WSRateLimiter()
+
+        # Task delegation (MongoDB-backed). Constructed if a db handle exists.
+        task_router = None
+        if db is not None:
+            try:
+                from .task_monitor import TaskTimeoutMonitor
+                from .task_router import TaskRouter
+
+                tasks_collection = db["dakb_tasks"]
+                task_router = TaskRouter(
+                    redis_client=redis_client,
+                    presence_manager=presence_manager,
+                    conn_manager=conn_manager,
+                    mongo_collection=tasks_collection,
+                )
+                app.state.task_monitor = TaskTimeoutMonitor(
+                    task_router=task_router,
+                    redis_client=redis_client,
+                    conn_manager=conn_manager,
+                    mongo_collection=tasks_collection,
+                    check_interval=10.0,
+                )
+            except Exception as e:
+                logger.warning(f"Task delegation not wired: {e}")
+
+        # ── Chat Bridge (adapters + sessions + outbound consumer) ──
+        outbound_consumer = None
+        try:
+            from ..chat_bridge.outbound_consumer import OutboundConsumer
+            from ..chat_bridge.registry import AdapterRegistry
+            from ..chat_bridge.router import create_chat_router
+            from ..chat_bridge.session_manager import ChatSessionManager
+
+            adapter_registry = AdapterRegistry()
+            loaded_adapters = adapter_registry.auto_load()
+
+            session_manager = (
+                ChatSessionManager(db["dakb_chat_sessions"]) if db is not None else None
+            )
+            if session_manager is not None:
+                outbound_consumer = OutboundConsumer(
+                    redis_client=redis_client,
+                    adapter_registry=adapter_registry,
+                    session_manager=session_manager,
+                )
+            app.state.adapter_registry = adapter_registry
+            app.state.session_manager = session_manager
+            app.state.outbound_consumer = outbound_consumer
+
+            # Webhook router (/webhook/{platform}) — mount regardless of tokens.
+            app.include_router(
+                create_chat_router(
+                    adapter_registry=adapter_registry,
+                    redis_client=redis_client,
+                    session_manager=session_manager,
+                )
+            )
+            logger.info(
+                f"Chat Bridge router mounted ({len(loaded_adapters)} adapter(s) "
+                f"loaded{': ' + ', '.join(loaded_adapters) if loaded_adapters else ''})"
+            )
+        except Exception as e:
+            logger.warning(f"Chat Bridge router not mounted: {e}")
+
+        # Single MessageRouter wired with every available collaborator.
+        message_router = MessageRouter(
+            redis_client=redis_client,
+            conn_manager=conn_manager,
+            presence_manager=presence_manager,
+            task_router=task_router,
+            session_manager=app.state.session_manager,
+            outbound_consumer=outbound_consumer,
+            alert_config_collection=(db["dakb_alert_config"] if db is not None else None),
+        )
+
+        app.state.redis_client = redis_client
+        app.state.conn_manager = conn_manager
+        app.state.presence_manager = presence_manager
+        app.state.ws_rate_limiter = ws_rate_limiter
+        app.state.message_router = message_router
+        app.state.task_router = task_router
+
+        # Agent WebSocket router.
+        app.include_router(agent_ws_router)
+        logger.info("Agent WebSocket router mounted")
+
+        # ── Session Bridge (REST router + bridge WS route) ──
+        try:
+            import motor.motor_asyncio as motor_aio
+
+            # The bridge components want the raw aioredis client. RedisClient.redis
+            # raises until connect(), so build a lazy raw client directly here —
+            # from_url() does NOT connect until the first command is issued, so this
+            # is build-safe and works as soon as Redis comes up at request time.
+            import redis.asyncio as _aioredis
+
+            from ..bridge.queue import BridgeQueueManager
+            from ..bridge.routes import create_bridge_router
+            from ..bridge.ws_handler import BridgeConnectionManager
+            raw_redis = _aioredis.from_url(settings.redis_url, decode_responses=True)
+
+            motor_client = motor_aio.AsyncIOMotorClient(settings.bridge_mongo_uri)
+            motor_db = motor_client[settings.db_name]
+            bridge_links_collection = motor_db["dakb_bridge_links"]
+            bridge_queue_collection = motor_db["dakb_bridge_queue"]
+
+            bridge_queue = BridgeQueueManager(
+                redis=raw_redis,
+                collection=bridge_queue_collection,
+            )
+            bridge_conn = BridgeConnectionManager(
+                redis=raw_redis,
+                queue=bridge_queue,
+            )
+
+            async def _bridge_ws(websocket: WebSocket, session_id: str):
+                await handle_bridge_ws(websocket, session_id, bridge_conn)
+
+            app.add_api_websocket_route("/ws/bridge/{session_id}", _bridge_ws)
+            app.include_router(
+                create_bridge_router(
+                    queue=bridge_queue,
+                    links_collection=bridge_links_collection,
+                    redis=raw_redis,
+                    outbound_consumer=outbound_consumer,
+                ),
+                prefix="/api/v1",
+            )
+            app.state.bridge_raw_redis = raw_redis
+            app.state.bridge_queue = bridge_queue
+            app.state.bridge_conn = bridge_conn
+            app.state.bridge_links_collection = bridge_links_collection
+            app.state.motor_client = motor_client
+            logger.info("Session Bridge router + /ws/bridge mounted")
+        except Exception as e:
+            logger.warning(f"Session Bridge not mounted: {e}")
+
+    except Exception as e:
+        logger.warning(f"Real-time subsystem wiring failed: {e}")
+
+
+# =============================================================================
 # MIDDLEWARE
 # =============================================================================
 
@@ -219,16 +607,31 @@ async def add_rate_limit_headers(request: Request, call_next):
 # INCLUDE ROUTERS
 # =============================================================================
 
+# Register agentic API exception handlers BEFORE including routers so that
+# errors raised from any route (including Depends()) get agentic remediation.
+register_dakb_agentic_handlers(app)
+
 app.include_router(knowledge_router)
 app.include_router(moderation_router)  # ISS-048: Admin-only moderation routes
 app.include_router(messaging_router)   # Phase 3: Inter-agent messaging routes
 app.include_router(sessions_router)    # Phase 4: Session management and handoff
 app.include_router(aliases_router)     # Token Team: Agent alias management
 app.include_router(registration_router)  # Self-Registration v1.0: Invite-only registration
+app.include_router(threads_router)     # Knowledge Threads (comments, suggestions, endorsements)
+app.include_router(whiteboard_router)  # HIVE Whiteboard (repository injected during lifespan)
 app.include_router(mcp_router)         # Phase 1: MCP HTTP Transport (POST/GET/DELETE /mcp)
 app.include_router(admin_api_router)   # Admin Dashboard API routes
 app.include_router(admin_dashboard_router)  # Admin Dashboard UI routes
+app.include_router(admin_whiteboard_router)  # Admin Whiteboard panel (GET /admin/whiteboard)
 app.include_router(admin_ws_router)    # Admin WebSocket routes
+
+# v2.0.0 real-time subsystems (vault, agent-WS, chat webhooks, session bridge).
+# These routers are mounted here at module level so their route paths exist on the
+# app (OpenAPI, routing) even before — and regardless of whether — Redis/MongoDB
+# come up. The objects are constructed lazily (no live connections at build time);
+# the lifespan performs the actual connect / index / monitor / consumer work and
+# degrades gracefully when infra is unavailable.
+_wire_subsystems(app)
 
 
 # =============================================================================
@@ -242,6 +645,7 @@ class HealthResponse(BaseModel):
     version: str = Field(default="1.0.0")
     mongodb: str = Field(default="unknown")
     embedding_service: str = Field(default="unknown")
+    redis: str = Field(default="unknown")
 
 
 class TokenRequest(BaseModel):
@@ -364,6 +768,17 @@ async def health_check() -> HealthResponse:
     except Exception as e:
         logger.warning(f"Embedding service health check failed: {e}")
         response.embedding_service = "unavailable"
+
+    # Check Redis (real-time communication)
+    redis_client = getattr(app.state, "redis_client", None)
+    if redis_client is not None:
+        try:
+            response.redis = "connected" if await redis_client.health_check() else "unavailable"
+        except Exception as e:
+            logger.warning(f"Redis health check failed: {e}")
+            response.redis = "error"
+    else:
+        response.redis = "not_configured"
 
     return response
 
@@ -584,7 +999,7 @@ continues without the alias - the agent can still communicate via token_id.
 
 **Token Team Concept:**
 Multiple agents from the same token can register different aliases:
-- Token 'claude-code-agent' can have aliases: Coordinator, Reviewer, Backend
+- A single team token can have aliases such as: Lead, Reviewer, Backend
 - Messages to any alias route to the shared inbox
     """,
     tags=["Authentication"],

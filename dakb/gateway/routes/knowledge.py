@@ -7,7 +7,6 @@ All routes require JWT authentication and respect access control levels.
 Version: 1.2
 Created: 2025-12-07
 Updated: 2025-12-08
-Author: Backend Agent (Claude Opus 4.5)
 
 Route Ordering (ISS-040 Fix):
 Static routes are defined BEFORE parametric routes to prevent FastAPI
@@ -30,8 +29,10 @@ Endpoints (Parametric Routes - defined after static routes):
 - GET    /api/v1/knowledge              - List knowledge (with filters)
 """
 
+import asyncio
 import logging
 import time
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -57,6 +58,7 @@ from ...db import (
     get_dakb_repositories,
 )
 from ...db.collections import get_dakb_client
+from ..agentic import ok_response, raise_issue
 from ..config import get_settings
 from ..middleware.auth import (
     AccessChecker,
@@ -144,6 +146,49 @@ class SearchResponse(BaseModel):
     total: int
     query: str
     search_time_ms: float
+
+
+class VaultFileSummary(BaseModel):
+    """Summary of a vault file for knowledge response."""
+    file_id: str
+    filename: str
+    mime_type: str
+    size_bytes: int
+    description: str | None = None
+    download_url: str
+    uploaded_at: datetime
+
+
+class KnowledgeWithVaultResponse(BaseModel):
+    """Knowledge entry with vault file summaries joined at response time.
+
+    Serializes flat: all DakbKnowledge fields at top level + vault_files list.
+    Matches design doc Section 6.6 API shape.
+    """
+    knowledge: DakbKnowledge
+    vault_files: list[VaultFileSummary] = Field(default_factory=list)
+
+    def model_dump(self, **kwargs) -> dict:
+        """Flatten: knowledge fields at top level + vault_files."""
+        data = self.knowledge.model_dump(**kwargs)
+        data["vault_files"] = [vf.model_dump(**kwargs) for vf in self.vault_files]
+        return data
+
+
+def build_vault_summaries(knowledge_id: str, vault_files: list) -> list[VaultFileSummary]:
+    """Convert VaultFile models to VaultFileSummary response objects."""
+    summaries = []
+    for vf in vault_files:
+        summaries.append(VaultFileSummary(
+            file_id=vf.file_id,
+            filename=vf.filename,
+            mime_type=vf.mime_type,
+            size_bytes=vf.size_bytes,
+            description=vf.description,
+            download_url=f"/api/v1/vault/{knowledge_id}/{vf.file_id}/download",
+            uploaded_at=vf.uploaded_at,
+        ))
+    return summaries
 
 
 # =============================================================================
@@ -306,7 +351,6 @@ def get_repositories():
 
 @router.post(
     "",
-    response_model=DakbKnowledge,
     status_code=201,
     summary="Create knowledge entry",
     description="Create a new knowledge entry with automatic embedding indexing."
@@ -314,7 +358,7 @@ def get_repositories():
 async def create_knowledge(
     request: CreateKnowledgeRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> DakbKnowledge:
+):
     """
     Create a new knowledge entry.
 
@@ -394,14 +438,18 @@ async def create_knowledge(
 
     logger.info(f"Knowledge created: {knowledge.knowledge_id} by {agent.agent_id}")
 
-    return knowledge
+    return ok_response(
+        data=knowledge.model_dump(),
+        status="created",
+        http_status=201,
+        actions=["get_knowledge", "search_knowledge", "update_knowledge", "vote_knowledge"],
+    )
 
 
 @router.get(
     "/search",
-    response_model=SearchResponse,
-    summary="Semantic search",
-    description="Search knowledge base using semantic similarity."
+    summary="Hybrid search (semantic + keyword)",
+    description="Search knowledge base using hybrid FAISS vector + MongoDB text search with weighted score fusion."
 )
 async def search_knowledge(
     query: str = Query(..., min_length=1, description="Search query"),
@@ -409,12 +457,12 @@ async def search_knowledge(
     category: Category | None = Query(None, description="Filter by category"),
     min_score: float | None = Query(None, ge=0.0, le=1.0),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> SearchResponse:
+):
     """
-    Perform semantic search on knowledge base.
+    Perform hybrid search combining FAISS semantic search with MongoDB text search.
 
-    Uses FAISS for fast approximate nearest neighbor search.
-    Results are filtered based on agent's access permissions.
+    Score fusion: (faiss_weight * faiss_score) + (text_weight * normalized_text_score)
+    Default weights: 70% FAISS + 30% text.
 
     Args:
         query: Search query text.
@@ -424,53 +472,84 @@ async def search_knowledge(
         agent: Authenticated agent.
 
     Returns:
-        Search results with similarity scores.
+        Search results with fused similarity scores.
     """
     repos = get_repositories()
     settings = get_settings()
     start_time = time.time()
 
-    # Set minimum score
     effective_min_score = min_score or settings.min_similarity_score
-
-    # Request more results to account for access filtering
     search_k = min(k * 2, settings.max_search_limit)
 
-    # Semantic search via embedding service
-    try:
-        search_response = await call_embedding_service(
-            "/search",
-            {"query": query, "k": search_k}
+    # --- FAISS semantic search (async) ---
+    async def _faiss_search() -> dict[str, float]:
+        try:
+            resp = await call_embedding_service(
+                "/search",
+                {"query": query, "k": search_k}
+            )
+            return {r["knowledge_id"]: r["score"] for r in resp.get("results", [])}
+        except HTTPException:
+            return {}
+
+    # --- MongoDB text search (sync, run in thread) ---
+    def _text_search() -> dict[str, float]:
+        cat_str = category.value if category else None
+        text_candidates = getattr(settings, 'hybrid_text_candidates', 30)
+        try:
+            text_results = repos["knowledge"].text_search(
+                query, text_candidates, cat_str
+            )
+            if not text_results:
+                return {}
+            max_text = text_results[0][1]  # Sorted desc, first is max
+            if max_text <= 0:
+                return {}
+            return {kid: raw / max_text for kid, raw in text_results}
+        except Exception as e:
+            logger.warning(f"Text search failed, falling back to FAISS-only: {e}")
+            return {}
+
+    # Run both searches concurrently
+    if getattr(settings, 'hybrid_search_enabled', True):
+        faiss_score_map, text_score_map = await asyncio.gather(
+            _faiss_search(),
+            asyncio.to_thread(_text_search),
         )
-    except HTTPException:
-        # Fallback: return empty results if embedding service unavailable
-        return SearchResponse(
-            results=[],
-            total=0,
-            query=query,
-            search_time_ms=0
+    else:
+        faiss_score_map = await _faiss_search()
+        text_score_map = {}
+
+    # --- Score fusion ---
+    faiss_w = getattr(settings, 'hybrid_faiss_weight', 0.7)
+    text_w = getattr(settings, 'hybrid_text_weight', 0.3)
+
+    all_ids = set(faiss_score_map.keys()) | set(text_score_map.keys())
+
+    if not all_ids:
+        return ok_response(
+            data=SearchResponse(
+                results=[],
+                total=0,
+                query=query,
+                search_time_ms=(time.time() - start_time) * 1000,
+            ).model_dump(),
+            actions=["store_knowledge", "search_knowledge", "get_stats"],
+            suggestions=["No results found. Try broadening your query or storing new knowledge."],
         )
 
-    # Get knowledge IDs from search results
-    search_results = search_response.get("results", [])
-    knowledge_ids = [r["knowledge_id"] for r in search_results]
-    score_map = {r["knowledge_id"]: r["score"] for r in search_results}
+    fused_scores: dict[str, float] = {}
+    for kid in all_ids:
+        f_score = faiss_score_map.get(kid, 0.0)
+        t_score = text_score_map.get(kid, 0.0)
+        fused_scores[kid] = faiss_w * f_score + text_w * t_score
 
-    if not knowledge_ids:
-        return SearchResponse(
-            results=[],
-            total=0,
-            query=query,
-            search_time_ms=(time.time() - start_time) * 1000
-        )
-
-    # Fetch knowledge entries
-    knowledge_entries = repos["knowledge"].get_by_ids(knowledge_ids)
+    # Fetch knowledge entries for all candidates
+    knowledge_entries = repos["knowledge"].get_by_ids(list(all_ids))
 
     # Filter by access control and other criteria
     filtered_results = []
     for entry in knowledge_entries:
-        # Access control check
         if not AccessChecker.can_access(
             agent,
             entry.access_level,
@@ -479,17 +558,14 @@ async def search_knowledge(
         ):
             continue
 
-        # Category filter
         if category and entry.category != category:
             continue
 
-        # Skip deleted/deprecated
         if entry.status in [KnowledgeStatus.DELETED, KnowledgeStatus.DEPRECATED]:
             continue
 
-        score = score_map.get(entry.knowledge_id, 0.0)
+        score = fused_scores.get(entry.knowledge_id, 0.0)
 
-        # Minimum score filter
         if score < effective_min_score:
             continue
 
@@ -497,17 +573,20 @@ async def search_knowledge(
             SearchResultItem(knowledge=entry, similarity_score=score)
         )
 
-    # Sort by score and limit
+    # Sort by fused score and limit
     filtered_results.sort(key=lambda x: x.similarity_score, reverse=True)
     filtered_results = filtered_results[:k]
 
     search_time_ms = (time.time() - start_time) * 1000
 
-    return SearchResponse(
-        results=filtered_results,
-        total=len(filtered_results),
-        query=query,
-        search_time_ms=search_time_ms
+    return ok_response(
+        data=SearchResponse(
+            results=filtered_results,
+            total=len(filtered_results),
+            query=query,
+            search_time_ms=search_time_ms,
+        ).model_dump(),
+        actions=["get_knowledge", "store_knowledge", "find_related", "list_by_tags"],
     )
 
 
@@ -519,7 +598,6 @@ async def search_knowledge(
 
 @router.post(
     "/bulk",
-    response_model=BulkCreateResponse,
     status_code=201,
     summary="Bulk create knowledge entries",
     description="Create multiple knowledge entries in a single request."
@@ -527,7 +605,7 @@ async def search_knowledge(
 async def bulk_create_knowledge(
     request: BulkCreateRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> BulkCreateResponse:
+):
     """
     Create multiple knowledge entries in bulk.
 
@@ -622,17 +700,20 @@ async def bulk_create_knowledge(
         f"{len(failed)} failed by {agent.agent_id}"
     )
 
-    return BulkCreateResponse(
-        created_ids=created_ids,
-        failed=failed,
-        success_count=len(created_ids),
-        fail_count=len(failed)
+    return ok_response(
+        data=BulkCreateResponse(
+            created_ids=created_ids,
+            failed=failed,
+            success_count=len(created_ids),
+            fail_count=len(failed),
+        ).model_dump(),
+        status="created",
+        actions=["get_knowledge", "search_knowledge", "get_stats"],
     )
 
 
 @router.get(
     "/by-tags",
-    response_model=ListByTagsResponse,
     summary="List knowledge by tags",
     description="List knowledge entries that match specified tags."
 )
@@ -644,7 +725,7 @@ async def list_by_tags(
     ),
     limit: int = Query(default=50, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> ListByTagsResponse:
+):
     """
     List knowledge entries that match specified tags.
 
@@ -661,10 +742,7 @@ async def list_by_tags(
 
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     if not tag_list:
-        raise HTTPException(
-            status_code=400,
-            detail="At least one tag is required"
-        )
+        raise_issue("KB.TAGS_REQUIRED", status=400, context={"tags_param": tags})
 
     items = repos["knowledge"].find_by_tags(
         tag_list,
@@ -683,21 +761,23 @@ async def list_by_tags(
         ):
             accessible_items.append(item)
 
-    return ListByTagsResponse(
-        items=accessible_items,
-        total=len(accessible_items)
+    return ok_response(
+        data=ListByTagsResponse(
+            items=accessible_items,
+            total=len(accessible_items),
+        ).model_dump(),
+        actions=["get_knowledge", "search_knowledge", "store_knowledge"],
     )
 
 
 @router.get(
     "/stats",
-    response_model=StatsResponse,
     summary="Get knowledge base statistics",
     description="Get detailed statistics about the knowledge base."
 )
 async def get_stats(
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> StatsResponse:
+):
     """
     Get detailed knowledge base statistics.
 
@@ -715,20 +795,22 @@ async def get_stats(
     # Get aggregated statistics from repository
     stats = repos["knowledge"].get_statistics()
 
-    return StatsResponse(
-        total_entries=stats.get("total_entries", 0),
-        by_category=stats.get("by_category", {}),
-        by_content_type=stats.get("by_content_type", {}),
-        by_access_level=stats.get("by_access_level", {}),
-        top_tags=stats.get("top_tags", []),
-        indexed_count=stats.get("indexed_count", 0),
-        expired_count=stats.get("expired_count", 0)
+    return ok_response(
+        data=StatsResponse(
+            total_entries=stats.get("total_entries", 0),
+            by_category=stats.get("by_category", {}),
+            by_content_type=stats.get("by_content_type", {}),
+            by_access_level=stats.get("by_access_level", {}),
+            top_tags=stats.get("top_tags", []),
+            indexed_count=stats.get("indexed_count", 0),
+            expired_count=stats.get("expired_count", 0),
+        ).model_dump(),
+        actions=["search_knowledge", "store_knowledge", "list_by_tags", "list_by_category"],
     )
 
 
 @router.post(
     "/cleanup-expired",
-    response_model=CleanupResponse,
     summary="Cleanup expired knowledge",
     description="Remove expired knowledge entries. Admin only."
 )
@@ -738,7 +820,7 @@ async def cleanup_expired(
         description="Preview without deleting if true"
     ),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> CleanupResponse:
+):
     """
     Cleanup expired knowledge entries.
 
@@ -757,9 +839,10 @@ async def cleanup_expired(
     """
     # Require admin role
     if agent.role.value != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Admin role required for cleanup operations"
+        raise_issue(
+            "MOD.ADMIN_REQUIRED",
+            status=403,
+            context={"agent_id": agent.agent_id, "operation": "cleanup_expired"},
         )
 
     repos = get_repositories()
@@ -809,19 +892,26 @@ async def cleanup_expired(
             f"by {agent.agent_id}"
         )
 
-        return CleanupResponse(
-            expired_count=len(expired_ids),
-            dry_run=False,
-            deleted_ids=deleted_ids,
-            expired_ids=[]
+        return ok_response(
+            data=CleanupResponse(
+                expired_count=len(expired_ids),
+                dry_run=False,
+                deleted_ids=deleted_ids,
+                expired_ids=[],
+            ).model_dump(),
+            actions=["get_stats", "search_knowledge"],
         )
     else:
         # Dry run - just return preview
-        return CleanupResponse(
-            expired_count=len(expired_ids),
-            dry_run=True,
-            deleted_ids=[],
-            expired_ids=expired_ids
+        return ok_response(
+            data=CleanupResponse(
+                expired_count=len(expired_ids),
+                dry_run=True,
+                deleted_ids=[],
+                expired_ids=expired_ids,
+            ).model_dump(),
+            actions=["get_stats", "search_knowledge"],
+            suggestions=["Set dry_run=false to execute the cleanup."] if expired_ids else [],
         )
 
 
@@ -831,26 +921,26 @@ async def cleanup_expired(
 
 @router.get(
     "/{knowledge_id}",
-    response_model=DakbKnowledge,
     summary="Get knowledge by ID",
-    description="Retrieve a knowledge entry by its unique identifier."
+    description="Retrieve a knowledge entry by its unique identifier. Includes vault file summaries when present."
 )
 async def get_knowledge(
     knowledge_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> DakbKnowledge:
+):
     """
     Get a knowledge entry by ID.
 
     Access control is enforced based on the knowledge's access level
-    and the agent's permissions.
+    and the agent's permissions. If the entry has vault files,
+    active file summaries with download URLs are included.
 
     Args:
         knowledge_id: Unique knowledge identifier.
         agent: Authenticated agent.
 
     Returns:
-        Knowledge entry.
+        Knowledge entry with vault file summaries.
 
     Raises:
         HTTPException: If not found or access denied.
@@ -859,7 +949,7 @@ async def get_knowledge(
 
     knowledge = repos["knowledge"].get_by_id(knowledge_id)
     if not knowledge:
-        raise HTTPException(status_code=404, detail="Knowledge not found")
+        raise_issue("KB.NOT_FOUND", status=404, context={"knowledge_id": knowledge_id})
 
     # Check access control
     AccessChecker.require_access(
@@ -882,12 +972,24 @@ async def get_knowledge(
         machine_id=agent.machine_id
     )
 
-    return knowledge
+    # Join vault files if present
+    vault_summaries = []
+    if getattr(knowledge, 'has_vault_files', False) and "vault_files" in repos:
+        vault_files = repos["vault_files"].get_by_knowledge_id(knowledge_id)
+        vault_summaries = build_vault_summaries(knowledge_id, vault_files)
+
+    response = KnowledgeWithVaultResponse(
+        knowledge=knowledge,
+        vault_files=vault_summaries,
+    )
+    return ok_response(
+        data=response.model_dump(),
+        actions=["update_knowledge", "vote_knowledge", "find_related", "post_thread"],
+    )
 
 
 @router.put(
     "/{knowledge_id}",
-    response_model=DakbKnowledge,
     summary="Update knowledge",
     description="Update an existing knowledge entry."
 )
@@ -895,7 +997,7 @@ async def update_knowledge(
     knowledge_id: str,
     request: UpdateKnowledgeRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> DakbKnowledge:
+):
     """
     Update a knowledge entry.
 
@@ -915,27 +1017,41 @@ async def update_knowledge(
     # Get existing knowledge
     existing = repos["knowledge"].get_by_id(knowledge_id)
     if not existing:
-        raise HTTPException(status_code=404, detail="Knowledge not found")
+        raise_issue("KB.NOT_FOUND", status=404, context={"knowledge_id": knowledge_id})
 
     # Check ownership or admin role
     is_owner = existing.source.agent_id == agent.agent_id
     is_admin = agent.role.value == "admin"
 
     if not is_owner and not is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail="Only the owner or admin can update knowledge"
+        raise_issue(
+            "KB.OWNER_REQUIRED",
+            status=403,
+            context={"knowledge_id": knowledge_id, "owner": existing.source.agent_id},
         )
 
-    # Prepare update
-    update_data = KnowledgeUpdate(
-        title=request.title,
-        content=request.content,
-        tags=request.tags,
-        access_level=request.access_level,
-        status=request.status,
-        confidence_score=request.confidence_score
-    )
+    # Phase 6: Create version snapshot before applying content/title changes
+    if request.content or request.title:
+        try:
+            latest_ver = repos["versions"].get_latest_version(knowledge_id)
+            next_version = (latest_ver or 0) + 1
+            repos["versions"].create_version(
+                knowledge_id=knowledge_id,
+                version=next_version,
+                title=existing.title,
+                content=existing.content,
+                edited_by=agent.agent_id,
+                editor_alias="",
+                change_summary=None,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create version snapshot for {knowledge_id}: {e}")
+
+    # Prepare update — only include fields the user actually sent
+    # (passing None explicitly marks fields as "set" in Pydantic,
+    # causing model_dump(exclude_unset=True) to include them,
+    # which writes null to MongoDB and breaks DakbKnowledge validation)
+    update_data = KnowledgeUpdate(**request.model_dump(exclude_unset=True))
 
     # Update in MongoDB
     updated = repos["knowledge"].update(
@@ -945,7 +1061,7 @@ async def update_knowledge(
     )
 
     if not updated:
-        raise HTTPException(status_code=500, detail="Failed to update knowledge")
+        raise_issue("KB.UPDATE_FAILED", status=500, context={"knowledge_id": knowledge_id})
 
     # ISS-014 Fix: Re-index if content changed using atomic /reindex endpoint
     # This prevents race condition where delete succeeds but add fails,
@@ -983,7 +1099,10 @@ async def update_knowledge(
 
     logger.info(f"Knowledge updated: {knowledge_id} by {agent.agent_id}")
 
-    return updated
+    return ok_response(
+        data=updated.model_dump(),
+        actions=["get_knowledge", "search_knowledge", "vote_knowledge", "find_related"],
+    )
 
 
 @router.delete(
@@ -1011,22 +1130,23 @@ async def delete_knowledge(
     # Get existing knowledge
     existing = repos["knowledge"].get_by_id(knowledge_id)
     if not existing:
-        raise HTTPException(status_code=404, detail="Knowledge not found")
+        raise_issue("KB.NOT_FOUND", status=404, context={"knowledge_id": knowledge_id})
 
     # Check ownership or admin role
     is_owner = existing.source.agent_id == agent.agent_id
     is_admin = agent.role.value == "admin"
 
     if not is_owner and not is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail="Only the owner or admin can delete knowledge"
+        raise_issue(
+            "KB.OWNER_REQUIRED",
+            status=403,
+            context={"knowledge_id": knowledge_id, "owner": existing.source.agent_id},
         )
 
     # Soft delete in MongoDB
     success = repos["knowledge"].delete(knowledge_id, soft=True)
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete knowledge")
+        raise_issue("KB.DELETE_FAILED", status=500, context={"knowledge_id": knowledge_id})
 
     # Remove from FAISS index
     try:
@@ -1052,7 +1172,6 @@ async def delete_knowledge(
 
 @router.post(
     "/{knowledge_id}/vote",
-    response_model=DakbKnowledge,
     summary="Vote on knowledge",
     description="Cast a vote on a knowledge entry (helpful, unhelpful, outdated, incorrect)."
 )
@@ -1060,7 +1179,7 @@ async def vote_on_knowledge(
     knowledge_id: str,
     request: VoteRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> DakbKnowledge:
+):
     """
     Vote on a knowledge entry.
 
@@ -1080,15 +1199,17 @@ async def vote_on_knowledge(
     # Validate vote type
     valid_votes = ["helpful", "unhelpful", "outdated", "incorrect"]
     if request.vote not in valid_votes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid vote type. Must be one of: {valid_votes}"
+        raise_issue(
+            "KB.VOTE_TYPE_INVALID",
+            status=400,
+            field="vote",
+            context={"provided": request.vote, "valid_values": valid_votes},
         )
 
     # Get existing knowledge
     existing = repos["knowledge"].get_by_id(knowledge_id)
     if not existing:
-        raise HTTPException(status_code=404, detail="Knowledge not found")
+        raise_issue("KB.NOT_FOUND", status=404, context={"knowledge_id": knowledge_id})
 
     # Check access - must be able to read to vote
     AccessChecker.require_access(
@@ -1110,7 +1231,7 @@ async def vote_on_knowledge(
     # Record vote
     updated = repos["knowledge"].vote(knowledge_id, agent.agent_id, vote_data)
     if not updated:
-        raise HTTPException(status_code=500, detail="Failed to record vote")
+        raise_issue("KB.VOTE_FAILED", status=500, context={"knowledge_id": knowledge_id})
 
     # Audit log
     repos["audit"].log(
@@ -1124,12 +1245,14 @@ async def vote_on_knowledge(
 
     logger.info(f"Vote recorded on {knowledge_id}: {request.vote} by {agent.agent_id}")
 
-    return updated
+    return ok_response(
+        data=updated.model_dump(),
+        actions=["get_knowledge", "find_related", "post_thread", "flag_for_review"],
+    )
 
 
 @router.get(
     "",
-    response_model=KnowledgeListResponse,
     summary="List knowledge",
     description="List knowledge entries with optional filtering."
 )
@@ -1139,7 +1262,7 @@ async def list_knowledge(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> KnowledgeListResponse:
+):
     """
     List knowledge entries with filtering and pagination.
 
@@ -1168,10 +1291,7 @@ async def list_knowledge(
         )
     else:
         # Require at least one filter for now
-        raise HTTPException(
-            status_code=400,
-            detail="At least one filter (category or tag) is required"
-        )
+        raise_issue("KB.FILTER_REQUIRED", status=400, context={"category": None, "tags": None})
 
     # Filter by access control
     accessible_items = []
@@ -1184,17 +1304,19 @@ async def list_knowledge(
         ):
             accessible_items.append(item)
 
-    return KnowledgeListResponse(
-        items=accessible_items,
-        total=len(accessible_items),
-        page=page,
-        page_size=page_size
+    return ok_response(
+        data=KnowledgeListResponse(
+            items=accessible_items,
+            total=len(accessible_items),
+            page=page,
+            page_size=page_size,
+        ).model_dump(),
+        actions=["get_knowledge", "search_knowledge", "store_knowledge", "get_stats"],
     )
 
 
 @router.get(
     "/{knowledge_id}/related",
-    response_model=FindRelatedResponse,
     summary="Find related knowledge",
     description="Find knowledge entries semantically related to a given entry."
 )
@@ -1202,7 +1324,7 @@ async def find_related(
     knowledge_id: str,
     limit: int = Query(default=5, ge=1, le=20),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> FindRelatedResponse:
+):
     """
     Find knowledge entries related to a given entry.
 
@@ -1223,7 +1345,7 @@ async def find_related(
     # Get source knowledge
     source = repos["knowledge"].get_by_id(knowledge_id)
     if not source:
-        raise HTTPException(status_code=404, detail="Knowledge not found")
+        raise_issue("KB.NOT_FOUND", status=404, context={"knowledge_id": knowledge_id})
 
     # Check access to source
     AccessChecker.require_access(
@@ -1243,10 +1365,14 @@ async def find_related(
             {"query": search_text, "k": limit + 1}  # +1 to exclude self
         )
     except HTTPException:
-        return FindRelatedResponse(
-            source_id=knowledge_id,
-            related=[],
-            total=0
+        return ok_response(
+            data=FindRelatedResponse(
+                source_id=knowledge_id,
+                related=[],
+                total=0,
+            ).model_dump(),
+            actions=["get_knowledge", "search_knowledge"],
+            suggestions=["Embedding service unavailable. Try search_knowledge instead."],
         )
 
     # Get knowledge IDs from search results
@@ -1259,10 +1385,13 @@ async def find_related(
     score_map = {r["knowledge_id"]: r["score"] for r in search_results}
 
     if not knowledge_ids:
-        return FindRelatedResponse(
-            source_id=knowledge_id,
-            related=[],
-            total=0
+        return ok_response(
+            data=FindRelatedResponse(
+                source_id=knowledge_id,
+                related=[],
+                total=0,
+            ).model_dump(),
+            actions=["get_knowledge", "search_knowledge", "store_knowledge"],
         )
 
     # Fetch knowledge entries
@@ -1291,8 +1420,11 @@ async def find_related(
     # Sort by score
     related_items.sort(key=lambda x: x.similarity_score, reverse=True)
 
-    return FindRelatedResponse(
-        source_id=knowledge_id,
-        related=related_items[:limit],
-        total=len(related_items)
+    return ok_response(
+        data=FindRelatedResponse(
+            source_id=knowledge_id,
+            related=related_items[:limit],
+            total=len(related_items),
+        ).model_dump(),
+        actions=["get_knowledge", "vote_knowledge", "post_thread", "search_knowledge"],
     )

@@ -71,6 +71,30 @@ services:
           memory: 2G
 
   # ==========================================================================
+  # Redis - Real-time Pub/Sub (v2.0.0)
+  # ==========================================================================
+  # Backs the WebSocket pub/sub, presence, task-delegation, notification bus,
+  # Session Bridge and Chat Bridge transports. The gateway degrades gracefully
+  # when Redis is unavailable (real-time features disabled, REST still works).
+  redis:
+    image: redis:7-alpine
+    container_name: dakb-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"  # Loopback only for security
+    volumes:
+      - dakb-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dakb-network
+
+  # ==========================================================================
   # Gateway Service - REST API
   # ==========================================================================
   gateway:
@@ -88,14 +112,19 @@ services:
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-dakb}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${MONGO_DATABASE:-dakb}?authSource=admin
       DAKB_EMBEDDING_URL: http://embedding:3101
       DAKB_FAISS_DIR: /app/data/dakb_faiss
+      DAKB_REDIS_URL: ${DAKB_REDIS_URL:-redis://redis:6379/0}
+      DAKB_VAULT_LOCAL_BASE_PATH: /app/data/vault
       DAKB_LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - dakb-faiss:/app/data/dakb_faiss
+      - dakb-vault:/app/data/vault
       - dakb-logs:/app/logs
     depends_on:
       mongodb:
         condition: service_healthy
       embedding:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3100/health"]
@@ -122,6 +151,10 @@ volumes:
   dakb-models:
     driver: local
   dakb-faiss:
+    driver: local
+  dakb-vault:
+    driver: local
+  dakb-redis:
     driver: local
   dakb-logs:
     driver: local

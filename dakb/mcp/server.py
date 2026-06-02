@@ -24,16 +24,16 @@ Changelog:
 
 Usage:
     # As a module (standard profile - default)
-    python -m backend.dakb_service.mcp.server
+    python -m dakb.mcp.server
 
-    # With full profile (all 28 tools)
-    DAKB_PROFILE=full python -m backend.dakb_service.mcp.server
+    # With full profile (all tools)
+    DAKB_PROFILE=full python -m dakb.mcp.server
 
     # Or directly
-    python backend/dakb_service/mcp/server.py
+    python dakb/mcp/server.py
 
     # With authentication token
-    DAKB_AUTH_TOKEN=<token> python -m backend.dakb_service.mcp.server
+    DAKB_AUTH_TOKEN=<token> python -m dakb.mcp.server
 
 Environment Variables:
     DAKB_GATEWAY_URL: Gateway URL (default: http://localhost:3100)
@@ -87,7 +87,7 @@ class DAKBMCPServer:
     # Server metadata
     SERVER_NAME = "dakb-mcp-server"
     SERVER_VERSION = "1.2.0"
-    PROTOCOL_VERSION = "2024-11-05"
+    PROTOCOL_VERSION = "2025-06-18"
 
     def __init__(self):
         """Initialize the MCP server."""
@@ -141,6 +141,7 @@ class DAKBMCPServer:
             "capabilities": {
                 "tools": {},  # We support tools
                 "resources": {},  # We could add resources later
+                "elicitation": {},  # Form mode — user confirmation mid-tool-call
             },
             "serverInfo": {
                 "name": self.SERVER_NAME,

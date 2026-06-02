@@ -6,7 +6,6 @@ Enables one token to register multiple aliases for flexible message routing.
 
 Version: 1.0
 Created: 2025-12-11
-Author: Backend Agent (Claude Opus 4.5)
 
 Endpoints:
 - POST   /api/v1/aliases              - Register new alias
@@ -32,6 +31,7 @@ from ...db import (
     get_dakb_repositories,
 )
 from ...db.collections import get_dakb_client
+from ..agentic import ok_response, raise_issue
 from ..config import get_settings
 from ..middleware.auth import (
     AuthenticatedAgent,
@@ -131,14 +131,13 @@ def get_repositories():
 
 @router.get(
     "/resolve/{alias}",
-    response_model=ResolveAliasResponse,
     summary="Resolve alias to token_id",
     description="Public endpoint to resolve an alias to its owning token_id for message routing."
 )
 async def resolve_alias(
     alias: str,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> ResolveAliasResponse:
+):
     """
     Resolve an alias to its owning token_id.
 
@@ -162,29 +161,30 @@ async def resolve_alias(
 
     if token_id is None:
         logger.debug(f"Alias resolution failed: '{alias}' not found or inactive")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Alias '{alias}' not found or inactive"
+        raise_issue(
+            "ALIAS.NOT_FOUND",
+            status=404,
+            message=f"Alias '{alias}' not found or inactive",
+            context={"alias": alias},
         )
 
     logger.info(f"Alias '{alias}' resolved to token '{token_id}' by {agent.agent_id}")
 
-    return ResolveAliasResponse(
-        token_id=token_id,
-        alias=alias
+    return ok_response(
+        data={"token_id": token_id, "alias": alias},
+        actions=["list_aliases", "register_alias"],
     )
 
 
 @router.get(
     "/check/{alias}",
-    response_model=AliasAvailabilityResponse,
     summary="Check alias availability",
     description="Check if an alias name is available for registration."
 )
 async def check_alias_availability(
     alias: str,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> AliasAvailabilityResponse:
+):
     """
     Check if an alias name is available for registration.
 
@@ -199,9 +199,14 @@ async def check_alias_availability(
 
     available = repos["aliases"].is_alias_available(alias)
 
-    return AliasAvailabilityResponse(
-        alias=alias,
-        available=available
+    return ok_response(
+        data={"alias": alias, "available": available},
+        actions=["register_alias", "list_aliases"] if available else ["list_aliases", "resolve_alias"],
+        suggestions=[
+            f"Register this alias: POST /api/v1/aliases with alias='{alias}'"
+        ] if available else [
+            f"Alias '{alias}' is taken — try a different name or resolve it: GET /api/v1/aliases/resolve/{alias}"
+        ],
     )
 
 
@@ -211,7 +216,6 @@ async def check_alias_availability(
 
 @router.post(
     "",
-    response_model=RegisterAliasResponse,
     status_code=201,
     summary="Register new alias",
     description="Register a new alias for the authenticated token."
@@ -219,7 +223,7 @@ async def check_alias_availability(
 async def register_alias(
     request: RegisterAliasRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> RegisterAliasResponse:
+):
     """
     Register a new alias for the authenticated token.
 
@@ -249,10 +253,11 @@ async def register_alias(
             f"Alias registration failed: '{request.alias}' already exists "
             f"(requested by token '{token_id}')"
         )
-        raise HTTPException(
-            status_code=409,
-            detail=f"Alias '{request.alias}' is already registered. "
-                   "Aliases must be globally unique."
+        raise_issue(
+            "ALIAS.ALREADY_EXISTS",
+            status=409,
+            message=f"Alias '{request.alias}' is already registered — aliases must be globally unique",
+            context={"alias": request.alias},
         )
 
     try:
@@ -269,13 +274,19 @@ async def register_alias(
             f"(role: {request.role or 'none'})"
         )
 
-        return RegisterAliasResponse(
-            alias_id=alias_record.alias_id,
-            token_id=alias_record.token_id,
-            alias=alias_record.alias,
-            role=alias_record.role,
-            is_active=alias_record.is_active,
-            message=f"Alias '{request.alias}' registered successfully"
+        return ok_response(
+            data={
+                "alias_id": alias_record.alias_id,
+                "token_id": alias_record.token_id,
+                "alias": alias_record.alias,
+                "role": alias_record.role,
+                "is_active": alias_record.is_active,
+            },
+            actions=["list_aliases", "resolve_alias", "deactivate_alias"],
+            suggestions=[
+                f"Resolve this alias: GET /api/v1/aliases/resolve/{alias_record.alias}",
+                "List your aliases: GET /api/v1/aliases",
+            ],
         )
 
     except DuplicateKeyError:
@@ -284,22 +295,24 @@ async def register_alias(
             f"Alias registration race condition: '{request.alias}' "
             f"was registered by another token"
         )
-        raise HTTPException(
-            status_code=409,
-            detail=f"Alias '{request.alias}' was just registered by another token. "
-                   "Please try a different alias."
+        raise_issue(
+            "ALIAS.ALREADY_EXISTS",
+            status=409,
+            message=f"Alias '{request.alias}' was just registered by another token — try a different alias",
+            context={"alias": request.alias},
         )
     except ValueError as e:
         logger.warning(f"Alias validation error: {e}")
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
+        raise_issue(
+            "ALIAS.LIMIT_REACHED",
+            status=400,
+            message=str(e),
+            context={"alias": request.alias, "token_id": token_id},
         )
 
 
 @router.get(
     "",
-    response_model=AliasListResponse,
     summary="List aliases for current token",
     description="List all aliases registered to the authenticated token."
 )
@@ -309,7 +322,7 @@ async def list_aliases(
         description="If true, only return active aliases"
     ),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> AliasListResponse:
+):
     """
     List all aliases registered to the authenticated token.
 
@@ -335,23 +348,25 @@ async def list_aliases(
         f"(active_only={active_only})"
     )
 
-    return AliasListResponse(
-        aliases=aliases,
-        total=len(aliases),
-        token_id=token_id
+    return ok_response(
+        data={
+            "aliases": [a.model_dump() for a in aliases],
+            "total": len(aliases),
+            "token_id": token_id,
+        },
+        actions=["register_alias", "resolve_alias", "deactivate_alias"],
     )
 
 
 @router.delete(
     "/{alias}",
-    response_model=DeactivateAliasResponse,
     summary="Deactivate alias",
     description="Deactivate (soft delete) an alias. Only the owning token can deactivate."
 )
 async def deactivate_alias(
     alias: str,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> DeactivateAliasResponse:
+):
     """
     Deactivate an alias (soft delete).
 
@@ -382,9 +397,11 @@ async def deactivate_alias(
             f"Alias deactivation failed: '{alias}' not found "
             f"(requested by token '{token_id}')"
         )
-        raise HTTPException(
-            status_code=404,
-            detail=f"Alias '{alias}' not found"
+        raise_issue(
+            "ALIAS.NOT_FOUND",
+            status=404,
+            message=f"Alias '{alias}' not found",
+            context={"alias": alias},
         )
 
     # Check ownership
@@ -401,9 +418,13 @@ async def deactivate_alias(
     # Check if already inactive
     if not alias_record.is_active:
         logger.info(f"Alias '{alias}' is already inactive")
-        return DeactivateAliasResponse(
-            alias=alias,
-            message=f"Alias '{alias}' was already inactive"
+        return ok_response(
+            data={"alias": alias, "already_inactive": True},
+            status="noop",
+            actions=["list_aliases", "register_alias"],
+            suggestions=[
+                f"Alias '{alias}' was already inactive — no action taken",
+            ],
         )
 
     # Deactivate the alias
@@ -422,9 +443,12 @@ async def deactivate_alias(
 
     logger.info(f"Alias '{alias}' deactivated by token '{token_id}'")
 
-    return DeactivateAliasResponse(
-        alias=alias,
-        message=f"Alias '{alias}' has been deactivated"
+    return ok_response(
+        data={"alias": alias, "deactivated": True},
+        actions=["list_aliases", "register_alias"],
+        suggestions=[
+            f"Re-register: POST /api/v1/aliases with alias='{alias}'",
+        ],
     )
 
 
@@ -434,14 +458,13 @@ async def deactivate_alias(
 
 @router.post(
     "/{alias}/reactivate",
-    response_model=RegisterAliasResponse,
     summary="Reactivate alias",
     description="Reactivate a previously deactivated alias."
 )
 async def reactivate_alias(
     alias: str,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> RegisterAliasResponse:
+):
     """
     Reactivate a previously deactivated alias.
 
@@ -467,9 +490,11 @@ async def reactivate_alias(
     alias_record = repos["aliases"].get_by_alias(alias)
 
     if alias_record is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Alias '{alias}' not found"
+        raise_issue(
+            "ALIAS.NOT_FOUND",
+            status=404,
+            message=f"Alias '{alias}' not found",
+            context={"alias": alias},
         )
 
     # Check ownership
@@ -481,13 +506,19 @@ async def reactivate_alias(
 
     # Check if already active
     if alias_record.is_active:
-        return RegisterAliasResponse(
-            alias_id=alias_record.alias_id,
-            token_id=alias_record.token_id,
-            alias=alias_record.alias,
-            role=alias_record.role,
-            is_active=alias_record.is_active,
-            message=f"Alias '{alias}' is already active"
+        return ok_response(
+            data={
+                "alias_id": alias_record.alias_id,
+                "token_id": alias_record.token_id,
+                "alias": alias_record.alias,
+                "role": alias_record.role,
+                "is_active": alias_record.is_active,
+            },
+            status="noop",
+            actions=["list_aliases", "resolve_alias", "deactivate_alias"],
+            suggestions=[
+                f"Alias '{alias}' is already active — no action taken",
+            ],
         )
 
     # Reactivate the alias
@@ -504,11 +535,17 @@ async def reactivate_alias(
 
     logger.info(f"Alias '{alias}' reactivated by token '{token_id}'")
 
-    return RegisterAliasResponse(
-        alias_id=updated_record.alias_id,
-        token_id=updated_record.token_id,
-        alias=updated_record.alias,
-        role=updated_record.role,
-        is_active=updated_record.is_active,
-        message=f"Alias '{alias}' has been reactivated"
+    return ok_response(
+        data={
+            "alias_id": updated_record.alias_id,
+            "token_id": updated_record.token_id,
+            "alias": updated_record.alias,
+            "role": updated_record.role,
+            "is_active": updated_record.is_active,
+        },
+        actions=["list_aliases", "resolve_alias", "deactivate_alias"],
+        suggestions=[
+            f"Alias '{alias}' has been reactivated",
+            f"Resolve: GET /api/v1/aliases/resolve/{alias}",
+        ],
     )

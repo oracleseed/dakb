@@ -2,19 +2,22 @@
 DAKB Gateway Moderation Routes
 
 REST API routes for knowledge moderation operations.
-All moderation routes require admin role authentication.
+Moderation routes with role-based access:
+- flag: any authenticated agent
+- flags list, history: admin only
+- action (approve): admin only
+- action (delete): admin OR creator (source.agent_id match)
+- action (deprecate): any authenticated agent
 
-Version: 1.0
-Created: 2025-12-08
-Author: Backend Agent (Claude Opus 4.5)
+Version: 1.1
 
-ISS-048 Fix: Admin-only moderation enforcement at Gateway level.
-All routes in this module use require_role(AgentRole.ADMIN) dependency.
+v1.0: Admin-only moderation enforcement at Gateway level.
+v1.1: Relaxed delete/deprecate for MCP Elicitation support — user confirms via client UI.
 
 Endpoints:
 - POST   /api/v1/moderation/flag        - Flag knowledge for review
 - GET    /api/v1/moderation/flags       - List pending flags (admin)
-- POST   /api/v1/moderation/action      - Take moderation action (admin)
+- POST   /api/v1/moderation/action      - Take moderation action
 - GET    /api/v1/moderation/history     - Get moderation history (admin)
 """
 
@@ -22,7 +25,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from ...db import (
@@ -39,6 +42,7 @@ from ...db import (
     get_dakb_repositories,
 )
 from ...db.collections import get_dakb_client
+from ..agentic import ok_response, raise_issue
 from ..config import get_settings
 from ..middleware.auth import (
     AccessChecker,
@@ -95,6 +99,14 @@ class ModerateRequest(BaseModel):
     knowledge_id: str = Field(..., description="Knowledge ID to moderate")
     action: ModerateAction = Field(..., description="Moderation action to take")
     reason: str | None = Field(None, max_length=500, description="Reason for action")
+    user_confirmed: bool = Field(
+        False,
+        description=(
+            "Required for non-admin delete/deprecate. Must be true to confirm "
+            "the action. Admin callers can omit. MCP callers set this after "
+            "elicitation confirmation."
+        ),
+    )
 
 
 class ModerateResponse(BaseModel):
@@ -130,7 +142,6 @@ def get_repositories():
 
 @router.post(
     "/flag",
-    response_model=FlagResponse,
     status_code=201,
     summary="Flag knowledge for review",
     description="Flag a knowledge entry for moderation review. Any authenticated agent can flag."
@@ -138,7 +149,7 @@ def get_repositories():
 async def flag_for_review(
     request: FlagRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> FlagResponse:
+) -> dict:
     """
     Flag a knowledge entry for moderation review.
 
@@ -157,7 +168,10 @@ async def flag_for_review(
     # Verify knowledge exists
     knowledge = repos["knowledge"].get_by_id(request.knowledge_id)
     if not knowledge:
-        raise HTTPException(status_code=404, detail="Knowledge not found")
+        raise_issue(
+            "KB.NOT_FOUND", status=404,
+            context={"knowledge_id": request.knowledge_id},
+        )
 
     # Check agent can access this knowledge (must be able to read to flag)
     AccessChecker.require_access(
@@ -195,31 +209,33 @@ async def flag_for_review(
         f"for {request.reason.value}"
     )
 
-    return FlagResponse(
-        flag_id=flag.flag_id,
-        knowledge_id=request.knowledge_id,
-        reason=request.reason.value,
-        status="pending",
-        flagged_by=agent.agent_id,
-        flagged_at=flag.flagged_at
+    return ok_response(
+        data={
+            "flag_id": flag.flag_id,
+            "knowledge_id": request.knowledge_id,
+            "reason": request.reason.value,
+            "status": "pending",
+            "flagged_by": agent.agent_id,
+            "flagged_at": flag.created_at.isoformat() if flag.created_at else None,
+        },
+        actions=["flag_for_review", "list_flags", "get_knowledge", "search_knowledge"],
     )
 
 
 @router.get(
     "/flags",
-    response_model=FlagListResponse,
     summary="List pending flags",
     description="List all pending moderation flags. Admin only.",
-    dependencies=[Depends(require_role(AgentRole.ADMIN))]  # ISS-048: Admin enforcement at gateway
+    dependencies=[Depends(require_role(AgentRole.ADMIN))]  # Admin enforcement at gateway
 )
 async def list_flags(
     limit: int = Query(default=50, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> FlagListResponse:
+) -> dict:
     """
     List moderation flags.
 
-    ISS-048: Admin-only operation enforced at Gateway level via require_role.
+    Admin-only operation enforced at Gateway level via require_role.
 
     Args:
         limit: Maximum flags to return.
@@ -239,43 +255,48 @@ async def list_flags(
     # Count pending
     pending_count = repos["flags"].count_pending()
 
-    return FlagListResponse(
-        flags=flag_dicts,
-        total=len(flag_dicts),
-        pending_count=pending_count
+    return ok_response(
+        data={
+            "flags": flag_dicts,
+            "total": len(flag_dicts),
+            "pending_count": pending_count,
+        },
+        actions=["list_flags", "moderate_knowledge", "get_knowledge"],
     )
 
 
 @router.post(
     "/action",
-    response_model=ModerateResponse,
     summary="Take moderation action",
-    description="Take moderation action on knowledge. Admin only.",
-    dependencies=[Depends(require_role(AgentRole.ADMIN))]  # ISS-048: Admin enforcement at gateway
+    description=(
+        "Take moderation action on knowledge. "
+        "approve=admin only, delete=admin or creator, deprecate=any authenticated agent."
+    ),
 )
 async def moderate_knowledge(
     request: ModerateRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> ModerateResponse:
+) -> dict:
     """
     Take moderation action on knowledge.
 
-    ISS-048: Admin-only operation enforced at Gateway level via require_role.
+    Permission model (v1.1 — MCP Elicitation support):
+    - approve: Admin only
+    - delete: Admin OR creator (source.agent_id == requesting agent)
+    - deprecate: Any authenticated agent
 
-    Available actions:
-    - approve: Clear flags and mark as reviewed
-    - deprecate: Mark knowledge as deprecated
-    - delete: Soft delete the knowledge
+    Non-admin delete/deprecate requires user confirmation via MCP Elicitation
+    at the MCP handler layer. The gateway enforces identity checks.
 
     Args:
         request: Moderation action request.
-        agent: Authenticated admin agent.
+        agent: Authenticated agent.
 
     Returns:
         Moderation result with new status.
 
     Raises:
-        HTTPException: If knowledge not found or action fails.
+        AgenticError: If knowledge not found, action fails, or permission denied.
     """
     from ...db import KnowledgeUpdate
 
@@ -284,14 +305,59 @@ async def moderate_knowledge(
     # Verify knowledge exists
     knowledge = repos["knowledge"].get_by_id(request.knowledge_id)
     if not knowledge:
-        raise HTTPException(status_code=404, detail="Knowledge not found")
+        raise_issue(
+            "KB.NOT_FOUND", status=404,
+            context={"knowledge_id": request.knowledge_id},
+        )
+
+    # Action-specific permission checks
+    is_admin = agent.role == AgentRole.ADMIN
+
+    if request.action == ModerateAction.APPROVE:
+        # Approve: admin only
+        if not is_admin:
+            raise_issue(
+                "MOD.ADMIN_REQUIRED", status=403,
+                message="Admin role required for approve action",
+                context={"action": request.action.value},
+            )
+
+    elif request.action == ModerateAction.DELETE:
+        # Delete: admin OR creator (source.agent_id match)
+        if not is_admin:
+            if isinstance(knowledge, dict):
+                creator_id = knowledge.get("source", {}).get("agent_id")
+            else:
+                creator_id = getattr(getattr(knowledge, "source", None), "agent_id", None)
+            if creator_id != agent.agent_id:
+                raise_issue(
+                    "MOD.CREATOR_REQUIRED", status=403,
+                    message="Only the entry creator or an admin can delete entries",
+                    context={"action": request.action.value, "knowledge_id": request.knowledge_id},
+                )
+
+    # deprecate: any authenticated agent can deprecate (no extra check needed)
+
+    # Non-admin callers must explicitly confirm delete/deprecate
+    if not is_admin and request.action in [ModerateAction.DELETE, ModerateAction.DEPRECATE]:
+        if not request.user_confirmed:
+            raise_issue(
+                "MOD.CONFIRM_REQUIRED", status=400,
+                message=(
+                    f"Non-admin {request.action.value} requires user_confirmed=true. "
+                    f"MCP clients: this is set automatically after elicitation confirmation. "
+                    f"REST clients: set user_confirmed=true after confirming with the user."
+                ),
+                context={"action": request.action.value, "knowledge_id": request.knowledge_id},
+            )
 
     # Validate reason is provided for deprecate/delete
     if request.action in [ModerateAction.DEPRECATE, ModerateAction.DELETE]:
         if not request.reason:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Reason is required for {request.action.value} action"
+            raise_issue(
+                "MOD.REASON_REQUIRED", status=400,
+                message=f"Reason is required for {request.action.value} action",
+                context={"action": request.action.value, "knowledge_id": request.knowledge_id},
             )
 
     # Apply moderation action
@@ -333,9 +399,10 @@ async def moderate_knowledge(
         repos["knowledge"].delete(request.knowledge_id, soft=True)
 
     else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown action: {request.action}"
+        raise_issue(
+            "MOD.ADMIN_REQUIRED", status=400,
+            message=f"Unknown action: {request.action}",
+            context={"action": str(request.action)},
         )
 
     # Audit log
@@ -354,35 +421,37 @@ async def moderate_knowledge(
 
     logger.info(
         f"Knowledge {request.knowledge_id} moderated: {request.action.value} "
-        f"by admin {agent.agent_id}"
+        f"by {agent.agent_id}"
     )
 
-    return ModerateResponse(
-        success=True,
-        knowledge_id=request.knowledge_id,
-        action=request.action.value,
-        new_status=new_status.value,
-        moderated_by=agent.agent_id,
-        moderated_at=now
+    return ok_response(
+        data={
+            "success": True,
+            "knowledge_id": request.knowledge_id,
+            "action": request.action.value,
+            "new_status": new_status.value,
+            "moderated_by": agent.agent_id,
+            "moderated_at": now.isoformat(),
+        },
+        actions=["moderate_knowledge", "get_knowledge", "search_knowledge", "list_flags"],
     )
 
 
 @router.get(
     "/history",
-    response_model=ModerationHistoryResponse,
     summary="Get moderation history",
     description="Get moderation action history. Admin only.",
-    dependencies=[Depends(require_role(AgentRole.ADMIN))]  # ISS-048: Admin enforcement at gateway
+    dependencies=[Depends(require_role(AgentRole.ADMIN))]  # Admin enforcement at gateway
 )
 async def get_moderation_history(
     knowledge_id: str | None = Query(None, description="Filter by knowledge ID"),
     limit: int = Query(default=50, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent)
-) -> ModerationHistoryResponse:
+) -> dict:
     """
     Get moderation action history.
 
-    ISS-048: Admin-only operation enforced at Gateway level via require_role.
+    Admin-only operation enforced at Gateway level via require_role.
 
     Returns resolved flags as moderation history.
 
@@ -427,7 +496,10 @@ async def get_moderation_history(
             "resolution": flag.resolution,
         })
 
-    return ModerationHistoryResponse(
-        history=history,
-        total=len(history)
+    return ok_response(
+        data={
+            "history": history,
+            "total": len(history),
+        },
+        actions=["list_flags", "moderate_knowledge", "get_knowledge", "search_knowledge"],
     )

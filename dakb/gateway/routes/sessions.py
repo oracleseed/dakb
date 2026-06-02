@@ -7,7 +7,6 @@ git context capture, patch bundling, and cross-machine handoff.
 Version: 1.1
 Created: 2025-12-08
 Updated: 2025-12-08
-Author: Backend Agent (Claude Opus 4.5)
 
 Changelog v1.1:
 - ISS-075 Fix: Added admin authorization check for all_agents parameter
@@ -59,13 +58,13 @@ from ...sessions import (
     # Repository
     SessionRepository,
     SessionResponse,
-    SessionStats,
     SessionStatus,
     SessionUpdate,
     deserialize_handoff_package,
     find_repository_root,
     serialize_handoff_package,
 )
+from ..agentic import ok_response, raise_issue
 from ..middleware.auth import AuthenticatedAgent, get_current_agent
 
 logger = logging.getLogger(__name__)
@@ -199,14 +198,13 @@ def get_handoff_manager() -> SessionHandoffManager:
 
 @router.post(
     "",
-    response_model=SessionResponse,
     summary="Create a new session",
     description="Create a new session for the authenticated agent."
 )
 async def create_session(
     request: CreateSessionRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """
     Create a new session.
 
@@ -235,7 +233,24 @@ async def create_session(
             f"Session {session.session_id} created by {agent.agent_id}"
         )
 
-        return SessionResponse(success=True, session=session)
+        # Whiteboard auto-update: set agent to active with task description
+        try:
+            from ..whiteboard_triggers import on_session_start
+            agent_alias = agent.agent_id  # Will be resolved by trigger
+            on_session_start(
+                agent_id=agent.agent_id,
+                agent_alias=agent_alias,
+                project_path=request.working_directory,
+                task_description=request.task_description or "",
+            )
+        except Exception as wb_err:
+            logger.debug(f"Whiteboard trigger (create_session) skipped: {wb_err}")
+
+        return ok_response(
+            data=SessionResponse(success=True, session=session).model_dump(),
+            status="created",
+            actions=["get_session", "end_session", "export_session"],
+        )
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -246,7 +261,6 @@ async def create_session(
 
 @router.get(
     "",
-    response_model=SessionListResponse,
     summary="List sessions",
     description="List sessions for the authenticated agent or all sessions."
 )
@@ -256,7 +270,7 @@ async def list_sessions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionListResponse:
+):
     """
     List sessions.
 
@@ -289,15 +303,20 @@ async def list_sessions(
                 page_size=page_size,
             )
 
-        return SessionListResponse(
-            success=True,
-            sessions=sessions,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_more=page * page_size < total,
+        return ok_response(
+            data=SessionListResponse(
+                success=True,
+                sessions=sessions,
+                total=total,
+                page=page,
+                page_size=page_size,
+                has_more=page * page_size < total,
+            ).model_dump(),
+            actions=["start_session", "get_session"],
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error listing sessions: {e}")
         raise HTTPException(status_code=500, detail="Failed to list sessions")
@@ -305,27 +324,28 @@ async def list_sessions(
 
 @router.get(
     "/{session_id}",
-    response_model=SessionResponse,
     summary="Get session by ID",
     description="Get a specific session by its identifier."
 )
 async def get_session(
     session_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """Get a session by ID."""
     repo = get_session_repository()
 
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
-    return SessionResponse(success=True, session=session)
+    return ok_response(
+        data=SessionResponse(success=True, session=session).model_dump(),
+        actions=["end_session", "export_session", "start_session"],
+    )
 
 
 @router.put(
     "/{session_id}",
-    response_model=SessionResponse,
     summary="Update session",
     description="Update session information."
 )
@@ -333,14 +353,14 @@ async def update_session(
     session_id: str,
     request: UpdateSessionRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """Update a session."""
     repo = get_session_repository()
 
     # Check session exists and belongs to agent
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
     if session.agent_id != agent.agent_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -362,7 +382,10 @@ async def update_session(
         if not updated:
             raise HTTPException(status_code=500, detail="Failed to update session")
 
-        return SessionResponse(success=True, session=updated)
+        return ok_response(
+            data=SessionResponse(success=True, session=updated).model_dump(),
+            actions=["get_session", "end_session", "export_session"],
+        )
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -374,40 +397,51 @@ async def update_session(
 
 @router.post(
     "/{session_id}/heartbeat",
-    response_model=SessionResponse,
     summary="Update session activity",
     description="Update last activity timestamp (heartbeat)."
 )
 async def session_heartbeat(
     session_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """Send heartbeat to keep session active."""
     repo = get_session_repository()
 
     session = repo.update_activity(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
-    return SessionResponse(success=True, session=session)
+    # Whiteboard: refresh stale timeout on heartbeat
+    try:
+        from ..whiteboard_triggers import on_heartbeat
+        on_heartbeat(
+            agent_alias=agent.agent_id,
+            project_path=session.working_directory if hasattr(session, 'working_directory') else None,
+        )
+    except Exception:
+        pass
+
+    return ok_response(
+        data=SessionResponse(success=True, session=session).model_dump(),
+        actions=["get_session", "end_session"],
+    )
 
 
 @router.post(
     "/{session_id}/pause",
-    response_model=SessionResponse,
     summary="Pause session",
     description="Pause an active session."
 )
 async def pause_session(
     session_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """Pause an active session."""
     repo = get_session_repository()
 
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
     if session.agent_id != agent.agent_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -419,25 +453,27 @@ async def pause_session(
             detail="Cannot pause session - must be active or resumed"
         )
 
-    return SessionResponse(success=True, session=paused)
+    return ok_response(
+        data=SessionResponse(success=True, session=paused).model_dump(),
+        actions=["get_session", "end_session"],
+    )
 
 
 @router.post(
     "/{session_id}/resume",
-    response_model=SessionResponse,
     summary="Resume session",
     description="Resume a paused session."
 )
 async def resume_session(
     session_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """Resume a paused session."""
     repo = get_session_repository()
 
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
     if session.agent_id != agent.agent_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -449,12 +485,14 @@ async def resume_session(
             detail="Cannot resume session - must be paused"
         )
 
-    return SessionResponse(success=True, session=resumed)
+    return ok_response(
+        data=SessionResponse(success=True, session=resumed).model_dump(),
+        actions=["get_session", "end_session"],
+    )
 
 
 @router.post(
     "/{session_id}/end",
-    response_model=SessionResponse,
     summary="End session",
     description="End an active session."
 )
@@ -462,13 +500,13 @@ async def end_session(
     session_id: str,
     request: EndSessionRequest = None,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """End a session."""
     repo = get_session_repository()
 
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
     if session.agent_id != agent.agent_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -479,12 +517,24 @@ async def end_session(
 
     ended = repo.end_session(session_id, status)
     if not ended:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot end session - already completed"
-        )
+        raise_issue("SESS.ALREADY_ENDED", status=400, context={"session_id": session_id})
 
-    return SessionResponse(success=True, session=ended)
+    # Whiteboard auto-update: set agent to idle, move NOW → DONE
+    try:
+        from ..whiteboard_triggers import on_session_end
+        on_session_end(
+            agent_id=agent.agent_id,
+            agent_alias=agent.agent_id,
+            project_path=session.working_directory if hasattr(session, 'working_directory') else None,
+            summary=request.summary if request and hasattr(request, 'summary') else None,
+        )
+    except Exception as wb_err:
+        logger.debug(f"Whiteboard trigger (end_session) skipped: {wb_err}")
+
+    return ok_response(
+        data=SessionResponse(success=True, session=ended).model_dump(),
+        actions=["start_session", "export_session"],
+    )
 
 
 # =============================================================================
@@ -493,7 +543,6 @@ async def end_session(
 
 @router.post(
     "/{session_id}/git-context",
-    response_model=GitContextResponse,
     summary="Capture git context",
     description="Capture current git repository state for the session."
 )
@@ -501,7 +550,7 @@ async def capture_git_context(
     session_id: str,
     request: GitContextCaptureRequest = None,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> GitContextResponse:
+):
     """
     Capture git context for a session.
 
@@ -512,7 +561,7 @@ async def capture_git_context(
 
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
     if session.agent_id != agent.agent_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -540,10 +589,13 @@ async def capture_git_context(
         # Save to session
         repo.save_git_context(session_id, git_context)
 
-        return GitContextResponse(
-            success=True,
-            git_context=git_context,
-            capture_time_ms=capture_time,
+        return ok_response(
+            data=GitContextResponse(
+                success=True,
+                git_context=git_context,
+                capture_time_ms=capture_time,
+            ).model_dump(),
+            actions=["export_session", "get_session"],
         )
 
     except GitContextCaptureError as e:
@@ -555,30 +607,29 @@ async def capture_git_context(
 
 @router.get(
     "/{session_id}/git-context",
-    response_model=GitContextResponse,
     summary="Get session git context",
     description="Get previously captured git context for a session."
 )
 async def get_git_context(
     session_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> GitContextResponse:
+):
     """Get the git context for a session."""
     repo = get_session_repository()
 
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
     if not session.git_context:
-        raise HTTPException(
-            status_code=404,
-            detail="No git context captured for this session"
-        )
+        raise_issue("SESS.NOT_FOUND", status=404, message="No git context captured for this session", context={"session_id": session_id})
 
-    return GitContextResponse(
-        success=True,
-        git_context=session.git_context,
+    return ok_response(
+        data=GitContextResponse(
+            success=True,
+            git_context=session.git_context,
+        ).model_dump(),
+        actions=["export_session", "get_session"],
     )
 
 
@@ -588,7 +639,6 @@ async def get_git_context(
 
 @router.post(
     "/{session_id}/patch-bundle",
-    response_model=PatchBundleResponse,
     summary="Create patch bundle",
     description="Create a compressed patch bundle for uncommitted changes."
 )
@@ -596,7 +646,7 @@ async def create_patch_bundle(
     session_id: str,
     request: CreatePatchBundleRequest = None,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> PatchBundleResponse:
+):
     """
     Create a patch bundle for the session.
 
@@ -609,7 +659,7 @@ async def create_patch_bundle(
 
     session = repo.get_by_id(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise_issue("SESS.NOT_FOUND", status=404, context={"session_id": session_id})
 
     if session.agent_id != agent.agent_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -647,10 +697,13 @@ async def create_patch_bundle(
                 f"exceeds 1MB warning threshold"
             )
 
-        return PatchBundleResponse(
-            success=True,
-            patch_bundle=patch_bundle,
-            warnings=warnings,
+        return ok_response(
+            data=PatchBundleResponse(
+                success=True,
+                patch_bundle=patch_bundle,
+                warnings=warnings,
+            ).model_dump(),
+            actions=["export_session", "get_session"],
         )
 
     except PatchBundleError as e:
@@ -675,7 +728,7 @@ async def export_session(
     session_id: str,
     request: ExportSessionRequest = None,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> dict:
+):
     """
     Export a session for handoff.
 
@@ -724,51 +777,54 @@ async def export_session(
                 f"({package.package_size_bytes} bytes)"
             )
 
-            return {
-                "success": True,
+            return ok_response(
+                data={
+                    "handoff_id": package.handoff_id,
+                    "stored_on_server": True,
+                    "package_size_bytes": package.package_size_bytes,
+                    "has_git_context": package.git_context is not None,
+                    "has_patch_bundle": package.patch_bundle is not None,
+                    "apply_instructions": package.apply_instructions,
+                    "conflict_hints": package.conflict_hints,
+                    "retrieve_url": f"/api/v1/sessions/handoffs/{package.handoff_id}/package",
+                    "message": (
+                        f"Package stored on server. Remote agent can import using handoff_id: "
+                        f"'{package.handoff_id}' or fetch via GET {'/api/v1/sessions/handoffs/'}"
+                        f"{package.handoff_id}/package"
+                    ),
+                },
+                actions=["import_session", "start_session"],
+            )
+
+        return ok_response(
+            data={
                 "handoff_id": package.handoff_id,
-                "stored_on_server": True,
+                "package_json": package_json,
                 "package_size_bytes": package.package_size_bytes,
                 "has_git_context": package.git_context is not None,
                 "has_patch_bundle": package.patch_bundle is not None,
                 "apply_instructions": package.apply_instructions,
                 "conflict_hints": package.conflict_hints,
-                "retrieve_url": f"/api/v1/sessions/handoffs/{package.handoff_id}/package",
-                "message": (
-                    f"Package stored on server. Remote agent can import using handoff_id: "
-                    f"'{package.handoff_id}' or fetch via GET {'/api/v1/sessions/handoffs/'}"
-                    f"{package.handoff_id}/package"
-                ),
-            }
-
-        return {
-            "success": True,
-            "handoff_id": package.handoff_id,
-            "package_json": package_json,
-            "package_size_bytes": package.package_size_bytes,
-            "has_git_context": package.git_context is not None,
-            "has_patch_bundle": package.patch_bundle is not None,
-            "apply_instructions": package.apply_instructions,
-            "conflict_hints": package.conflict_hints,
-        }
+            },
+            actions=["import_session", "start_session"],
+        )
 
     except HandoffError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error exporting session: {e}")
-        raise HTTPException(status_code=500, detail="Failed to export session")
+        raise_issue("SESS.EXPORT_FAILED", status=500, context={"session_id": session_id})
 
 
 @router.post(
     "/import",
-    response_model=SessionResponse,
     summary="Import session from handoff",
     description="Import a session from a handoff package."
 )
 async def import_session(
     request: ImportSessionRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionResponse:
+):
     """
     Import a session from a handoff package.
 
@@ -790,10 +846,7 @@ async def import_session(
                 {"handoff_id": request.handoff_id}
             )
             if not stored_package:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Handoff package not found on server: {request.handoff_id}"
-                )
+                raise_issue("SESS.HANDOFF_NOT_FOUND", status=404, context={"handoff_id": request.handoff_id})
             package_json = stored_package["package_json"]
             logger.info(
                 f"Retrieved handoff package {request.handoff_id} from server "
@@ -819,7 +872,11 @@ async def import_session(
             target_directory=request.target_directory,
         )
 
-        return SessionResponse(success=True, session=new_session)
+        return ok_response(
+            data=SessionResponse(success=True, session=new_session).model_dump(),
+            status="created",
+            actions=["get_session", "start_session"],
+        )
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid package: {e}")
@@ -840,7 +897,7 @@ async def import_session(
 async def get_handoff_package(
     handoff_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> dict:
+):
     """
     Get a handoff package stored on the server.
 
@@ -855,24 +912,23 @@ async def get_handoff_package(
         )
 
         if not stored_package:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Handoff package not found: {handoff_id}"
-            )
+            raise_issue("SESS.HANDOFF_NOT_FOUND", status=404, context={"handoff_id": handoff_id})
 
         logger.info(
             f"Agent {agent.agent_id} retrieved handoff package {handoff_id} "
             f"({stored_package.get('package_size_bytes', 0)} bytes)"
         )
 
-        return {
-            "success": True,
-            "handoff_id": handoff_id,
-            "package_json": stored_package["package_json"],
-            "package_size_bytes": stored_package.get("package_size_bytes", 0),
-            "created_at": stored_package.get("created_at"),
-            "created_by": stored_package.get("created_by"),
-        }
+        return ok_response(
+            data={
+                "handoff_id": handoff_id,
+                "package_json": stored_package["package_json"],
+                "package_size_bytes": stored_package.get("package_size_bytes", 0),
+                "created_at": stored_package.get("created_at"),
+                "created_by": stored_package.get("created_by"),
+            },
+            actions=["import_session", "start_session"],
+        )
 
     except HTTPException:
         raise
@@ -888,7 +944,7 @@ async def get_handoff_package(
 )
 async def get_pending_handoffs(
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> dict:
+):
     """Get pending handoffs for the current agent."""
     manager = get_handoff_manager()
 
@@ -898,11 +954,13 @@ async def get_pending_handoffs(
             machine_id=agent.machine_id,
         )
 
-        return {
-            "success": True,
-            "pending_count": len(handoffs),
-            "handoffs": [h.model_dump() for h in handoffs],
-        }
+        return ok_response(
+            data={
+                "pending_count": len(handoffs),
+                "handoffs": [h.model_dump() for h in handoffs],
+            },
+            actions=["start_session", "import_session"],
+        )
 
     except Exception as e:
         logger.error(f"Error getting pending handoffs: {e}")
@@ -911,7 +969,6 @@ async def get_pending_handoffs(
 
 @router.post(
     "/handoffs/{handoff_id}/accept",
-    response_model=HandoffResponse,
     summary="Accept handoff",
     description="Accept a pending handoff request."
 )
@@ -919,7 +976,7 @@ async def accept_handoff(
     handoff_id: str,
     request: AcceptHandoffRequest = None,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> HandoffResponse:
+):
     """Accept a pending handoff."""
     manager = get_handoff_manager()
 
@@ -939,11 +996,14 @@ async def accept_handoff(
         if not success:
             raise HTTPException(status_code=400, detail=message)
 
-        return HandoffResponse(
-            success=True,
-            handoff_id=handoff_id,
-            status=HandoffStatus.ACCEPTED,
-            new_session_id=new_session.session_id if new_session else None,
+        return ok_response(
+            data=HandoffResponse(
+                success=True,
+                handoff_id=handoff_id,
+                status=HandoffStatus.ACCEPTED,
+                new_session_id=new_session.session_id if new_session else None,
+            ).model_dump(),
+            actions=["get_session", "start_session"],
         )
 
     except HTTPException:
@@ -955,7 +1015,6 @@ async def accept_handoff(
 
 @router.post(
     "/handoffs/{handoff_id}/reject",
-    response_model=HandoffResponse,
     summary="Reject handoff",
     description="Reject a pending handoff request."
 )
@@ -963,7 +1022,7 @@ async def reject_handoff(
     handoff_id: str,
     request: RejectHandoffRequest = None,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> HandoffResponse:
+):
     """Reject a pending handoff."""
     manager = get_handoff_manager()
 
@@ -972,12 +1031,15 @@ async def reject_handoff(
         success = manager.reject_handoff(handoff_id, reason)
 
         if not success:
-            raise HTTPException(status_code=404, detail="Handoff not found")
+            raise_issue("SESS.HANDOFF_NOT_FOUND", status=404, context={"handoff_id": handoff_id})
 
-        return HandoffResponse(
-            success=True,
-            handoff_id=handoff_id,
-            status=HandoffStatus.REJECTED,
+        return ok_response(
+            data=HandoffResponse(
+                success=True,
+                handoff_id=handoff_id,
+                status=HandoffStatus.REJECTED,
+            ).model_dump(),
+            actions=["start_session", "get_session"],
         )
 
     except HTTPException:
@@ -999,18 +1061,20 @@ async def reject_handoff(
 async def get_session_chain(
     session_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> dict:
+):
     """Get the full session chain for handoff tracking."""
     manager = get_handoff_manager()
 
     try:
         chain = manager.get_session_chain(session_id)
 
-        return {
-            "success": True,
-            "chain_length": len(chain),
-            "sessions": [s.model_dump() for s in chain],
-        }
+        return ok_response(
+            data={
+                "chain_length": len(chain),
+                "sessions": [s.model_dump() for s in chain],
+            },
+            actions=["get_session", "export_session"],
+        )
 
     except Exception as e:
         logger.error(f"Error getting session chain: {e}")
@@ -1023,14 +1087,13 @@ async def get_session_chain(
 
 @router.get(
     "/stats",
-    response_model=SessionStats,
     summary="Get session statistics",
     description="Get session statistics for the authenticated agent."
 )
 async def get_stats(
     all_agents: bool = Query(False, description="Include all agents (admin only)"),
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> SessionStats:
+):
     """Get session statistics."""
     repo = get_session_repository()
 
@@ -1044,8 +1107,13 @@ async def get_stats(
 
         agent_filter = None if all_agents else agent.agent_id
         stats = repo.get_stats(agent_id=agent_filter)
-        return stats
+        return ok_response(
+            data=stats.model_dump(),
+            actions=["start_session", "get_session"],
+        )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to get statistics")
@@ -1058,7 +1126,7 @@ async def get_stats(
 )
 async def cleanup_expired(
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> dict:
+):
     """Cleanup expired sessions."""
     # ISS-075 Fix: Enforce admin-only access
     if agent.agent_type not in ADMIN_AGENT_TYPES:
@@ -1072,10 +1140,12 @@ async def cleanup_expired(
     try:
         count = repo.mark_expired_sessions()
 
-        return {
-            "success": True,
-            "abandoned_count": count,
-        }
+        return ok_response(
+            data={
+                "abandoned_count": count,
+            },
+            actions=["start_session", "get_session"],
+        )
 
     except Exception as e:
         logger.error(f"Error cleaning up expired sessions: {e}")

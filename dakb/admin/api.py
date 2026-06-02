@@ -2045,3 +2045,473 @@ async def check_knowledge_redundancy(
         similar_entries=similar,
         highest_similarity=highest_similarity,
     )
+
+
+# =============================================================================
+# KNOWLEDGE PURGE ENDPOINT
+# =============================================================================
+
+@router.post(
+    "/knowledge/purge",
+    response_model=dict,
+    summary="Purge deleted/deprecated entries",
+    description="Permanently hard-delete all knowledge entries with 'deleted' or "
+                "'deprecated' status (admin only).",
+)
+async def purge_knowledge_entries(
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """Permanently remove all deleted/deprecated knowledge entries from the database.
+
+    Also removes the corresponding vectors from the FAISS index via the embedding
+    service (best-effort; failures are logged but do not block the DB purge).
+    """
+    import httpx
+
+    db = get_db()
+    collection = db[COLLECTION_KNOWLEDGE]
+    settings = get_settings()
+
+    purge_filter = {"status": {"$in": ["deleted", "deprecated"]}}
+
+    # Get entries to purge (need IDs for FAISS cleanup)
+    entries_to_purge = list(collection.find(purge_filter, {"knowledge_id": 1}))
+    count = len(entries_to_purge)
+
+    if count == 0:
+        return {
+            "success": True,
+            "purged_count": 0,
+            "message": "No deleted or deprecated entries found",
+        }
+
+    # Remove vectors from FAISS index (best-effort)
+    faiss_removed = 0
+    try:
+        async with httpx.AsyncClient() as client:
+            for entry in entries_to_purge:
+                kid = entry.get("knowledge_id")
+                if kid:
+                    try:
+                        resp = await client.post(
+                            f"{settings.embedding_service_url}/delete",
+                            json={"knowledge_id": kid},
+                            headers={"X-Internal-Secret": settings.internal_secret},
+                            timeout=10.0,
+                        )
+                        if resp.status_code == 200:
+                            faiss_removed += 1
+                    except Exception:
+                        pass  # Entry may not have been indexed
+    except Exception as e:
+        logger.warning(f"FAISS cleanup during purge encountered errors: {e}")
+
+    # Hard-delete from MongoDB
+    result = collection.delete_many(purge_filter)
+    deleted_count = result.deleted_count
+
+    logger.info(
+        f"Purge by admin {admin.agent_id}: "
+        f"{deleted_count} entries removed from DB, "
+        f"{faiss_removed} vectors removed from FAISS"
+    )
+
+    return {
+        "success": True,
+        "purged_count": deleted_count,
+        "faiss_removed": faiss_removed,
+        "message": f"Permanently purged {deleted_count} entries "
+                   f"({faiss_removed} FAISS vectors removed)",
+    }
+
+
+# =============================================================================
+# VAULT ADMIN ENDPOINTS (File Vault)
+# =============================================================================
+
+# Vault collection names (match dakb.db.collections).
+COLLECTION_VAULT_FILES = "dakb_vault_files"
+COLLECTION_VAULT_HOLDS = "dakb_vault_holds"
+
+# Lazy imports for vault dependencies — avoids circular import at module load.
+from ..db.repositories.vault_repository import VaultFileRepository  # noqa: E402
+from ..vault import create_vault_backend  # noqa: E402
+from ..vault.cleanup import (  # noqa: E402
+    cleanup_expired_holds,
+    detect_orphaned_objects,
+    purge_deleted_files,
+)
+
+
+def format_bytes(size: float) -> str:
+    """Format byte count as a human-readable string (e.g. '1.5 GB')."""
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} PB"
+
+
+def _get_vault_backend():
+    """Construct a vault backend from the configured vault settings.
+
+    Uses the same single source of truth as the gateway:
+    ``settings.vault.to_backend_config()``. The default is a local filesystem
+    backend; the S3 backend is selected via FILE_VAULT_BACKEND=s3 and the
+    associated FILE_VAULT_S3_* environment variables.
+    """
+    settings = get_settings()
+    return create_vault_backend(settings.vault.to_backend_config())
+
+
+@router.get(
+    "/vault/stats",
+    response_model=dict,
+    summary="Vault statistics",
+    description="Aggregate statistics for the file vault (admin only).",
+)
+async def get_vault_stats(
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """
+    Return vault-wide statistics.
+
+    Aggregation:
+    - total_files, total_size_bytes (active files)
+    - by_mime: count per MIME type
+    - by_status: count per status
+    - entries_with_files: knowledge docs where has_vault_files=true
+    - held_count: current holds in dakb_vault_holds
+    """
+    db = get_db()
+    vault_col = db[COLLECTION_VAULT_FILES]
+    holds_col = db[COLLECTION_VAULT_HOLDS]
+    knowledge_col = db[COLLECTION_KNOWLEDGE]
+
+    # 1) Total active files and total size
+    size_pipeline = [
+        {"$match": {"status": "active"}},
+        {"$group": {
+            "_id": None,
+            "total_files": {"$sum": 1},
+            "total_size_bytes": {"$sum": "$size_bytes"},
+        }},
+    ]
+    size_result = list(vault_col.aggregate(size_pipeline))
+    if size_result:
+        total_files = size_result[0]["total_files"]
+        total_size_bytes = size_result[0]["total_size_bytes"]
+    else:
+        total_files = 0
+        total_size_bytes = 0
+
+    # 2) Count by MIME type
+    mime_pipeline = [
+        {"$group": {"_id": "$mime_type", "count": {"$sum": 1}}},
+    ]
+    by_mime = {r["_id"]: r["count"] for r in vault_col.aggregate(mime_pipeline)}
+
+    # 3) Count by status
+    status_pipeline = [
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+    ]
+    by_status = {r["_id"]: r["count"] for r in vault_col.aggregate(status_pipeline)}
+
+    # 4) Knowledge entries with files
+    entries_with_files = knowledge_col.count_documents({"has_vault_files": True})
+
+    # 5) Current hold count
+    held_count = holds_col.count_documents({})
+
+    return {
+        "total_files": total_files,
+        "total_size_bytes": total_size_bytes,
+        "total_size_human": format_bytes(total_size_bytes),
+        "by_mime": by_mime,
+        "by_status": by_status,
+        "entries_with_files": entries_with_files,
+        "held_count": held_count,
+    }
+
+
+@router.get(
+    "/vault/files",
+    response_model=dict,
+    summary="List vault files",
+    description="Paginated list of vault files with optional filters (admin only).",
+)
+async def list_vault_files(
+    page: int = 1,
+    page_size: int = 25,
+    mime_type: str | None = None,
+    status: str | None = "active",
+    search: str | None = None,
+    knowledge_id: str | None = None,
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """
+    Paginated vault file listing with filters.
+
+    Query params:
+    - page: page number (default 1)
+    - page_size: items per page (default 25, max 100)
+    - mime_type: filter by MIME type
+    - status: filter by status (default "active")
+    - search: filename substring search (case-insensitive)
+    - knowledge_id: filter by parent knowledge entry
+    """
+    import math
+    import re
+
+    db = get_db()
+    vault_col = db[COLLECTION_VAULT_FILES]
+    knowledge_col = db[COLLECTION_KNOWLEDGE]
+
+    # Cap page_size
+    page_size = min(page_size, 100)
+
+    # Build query
+    query: dict = {}
+    if mime_type:
+        query["mime_type"] = mime_type
+    if status:
+        query["status"] = status
+    if knowledge_id:
+        query["knowledge_id"] = knowledge_id
+    if search:
+        query["filename"] = {"$regex": re.escape(search), "$options": "i"}
+
+    total = vault_col.count_documents(query)
+    skip = (page - 1) * page_size
+    cursor = vault_col.find(query).sort("uploaded_at", -1).skip(skip).limit(page_size)
+
+    files = []
+    for doc in cursor:
+        doc.pop("_id", None)
+
+        # Join knowledge title
+        kid = doc.get("knowledge_id")
+        k_doc = (
+            knowledge_col.find_one({"knowledge_id": kid}, {"title": 1, "category": 1})
+            if kid else None
+        )
+        doc["knowledge_title"] = k_doc.get("title", "") if k_doc else ""
+
+        # Serialise datetimes
+        for dt_field in ("uploaded_at", "deprecated_at", "deleted_at", "purge_after"):
+            val = doc.get(dt_field)
+            if isinstance(val, datetime):
+                doc[dt_field] = val.isoformat()
+
+        files.append(doc)
+
+    total_pages = math.ceil(total / page_size) if page_size else 0
+
+    return {
+        "files": files,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+    }
+
+
+@router.get(
+    "/vault/files/{file_id}",
+    response_model=dict,
+    summary="Vault file detail",
+    description="Get full details for a single vault file (admin only).",
+)
+async def get_vault_file_detail(
+    file_id: str,
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """
+    Return all fields for a single vault file, plus knowledge title/category.
+
+    Raises 404 if file_id not found.
+    """
+    db = get_db()
+    vault_col = db[COLLECTION_VAULT_FILES]
+    knowledge_col = db[COLLECTION_KNOWLEDGE]
+
+    doc = vault_col.find_one({"file_id": file_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Vault file '{file_id}' not found")
+
+    doc.pop("_id", None)
+
+    # Join knowledge info
+    kid = doc.get("knowledge_id")
+    k_doc = (
+        knowledge_col.find_one({"knowledge_id": kid}, {"title": 1, "category": 1})
+        if kid else None
+    )
+    doc["knowledge_title"] = k_doc.get("title", "") if k_doc else None
+    doc["knowledge_category"] = k_doc.get("category", "") if k_doc else None
+
+    # Serialise datetimes
+    for dt_field in ("uploaded_at", "deprecated_at", "deleted_at", "purge_after"):
+        val = doc.get(dt_field)
+        if isinstance(val, datetime):
+            doc[dt_field] = val.isoformat()
+
+    return doc
+
+
+@router.delete(
+    "/vault/files/{file_id}",
+    response_model=dict,
+    summary="Admin soft-delete vault file",
+    description="Soft-delete a vault file. Sets status=DELETED and schedules purge "
+                "(admin only).",
+)
+async def admin_delete_vault_file(
+    file_id: str,
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """
+    Soft-delete a vault file via VaultFileRepository.
+
+    1. Verify file exists.
+    2. Call vault_repo.soft_delete().
+    3. Update parent knowledge counters.
+    """
+    db = get_db()
+    vault_col = db[COLLECTION_VAULT_FILES]
+    knowledge_col = db[COLLECTION_KNOWLEDGE]
+
+    # Check existence
+    doc = vault_col.find_one({"file_id": file_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Vault file '{file_id}' not found")
+
+    vault_repo = VaultFileRepository(vault_col, knowledge_col)
+    deleted = vault_repo.soft_delete(file_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete vault file '{file_id}'",
+        )
+
+    # Sync knowledge counters
+    kid = doc.get("knowledge_id")
+    if kid:
+        vault_repo.update_knowledge_counters(kid)
+
+    logger.info(f"Admin soft-deleted vault file '{file_id}' by '{admin.agent_id}'")
+
+    return {
+        "success": True,
+        "file_id": file_id,
+        "message": f"Vault file '{file_id}' soft-deleted. Will be purged after the "
+                   f"configured retention period.",
+    }
+
+
+@router.post(
+    "/vault/cleanup/holds",
+    response_model=dict,
+    summary="Run hold cleanup",
+    description="Remove expired upload holds from the vault (admin only).",
+)
+async def run_cleanup_holds(
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """
+    Trigger cleanup of expired vault upload holds.
+
+    Calls cleanup_expired_holds() on the dakb_vault_holds collection.
+    """
+    db = get_db()
+    holds_col = db[COLLECTION_VAULT_HOLDS]
+
+    result = await cleanup_expired_holds(holds_col)
+
+    logger.info(
+        f"Admin hold cleanup by '{admin.agent_id}': "
+        f"{result.get('holds_removed', 0)} holds, "
+        f"{result.get('files_cleaned', 0)} files"
+    )
+
+    return {
+        "success": True,
+        "holds_removed": result.get("holds_removed", 0),
+        "files_cleaned": result.get("files_cleaned", 0),
+    }
+
+
+@router.post(
+    "/vault/cleanup/purge",
+    response_model=dict,
+    summary="Run expired file purge",
+    description="Purge soft-deleted files past their purge_after date from the object "
+                "store (admin only).",
+)
+async def run_cleanup_purge(
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """
+    Trigger purge of expired soft-deleted vault files.
+
+    Constructs a vault backend and VaultFileRepository, then calls
+    purge_deleted_files() to remove files from the object store.
+    """
+    db = get_db()
+    vault_col = db[COLLECTION_VAULT_FILES]
+    knowledge_col = db[COLLECTION_KNOWLEDGE]
+
+    vault_repo = VaultFileRepository(vault_col, knowledge_col)
+    backend = _get_vault_backend()
+
+    result = await purge_deleted_files(vault_repo, backend)
+
+    logger.info(
+        f"Admin purge by '{admin.agent_id}': "
+        f"{result.get('files_purged', 0)} purged, "
+        f"{result.get('errors', 0)} errors"
+    )
+
+    return {
+        "success": True,
+        "files_purged": result.get("files_purged", 0),
+        "errors": result.get("errors", 0),
+    }
+
+
+@router.post(
+    "/vault/cleanup/orphans",
+    response_model=dict,
+    summary="Run orphan detection",
+    description="Detect vault files in MongoDB that have no corresponding object in "
+                "the storage backend (admin only).",
+)
+async def run_cleanup_orphans(
+    admin: AuthenticatedAgent = Depends(require_admin),
+) -> dict:
+    """
+    Trigger orphan detection for vault files.
+
+    Checks all active/uploading files against the storage backend.
+    Logs orphans but does NOT auto-delete them (could be upload race condition).
+    """
+    db = get_db()
+    vault_col = db[COLLECTION_VAULT_FILES]
+    knowledge_col = db[COLLECTION_KNOWLEDGE]
+
+    vault_repo = VaultFileRepository(vault_col, knowledge_col)
+    backend = _get_vault_backend()
+
+    result = await detect_orphaned_objects(vault_repo, backend)
+
+    logger.info(
+        f"Admin orphan detection by '{admin.agent_id}': "
+        f"{result.get('orphans_detected', 0)} orphans found"
+    )
+
+    return {
+        "success": True,
+        "orphans_detected": result.get("orphans_detected", 0),
+        "orphan_ids": result.get("orphan_ids", []),
+    }

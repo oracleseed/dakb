@@ -4,10 +4,9 @@ DAKB MongoDB Index Management
 Functions for creating and managing indexes on DAKB collections.
 Includes unique indexes, compound indexes, TTL indexes, and text indexes.
 
-Version: 1.5
+Version: 1.6
 Created: 2025-12-07
 Updated: 2025-12-11 (Added invite tokens and registration audit indexes)
-Author: Backend Agent (Claude Opus 4.5)
 
 Index Strategy:
 - Unique indexes on primary IDs
@@ -24,6 +23,17 @@ Collections:
 - dakb_agent_aliases: 5 indexes (Token Team with Agent Aliases)
 - dakb_invite_tokens: 5 indexes (Self-Registration v1.0)
 - dakb_registration_audit: 5 indexes (Self-Registration v1.0, 90-day TTL)
+- dakb_vault_files: 6 indexes (HIVE File Vault, purge_after TTL)
+- dakb_knowledge_threads: 5 indexes (Knowledge Threads)
+- dakb_knowledge_versions: 2 indexes (Knowledge Version History)
+- dakb_tasks: 5 indexes (Real-Time Communication: task delegation, expires_at TTL)
+- dakb_chat_sessions: 4 indexes (Chat Bridge: external chat session bindings)
+- dakb_alert_config: 2 indexes (Chat Bridge: per-user alert routing)
+- dakb_bridge_links: 4 indexes (Session Bridge: session<->chat link records)
+- dakb_bridge_queue: 2 indexes (Session Bridge: offline queue, queued_at 7d TTL)
+- dakb_whiteboard_boards: 2 indexes (Whiteboard, via whiteboard_indexes)
+- dakb_whiteboard_sections: 5 indexes (Whiteboard, via whiteboard_indexes)
+- dakb_whiteboard_snapshots: 3 indexes (Whiteboard, via whiteboard_indexes)
 """
 
 import logging
@@ -32,6 +42,8 @@ from pymongo import ASCENDING, DESCENDING, TEXT
 from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import OperationFailure, PyMongoError
+
+from .whiteboard_indexes import initialize_whiteboard_indexes
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +286,183 @@ REGISTRATION_AUDIT_INDEXES = [
     },
 ]
 
+# dakb_vault_files indexes (HIVE File Vault)
+VAULT_FILE_INDEXES = [
+    {
+        "name": "file_id_unique",
+        "keys": [("file_id", ASCENDING)],
+        "unique": True,
+    },
+    {
+        "name": "knowledge_id",
+        "keys": [("knowledge_id", ASCENDING)],
+    },
+    {
+        "name": "status",
+        "keys": [("status", ASCENDING)],
+    },
+    {
+        "name": "uploaded_by",
+        "keys": [("uploaded_by", ASCENDING)],
+    },
+    {
+        "name": "purge_after_ttl",
+        "keys": [("purge_after", ASCENDING)],
+        "expireAfterSeconds": 0,  # MongoDB auto-deletes when purge_after passes
+        "partialFilterExpression": {"purge_after": {"$exists": True, "$ne": None}},
+    },
+    {
+        "name": "mime_type_uploaded_at",
+        "keys": [("mime_type", ASCENDING), ("uploaded_at", DESCENDING)],
+    },
+]
+
+# dakb_knowledge_threads indexes (Knowledge Threads)
+THREADS_INDEXES = [
+    {
+        "name": "thread_id_unique",
+        "keys": [("thread_id", ASCENDING)],
+        "unique": True,
+    },
+    {
+        "name": "knowledge_id_created_at",
+        "keys": [("knowledge_id", ASCENDING), ("created_at", DESCENDING)],
+    },
+    {
+        "name": "knowledge_id_type",
+        "keys": [("knowledge_id", ASCENDING), ("type", ASCENDING)],
+    },
+    {
+        "name": "knowledge_id_parent_id",
+        "keys": [("knowledge_id", ASCENDING), ("parent_id", ASCENDING)],
+    },
+    {
+        "name": "author_agent_id",
+        "keys": [("author_agent_id", ASCENDING)],
+    },
+]
+
+# dakb_knowledge_versions indexes (Knowledge Version History)
+VERSIONS_INDEXES = [
+    {
+        "name": "version_id_unique",
+        "keys": [("version_id", ASCENDING)],
+        "unique": True,
+    },
+    {
+        "name": "knowledge_id_version",
+        "keys": [("knowledge_id", ASCENDING), ("version", DESCENDING)],
+    },
+]
+
+# dakb_tasks indexes (Real-Time Communication: task delegation)
+TASKS_INDEXES = [
+    {
+        "name": "task_id_unique",
+        "keys": [("task_id", ASCENDING)],
+        "unique": True,
+    },
+    {
+        "name": "status",
+        "keys": [("status", ASCENDING)],
+    },
+    {
+        "name": "assigned_to",
+        "keys": [("assigned_to", ASCENDING)],
+    },
+    {
+        "name": "requester_id_created_at",
+        "keys": [("requester_id", ASCENDING), ("created_at", DESCENDING)],
+    },
+    {
+        # TTL index for automatic cleanup of expired tasks
+        "name": "expires_at_ttl",
+        "keys": [("expires_at", ASCENDING)],
+        "expireAfterSeconds": 0,  # Expires at the time specified in expires_at
+        "partialFilterExpression": {"expires_at": {"$exists": True, "$ne": None}},
+    },
+]
+
+# dakb_chat_sessions indexes (Chat Bridge: external chat session bindings)
+CHAT_SESSIONS_INDEXES = [
+    {
+        # Composite chat ID is the lookup key (e.g. "telegram:12345")
+        "name": "composite_chat_id_unique",
+        "keys": [("composite_chat_id", ASCENDING)],
+        "unique": True,
+    },
+    {
+        "name": "session_id",
+        "keys": [("session_id", ASCENDING)],
+    },
+    {
+        "name": "platform_external_chat_id",
+        "keys": [("platform", ASCENDING), ("external_chat_id", ASCENDING)],
+    },
+    {
+        "name": "last_active",
+        "keys": [("last_active", DESCENDING)],
+    },
+]
+
+# dakb_alert_config indexes (Chat Bridge: per-user alert routing)
+ALERT_CONFIG_INDEXES = [
+    {
+        # One alert-config document per user
+        "name": "user_id_unique",
+        "keys": [("user_id", ASCENDING)],
+        "unique": True,
+    },
+    {
+        "name": "updated_at",
+        "keys": [("updated_at", DESCENDING)],
+    },
+]
+
+# dakb_bridge_links indexes (Session Bridge: session <-> chat link records)
+BRIDGE_LINKS_INDEXES = [
+    {
+        # Each session may link a given chat at most once
+        "name": "session_id_composite_chat_id_unique",
+        "keys": [("session_id", ASCENDING), ("composite_chat_id", ASCENDING)],
+        "unique": True,
+    },
+    {
+        # Ownership check: {session_id, agent_id, active}
+        "name": "session_id_agent_id_active",
+        "keys": [
+            ("session_id", ASCENDING),
+            ("agent_id", ASCENDING),
+            ("active", ASCENDING),
+        ],
+    },
+    {
+        # List active links for a session: {session_id, active}
+        "name": "session_id_active",
+        "keys": [("session_id", ASCENDING), ("active", ASCENDING)],
+    },
+    {
+        "name": "composite_chat_id",
+        "keys": [("composite_chat_id", ASCENDING)],
+    },
+]
+
+# dakb_bridge_queue indexes (Session Bridge: offline message queue)
+BRIDGE_QUEUE_INDEXES = [
+    {
+        # Backlog delivery query: find by session_id sorted by queued_at
+        "name": "session_id_queued_at",
+        "keys": [("session_id", ASCENDING), ("queued_at", ASCENDING)],
+    },
+    {
+        # TTL index: offline messages auto-expire after 7 days
+        "name": "queued_at_ttl",
+        "keys": [("queued_at", ASCENDING)],
+        "expireAfterSeconds": 604800,  # 7 days
+        "partialFilterExpression": {"queued_at": {"$exists": True, "$ne": None}},
+    },
+]
+
 
 # =============================================================================
 # INDEX CREATION FUNCTIONS
@@ -400,6 +589,54 @@ def create_registration_audit_indexes(collection: Collection) -> dict:
     return create_collection_indexes(collection, REGISTRATION_AUDIT_INDEXES)
 
 
+def create_vault_file_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_vault_files collection."""
+    logger.info("Creating indexes for dakb_vault_files...")
+    return create_collection_indexes(collection, VAULT_FILE_INDEXES)
+
+
+def create_threads_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_knowledge_threads collection."""
+    logger.info("Creating indexes for dakb_knowledge_threads...")
+    return create_collection_indexes(collection, THREADS_INDEXES)
+
+
+def create_versions_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_knowledge_versions collection."""
+    logger.info("Creating indexes for dakb_knowledge_versions...")
+    return create_collection_indexes(collection, VERSIONS_INDEXES)
+
+
+def create_tasks_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_tasks collection."""
+    logger.info("Creating indexes for dakb_tasks...")
+    return create_collection_indexes(collection, TASKS_INDEXES)
+
+
+def create_chat_sessions_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_chat_sessions collection."""
+    logger.info("Creating indexes for dakb_chat_sessions...")
+    return create_collection_indexes(collection, CHAT_SESSIONS_INDEXES)
+
+
+def create_alert_config_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_alert_config collection."""
+    logger.info("Creating indexes for dakb_alert_config...")
+    return create_collection_indexes(collection, ALERT_CONFIG_INDEXES)
+
+
+def create_bridge_links_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_bridge_links collection."""
+    logger.info("Creating indexes for dakb_bridge_links...")
+    return create_collection_indexes(collection, BRIDGE_LINKS_INDEXES)
+
+
+def create_bridge_queue_indexes(collection: Collection) -> dict:
+    """Create all indexes for dakb_bridge_queue collection."""
+    logger.info("Creating indexes for dakb_bridge_queue...")
+    return create_collection_indexes(collection, BRIDGE_QUEUE_INDEXES)
+
+
 def create_all_indexes(db: Database) -> dict:
     """
     Create all DAKB indexes.
@@ -435,6 +672,31 @@ def create_all_indexes(db: Database) -> dict:
 
     # Registration audit indexes (Self-Registration v1.0)
     results["dakb_registration_audit"] = create_registration_audit_indexes(db["dakb_registration_audit"])
+
+    # Vault Files indexes (HIVE File Vault)
+    results["dakb_vault_files"] = create_vault_file_indexes(db["dakb_vault_files"])
+
+    # Knowledge Threads indexes
+    results["dakb_knowledge_threads"] = create_threads_indexes(db["dakb_knowledge_threads"])
+
+    # Knowledge Versions indexes
+    results["dakb_knowledge_versions"] = create_versions_indexes(db["dakb_knowledge_versions"])
+
+    # Task delegation indexes (Real-Time Communication)
+    results["dakb_tasks"] = create_tasks_indexes(db["dakb_tasks"])
+
+    # Chat Bridge indexes
+    results["dakb_chat_sessions"] = create_chat_sessions_indexes(db["dakb_chat_sessions"])
+    results["dakb_alert_config"] = create_alert_config_indexes(db["dakb_alert_config"])
+
+    # Session Bridge indexes
+    results["dakb_bridge_links"] = create_bridge_links_indexes(db["dakb_bridge_links"])
+    results["dakb_bridge_queue"] = create_bridge_queue_indexes(db["dakb_bridge_queue"])
+
+    # Whiteboard indexes
+    wb_results = initialize_whiteboard_indexes(db)
+    for coll_name, count in wb_results.items():
+        results[coll_name] = {"success": count, "failed": 0}
 
     # Summary
     total_success = sum(r["success"] for r in results.values())
@@ -521,6 +783,17 @@ def drop_all_dakb_indexes(db: Database, keep_id: bool = True) -> dict:
         "dakb_agent_aliases",
         "dakb_invite_tokens",
         "dakb_registration_audit",
+        "dakb_vault_files",
+        "dakb_knowledge_threads",
+        "dakb_knowledge_versions",
+        "dakb_tasks",
+        "dakb_chat_sessions",
+        "dakb_alert_config",
+        "dakb_bridge_links",
+        "dakb_bridge_queue",
+        "dakb_whiteboard_boards",
+        "dakb_whiteboard_sections",
+        "dakb_whiteboard_snapshots",
     ]
 
     results = {}
@@ -591,6 +864,14 @@ def verify_indexes(db: Database) -> dict:
         "dakb_agent_aliases": {idx["name"] for idx in ALIASES_INDEXES},
         "dakb_invite_tokens": {idx["name"] for idx in INVITE_TOKENS_INDEXES},
         "dakb_registration_audit": {idx["name"] for idx in REGISTRATION_AUDIT_INDEXES},
+        "dakb_vault_files": {idx["name"] for idx in VAULT_FILE_INDEXES},
+        "dakb_knowledge_threads": {idx["name"] for idx in THREADS_INDEXES},
+        "dakb_knowledge_versions": {idx["name"] for idx in VERSIONS_INDEXES},
+        "dakb_tasks": {idx["name"] for idx in TASKS_INDEXES},
+        "dakb_chat_sessions": {idx["name"] for idx in CHAT_SESSIONS_INDEXES},
+        "dakb_alert_config": {idx["name"] for idx in ALERT_CONFIG_INDEXES},
+        "dakb_bridge_links": {idx["name"] for idx in BRIDGE_LINKS_INDEXES},
+        "dakb_bridge_queue": {idx["name"] for idx in BRIDGE_QUEUE_INDEXES},
     }
 
     results = {}

@@ -46,6 +46,30 @@ python-dotenv>=1.0.0
 mcp>=1.0.0
 
 # ==============================================================================
+# Real-time Stack (v2.0.0)
+# ==============================================================================
+# Redis powers the WebSocket pub/sub, presence, task-delegation and
+# notification bus, plus the Session Bridge and Chat Bridge transports.
+redis>=5.0
+# WebSocket transport for the agent WS endpoint and the Session Bridge relay.
+websockets>=12.0
+
+# ==============================================================================
+# File Vault (v2.0.0)
+# ==============================================================================
+# Async local-disk storage backend.
+aiofiles
+# MIME sniffing + executable-content detection. Requires the system libmagic
+# library (Debian/Ubuntu: apt-get install libmagic1; macOS: brew install libmagic).
+python-magic
+
+# ==============================================================================
+# Optional: S3 Vault Backend (v2.0.0)
+# ==============================================================================
+# Only required when FILE_VAULT_BACKEND=s3. Install with: pip install dakb-server[s3]
+# boto3
+
+# ==============================================================================
 # Utilities
 # ==============================================================================
 typing-extensions>=4.8.0;python_version<"3.11"

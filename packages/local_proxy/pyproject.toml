@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dakb-local-proxy"
+version = "2.0.0"
+description = "Local MCP proxy for DAKB with caching and stdio transport"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "DAKB Contributors"}
+]
+keywords = ["dakb", "mcp", "proxy", "agent", "knowledge-base"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+dakb-proxy = "local_proxy.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/oracleseed/dakb"
+Documentation = "https://github.com/oracleseed/dakb/tree/main/docs"
+Repository = "https://github.com/oracleseed/dakb"
+
+# The package modules (cli.py, proxy.py, config.py, cache.py) live directly in
+# this directory and are imported as `local_proxy.*`, so map the package name to
+# the current directory rather than discovering a nested package folder.
+[tool.setuptools]
+packages = ["local_proxy"]
+
+[tool.setuptools.package-dir]
+local_proxy = "."
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

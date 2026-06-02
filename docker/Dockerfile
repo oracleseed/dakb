@@ -36,20 +36,31 @@ RUN groupadd -r dakb && useradd -r -g dakb dakb
 WORKDIR /app
 
 # Install runtime dependencies
+#   curl     - health checks
+#   libmagic1 - required by python-magic for vault MIME / executable detection
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy wheels from builder
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
-# Copy application code
+# Copy application code.
+# `COPY dakb/` brings in the full package tree, including the v2.0.0 subsystems:
+#   - vault/         File Vault backends (local + s3) and validator
+#   - bridge/        Session Bridge + Client SDK + WS handler
+#   - chat_bridge/   Chat Bridge router + adapters (Telegram reference)
+#   - integration/   alias_registration helpers
+#   - agentic_core/  Agentic API envelope/registry/remediation
+#   - admin/         Admin dashboard API + templates/*.html
+#   - gateway/       Redis client, presence, notification bus, task router
 COPY dakb/ /app/dakb/
 COPY config/ /app/config/
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/data/dakb_faiss \
+# Create necessary directories (FAISS index, logs, and File Vault local store)
+RUN mkdir -p /app/logs /app/data/dakb_faiss /app/data/vault /app/data/vault_holds \
     && chown -R dakb:dakb /app
 
 # Switch to non-root user

@@ -4,9 +4,8 @@ DAKB MongoDB Collection Schemas
 Pydantic v2 models for all DAKB collections with validation.
 These models ensure data integrity and provide type hints for IDE support.
 
-Version: 1.3
+Version: 1.4
 Created: 2025-12-07
-Author: Backend Agent (Claude Opus 4.5)
 
 Collections:
 - dakb_knowledge: Core knowledge repository
@@ -14,6 +13,9 @@ Collections:
 - dakb_agents: Agent registry
 - dakb_sessions: Session tracking
 - dakb_audit_log: Audit trail
+- dakb_knowledge_threads: Comments, suggestions, endorsements
+- dakb_knowledge_versions: Edit version history
+- dakb_vault_files: File vault metadata
 """
 
 import uuid
@@ -156,6 +158,40 @@ class VoteType(str, Enum):
     INCORRECT = "incorrect"
 
 
+class ThreadPostType(str, Enum):
+    """Types of thread posts on knowledge entries."""
+    COMMENT = "comment"
+    SUGGESTION = "suggestion"
+    ENDORSEMENT = "endorsement"
+
+
+class ThreadPostStatus(str, Enum):
+    """Status of a thread post."""
+    ACTIVE = "active"
+    INCORPORATED = "incorporated"
+    ARCHIVED = "archived"
+
+
+class VaultFileStatus(str, Enum):
+    """File lifecycle status in the vault."""
+    UPLOADING = "uploading"      # File transfer in progress
+    ACTIVE = "active"            # Available for download
+    DEPRECATED = "deprecated"    # Marked for removal, still accessible
+    DELETED = "deleted"          # Soft-deleted, pending purge
+
+
+class AllowedMimeType(str, Enum):
+    """Allowed MIME types for vault uploads."""
+    PDF = "application/pdf"
+    MARKDOWN = "text/markdown"
+    PLAIN_TEXT = "text/plain"
+    PNG = "image/png"
+    JPEG = "image/jpeg"
+    SVG = "image/svg+xml"
+    JSON = "application/json"
+    CSV = "text/csv"
+
+
 class AuditAction(str, Enum):
     """Audit log action types."""
     KNOWLEDGE_CREATE = "knowledge_create"
@@ -223,6 +259,12 @@ class Votes(BaseModel):
     unhelpful: int = Field(default=0, ge=0)
     outdated: int = Field(default=0, ge=0)
     incorrect: int = Field(default=0, ge=0)
+
+
+class ThreadSummary(BaseModel):
+    """Summary of thread activity on a knowledge entry."""
+    count: int = Field(default=0, ge=0, description="Total thread posts")
+    last_activity: datetime | None = Field(None, description="Most recent thread post")
 
 
 class MessageAttachment(BaseModel):
@@ -360,6 +402,20 @@ class DakbKnowledge(BaseModel):
     related_files: list[str] = Field(
         default_factory=list,
         description="Related file paths (e.g., 'src/views.py:123')"
+    )
+
+    # Vault Files (HIVE File Vault)
+    has_vault_files: bool = Field(
+        default=False,
+        description="Whether this entry has files in the vault"
+    )
+    vault_file_count: int = Field(
+        default=0, ge=0,
+        description="Number of active vault files"
+    )
+    vault_total_size_bytes: int = Field(
+        default=0, ge=0,
+        description="Total size of active vault files in bytes"
     )
 
     @model_validator(mode='after')
@@ -1110,3 +1166,200 @@ class AliasUpdate(BaseModel):
     role: str | None = Field(None, max_length=100)
     is_active: bool | None = None
     metadata: dict | None = None
+
+
+# =============================================================================
+# KNOWLEDGE THREADS & VERSION HISTORY
+# =============================================================================
+
+class ThreadPost(BaseModel):
+    """Thread post on a knowledge entry (comment, suggestion, endorsement)."""
+    thread_id: str = Field(
+        default_factory=lambda: generate_id("thr"),
+        description="Unique thread post ID"
+    )
+    knowledge_id: str = Field(..., description="FK to parent knowledge entry")
+
+    # Content
+    type: ThreadPostType = Field(..., description="Post type")
+    content: str = Field(..., max_length=5000, description="Markdown content")
+    parent_id: str | None = Field(None, description="Parent thread_id for nested replies")
+    thread_depth: int = Field(default=0, ge=0, le=3, description="Nesting depth (max 3)")
+
+    # Author
+    author_agent_id: str = Field(..., description="Token ID of poster")
+    author_alias: str = Field(..., description="Alias used when posting")
+
+    # Status
+    status: ThreadPostStatus = Field(default=ThreadPostStatus.ACTIVE)
+
+    # Voting (reuse existing schema)
+    votes: Votes = Field(default_factory=Votes)
+    vote_details: list[VoteDetail] = Field(default_factory=list)
+
+    # FAISS
+    embedding_indexed: bool = Field(default=False)
+
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class KnowledgeVersion(BaseModel):
+    """Immutable version snapshot of a knowledge entry."""
+    version_id: str = Field(
+        default_factory=lambda: generate_id("ver"),
+        description="Unique version ID"
+    )
+    knowledge_id: str = Field(..., description="FK to parent knowledge entry")
+
+    version: int = Field(..., ge=1, description="Sequential version number")
+    content: str = Field(..., description="Full content snapshot")
+    title: str = Field(..., max_length=100, description="Title at this version")
+
+    # Change tracking
+    edited_by: str = Field(..., description="Agent who made the edit")
+    editor_alias: str = Field(default="", description="Alias of editor")
+    change_summary: str | None = Field(None, max_length=500)
+
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ThreadPostCreate(BaseModel):
+    """Input model for creating a thread post."""
+    knowledge_id: str = Field(..., description="KB entry to post on")
+    type: ThreadPostType = Field(..., description="Post type")
+    content: str = Field(..., min_length=1, max_length=5000)
+    parent_id: str | None = Field(None, description="Reply to specific post")
+
+
+# =============================================================================
+# FILE VAULT
+# =============================================================================
+
+class VaultFile(BaseModel):
+    """A file stored in the HIVE vault, linked to a knowledge entry."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    file_id: str = Field(
+        default_factory=lambda: generate_id("vf"),
+        description="Unique file identifier (e.g., vf_20260327_abc12345)"
+    )
+    knowledge_id: str = Field(
+        ..., description="Knowledge entry this file belongs to"
+    )
+    filename: str = Field(
+        ..., max_length=255,
+        description="Original filename (sanitized, metadata only — NOT used in vault path)"
+    )
+    mime_type: str = Field(
+        ..., description="Verified MIME type (magic byte validated)"
+    )
+    size_bytes: int = Field(
+        ..., ge=0, description="File size in bytes"
+    )
+    checksum_sha256: str = Field(
+        ..., description="SHA256 hex digest of file content"
+    )
+    vault_path: str = Field(
+        ..., description="Storage path: vault/{knowledge_id}/{file_id}"
+    )
+    description: str | None = Field(
+        None, max_length=1000,
+        description="Agent-provided description of file content"
+    )
+    status: VaultFileStatus = Field(
+        default=VaultFileStatus.UPLOADING,
+        description="File lifecycle status"
+    )
+    uploaded_by: str = Field(
+        ..., description="Agent ID that uploaded this file"
+    )
+    uploaded_at: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+    deprecated_at: datetime | None = Field(
+        None, description="When file was marked deprecated"
+    )
+    deleted_at: datetime | None = Field(
+        None, description="When file was soft-deleted"
+    )
+    purge_after: datetime | None = Field(
+        None, description="TTL: auto-purge from vault after this datetime"
+    )
+
+
+class VaultHold(BaseModel):
+    """Temporary file hold during adaptive validation retry."""
+    hold_id: str = Field(
+        default_factory=lambda: generate_id("hold"),
+        description="Unique hold identifier"
+    )
+    knowledge_id: str | None = Field(
+        None, description="Target knowledge entry (if known)"
+    )
+    files: list[dict] = Field(
+        default_factory=list,
+        description="Held file metadata (temp_path, filename, size, mime)"
+    )
+    total_size_bytes: int = Field(default=0)
+    created_by: str = Field(..., description="Agent that initiated upload")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime = Field(
+        default_factory=lambda: datetime.utcnow() + timedelta(hours=1),
+        description="Auto-cleanup after this time"
+    )
+
+
+# =============================================================================
+# TASK DELEGATION MODELS (real-time agent task routing)
+# =============================================================================
+# Consumed lazily by dakb.gateway.task_router.TaskRouter (which imports these
+# from dakb.db.schemas at call time). Persisted to the dakb_tasks collection.
+
+
+class DelegatedTaskStatus(str, Enum):
+    """Task delegation lifecycle states."""
+    PENDING = "pending"
+    CLAIMED = "claimed"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TIMEOUT = "timeout"
+
+
+class DakbTask(BaseModel):
+    """Task delegation document -- maps to the dakb_tasks collection."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    task_id: str = Field(..., min_length=1, max_length=100)
+    task_type: str = Field(..., min_length=1, max_length=100)
+    requester_id: str = Field(..., min_length=1, max_length=50)
+    recipient_id: str | None = Field(None, max_length=50)
+    required_capabilities: list[str] | None = Field(None)
+    prefer_status: list[str] | None = Field(None)
+    payload: dict = Field(default_factory=dict)
+    status: DelegatedTaskStatus = Field(default=DelegatedTaskStatus.PENDING)
+    assigned_to: str | None = Field(None, max_length=50)
+    claimed_at: datetime | None = Field(None)
+    last_heartbeat: datetime | None = Field(None)
+    result: dict | None = Field(None)
+    error: str | None = Field(None)
+    timeout_seconds: int = Field(default=300, ge=10, le=86400)
+    lease_ttl_seconds: int = Field(default=60, ge=10, le=3600)
+    created_at: datetime = Field(...)
+    completed_at: datetime | None = Field(None)
+    expires_at: datetime = Field(...)
+
+
+class DakbTaskCreate(BaseModel):
+    """Input model for creating a new delegated task."""
+    task_type: str = Field(..., min_length=1, max_length=100)
+    requester_id: str = Field(..., min_length=1, max_length=50)
+    recipient_id: str | None = Field(None, max_length=50)
+    required_capabilities: list[str] | None = Field(None)
+    prefer_status: list[str] | None = Field(None)
+    payload: dict = Field(default_factory=dict)
+    timeout_seconds: int = Field(default=300, ge=10, le=86400)
+    lease_ttl_seconds: int = Field(default=60, ge=10, le=3600)

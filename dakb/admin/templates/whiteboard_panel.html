@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HIVE WHITEBOARD - Admin Panel</title>
+    <style>
+        :root {
+            --wb-primary: #2c3e50;
+            --wb-secondary: #34495e;
+            --wb-accent: #3498db;
+            --wb-success: #27ae60;
+            --wb-warning: #f39c12;
+            --wb-danger: #e74c3c;
+            --wb-muted: #95a5a6;
+            --wb-bg: #f8f9fa;
+            --wb-card-bg: #ffffff;
+            --wb-border: #e9ecef;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--wb-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .wb-panel {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* --- Header --- */
+        .wb-header {
+            background: linear-gradient(135deg, var(--wb-primary) 0%, var(--wb-secondary) 100%);
+            color: white;
+            padding: 20px 28px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .wb-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .wb-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .wb-live-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--wb-success);
+            display: inline-block;
+            animation: wb-pulse 2s infinite;
+            box-shadow: 0 0 6px var(--wb-success);
+        }
+
+        @keyframes wb-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .wb-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #board-selector {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        #board-selector option {
+            background: var(--wb-primary);
+            color: white;
+        }
+
+        .wb-edit-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .wb-edit-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* --- Cards --- */
+        .wb-card {
+            background: var(--wb-card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--wb-border);
+        }
+
+        .wb-card-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--wb-primary);
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--wb-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wb-card-title .icon {
+            font-size: 1.1rem;
+        }
+
+        /* --- Grid --- */
+        .wb-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .wb-grid-full {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 768px) {
+            .wb-grid { grid-template-columns: 1fr; }
+        }
+
+        /* --- Projects Table --- */
+        .wb-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .wb-table th {
+            text-align: left;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: var(--wb-muted);
+            font-weight: 600;
+            padding: 8px 12px;
+            border-bottom: 2px solid var(--wb-border);
+        }
+
+        .wb-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--wb-border);
+            font-size: 0.9rem;
+        }
+
+        .wb-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .wb-table tr:hover td {
+            background: #f4f6f8;
+        }
+
+        .wb-status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .wb-status-badge.active { background: #e8f5e9; color: #2e7d32; }
+        .wb-status-badge.idle { background: #f5f5f5; color: #757575; }
+        .wb-status-badge.blocked { background: #fce4ec; color: #c62828; }
+
+        /* --- Agent Cards --- */
+        .wb-agent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .wb-agent-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid var(--wb-border);
+            transition: box-shadow 0.2s;
+        }
+
+        .wb-agent-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .wb-presence-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-top: 4px;
+            flex-shrink: 0;
+        }
+
+        .wb-presence-dot.status-active {
+            background: var(--wb-success);
+            box-shadow: 0 0 6px rgba(39, 174, 96, 0.4);
+        }
+
+        .wb-presence-dot.status-idle,
+        .wb-presence-dot.status-stale {
+            background: var(--wb-muted);
+        }
+
+        .wb-presence-dot.status-blocked {
+            background: var(--wb-danger);
+            box-shadow: 0 0 6px rgba(231, 76, 60, 0.4);
+        }
+
+        .wb-agent-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .wb-agent-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--wb-primary);
+        }
+
+        .wb-agent-project {
+            font-size: 0.8rem;
+            color: var(--wb-muted);
+        }
+
+        .wb-time-ago {
+            font-size: 0.75rem;
+            color: var(--wb-muted);
+            background: #f0f2f5;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .wb-agent-tasks {
+            margin-top: 8px;
+            font-size: 0.85rem;
+        }
+
+        .wb-agent-tasks dt {
+            display: inline;
+            font-weight: 600;
+            color: var(--wb-secondary);
+        }
+
+        .wb-agent-tasks dd {
+            display: inline;
+            margin-left: 4px;
+            margin-right: 16px;
+            color: #555;
+        }
+
+        /* --- Goals --- */
+        .wb-goals-list {
+            list-style: none;
+        }
+
+        .wb-goals-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--wb-border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .wb-goals-list li:last-child {
+            border-bottom: none;
+        }
+
+        .wb-goal-check {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--wb-muted);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 0.7rem;
+            color: white;
+        }
+
+        .wb-goal-check.done {
+            background: var(--wb-success);
+            border-color: var(--wb-success);
+        }
+
+        .wb-goal-text.done {
+            text-decoration: line-through;
+            color: var(--wb-muted);
+        }
+
+        /* --- Recent Completions --- */
+        .wb-completion-list {
+            list-style: none;
+        }
+
+        .wb-completion-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--wb-border);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 0.9rem;
+        }
+
+        .wb-completion-list li:last-child {
+            border-bottom: none;
+        }
+
+        .wb-completion-date {
+            font-size: 0.8rem;
+            color: var(--wb-muted);
+            white-space: nowrap;
+            min-width: 80px;
+        }
+
+        .wb-completion-desc {
+            flex: 1;
+            color: #333;
+        }
+
+        .wb-completion-agent {
+            font-size: 0.8rem;
+            color: var(--wb-accent);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* --- Empty State --- */
+        .wb-empty {
+            text-align: center;
+            padding: 30px;
+            color: var(--wb-muted);
+            font-size: 0.9rem;
+        }
+
+        /* --- Connection Status --- */
+        .wb-conn-status {
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .wb-conn-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .wb-conn-dot.connected { background: var(--wb-success); }
+        .wb-conn-dot.disconnected { background: var(--wb-danger); }
+    </style>
+</head>
+<body>
+
+<div class="wb-panel" id="hive-whiteboard">
+
+    <!-- Header -->
+    <div class="wb-header">
+        <div class="wb-header-left">
+            <span class="wb-live-dot" id="wb-live-indicator"></span>
+            <h1>HIVE WHITEBOARD</h1>
+        </div>
+        <div class="wb-header-right">
+            <div class="wb-conn-status">
+                <span class="wb-conn-dot disconnected" id="ws-status-dot"></span>
+                <span id="ws-status-text">Disconnected</span>
+            </div>
+            <select id="board-selector" onchange="switchBoard(this.value)">
+                <option value="global">Global Board</option>
+            </select>
+            <button class="wb-edit-btn" id="edit-toggle-btn" onclick="toggleEditMode()">Edit</button>
+        </div>
+    </div>
+
+    <!-- Projects Section -->
+    <div class="wb-card wb-grid-full">
+        <div class="wb-card-title">
+            <span class="icon">&#128194;</span> Projects
+        </div>
+        <table class="wb-table" id="projects-table">
+            <thead>
+                <tr>
+                    <th>Project</th>
+                    <th>Status</th>
+                    <th>Agents</th>
+                    <th>Current Task</th>
+                </tr>
+            </thead>
+            <tbody id="projects-body">
+                <tr>
+                    <td colspan="4" class="wb-empty">Loading projects...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="wb-grid">
+
+        <!-- Agent Status Section -->
+        <div class="wb-card">
+            <div class="wb-card-title">
+                <span class="icon">&#129302;</span> Agent Status
+            </div>
+            <div class="wb-agent-list" id="agent-list">
+                <div class="wb-empty">Loading agents...</div>
+            </div>
+        </div>
+
+        <!-- Goals Section -->
+        <div class="wb-card">
+            <div class="wb-card-title">
+                <span class="icon">&#127919;</span> Goals
+            </div>
+            <ul class="wb-goals-list" id="goals-list">
+                <li class="wb-empty">Loading goals...</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <!-- Recent Completions Section -->
+    <div class="wb-card">
+        <div class="wb-card-title">
+            <span class="icon">&#9989;</span> Recent Completions
+        </div>
+        <ul class="wb-completion-list" id="completions-list">
+            <li class="wb-empty">Loading recent completions...</li>
+        </ul>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+    var currentBoard = 'board_global';
+    var editMode = false;
+    var ws = null;
+    var reconnectTimer = null;
+    var reconnectAttempts = 0;
+    var MAX_RECONNECT_ATTEMPTS = 3;
+    var RECONNECT_DELAY = 5000;
+
+    // -----------------------------------------------------------------------
+    // DOM helpers — safe creation, no innerHTML
+    // -----------------------------------------------------------------------
+
+    function clearChildren(el) {
+        while (el.firstChild) {
+            el.removeChild(el.firstChild);
+        }
+    }
+
+    function el(tag, attrs, children) {
+        var node = document.createElement(tag);
+        if (attrs) {
+            Object.keys(attrs).forEach(function(key) {
+                if (key === 'className') {
+                    node.className = attrs[key];
+                } else if (key === 'textContent') {
+                    node.textContent = attrs[key];
+                } else {
+                    node.setAttribute(key, attrs[key]);
+                }
+            });
+        }
+        if (children) {
+            if (!Array.isArray(children)) children = [children];
+            children.forEach(function(child) {
+                if (typeof child === 'string') {
+                    node.appendChild(document.createTextNode(child));
+                } else if (child) {
+                    node.appendChild(child);
+                }
+            });
+        }
+        return node;
+    }
+
+    function emptyRow(cols, msg) {
+        var td = el('td', { colspan: String(cols), className: 'wb-empty' }, msg);
+        return el('tr', null, td);
+    }
+
+    function emptyItem(tag, msg) {
+        return el(tag, { className: 'wb-empty' }, msg);
+    }
+
+    // -----------------------------------------------------------------------
+    // Board Selector
+    // -----------------------------------------------------------------------
+    window.switchBoard = function(boardId) {
+        currentBoard = boardId;
+        fetchWhiteboardData(boardId);
+    };
+
+    // -----------------------------------------------------------------------
+    // Edit Mode Toggle
+    // -----------------------------------------------------------------------
+    window.toggleEditMode = function() {
+        editMode = !editMode;
+        var btn = document.getElementById('edit-toggle-btn');
+        btn.textContent = editMode ? 'Done' : 'Edit';
+        btn.style.background = editMode ? 'rgba(52,152,219,0.4)' : 'rgba(255,255,255,0.15)';
+        document.querySelectorAll('.wb-editable').forEach(function(node) {
+            node.contentEditable = editMode ? 'true' : 'false';
+            node.style.outline = editMode ? '1px dashed rgba(52,152,219,0.5)' : 'none';
+        });
+    };
+
+    // -----------------------------------------------------------------------
+    // Render Functions — DOM-based, no innerHTML
+    // -----------------------------------------------------------------------
+
+    function renderProjects(projects) {
+        var tbody = document.getElementById('projects-body');
+        clearChildren(tbody);
+
+        if (!projects || projects.length === 0) {
+            tbody.appendChild(emptyRow(4, 'No projects on this board.'));
+            return;
+        }
+
+        for (var i = 0; i < projects.length; i++) {
+            var p = projects[i];
+            var statusClass = (p.status || 'idle').toLowerCase();
+
+            var nameTd = el('td', { className: 'wb-editable' }, p.name || '');
+            var badge = el('span', { className: 'wb-status-badge ' + statusClass }, p.status || 'idle');
+            var statusTd = el('td', null, badge);
+            var agentsTd = el('td', null, String(p.agent_count || 0));
+            var taskTd = el('td', { className: 'wb-editable' }, p.current_task || '-');
+
+            var tr = el('tr', null, [nameTd, statusTd, agentsTd, taskTd]);
+            tbody.appendChild(tr);
+        }
+    }
+
+    function renderAgents(agents) {
+        var container = document.getElementById('agent-list');
+        clearChildren(container);
+
+        if (!agents || agents.length === 0) {
+            container.appendChild(emptyItem('div', 'No agents registered.'));
+            return;
+        }
+
+        for (var i = 0; i < agents.length; i++) {
+            var a = agents[i];
+            var presence = (a.presence || 'idle').toLowerCase();
+            var presenceClass = 'status-' + presence;
+            var timeAgo = a.last_seen ? formatTimeAgo(a.last_seen) : 'unknown';
+
+            var dot = el('div', { className: 'wb-presence-dot ' + presenceClass, title: presence });
+
+            var nameDiv = el('div', { className: 'wb-agent-name' }, a.alias || a.agent_id || '');
+            var projDiv = el('div', { className: 'wb-agent-project' }, a.project || '-');
+
+            var dlNowDt = el('dt', null, 'NOW:');
+            var dlNowDd = el('dd', { className: 'wb-editable' }, a.now || 'Idle');
+            var dlNextDt = el('dt', null, 'NEXT:');
+            var dlNextDd = el('dd', { className: 'wb-editable' }, a.next || '-');
+            var dlDoneDt = el('dt', null, 'DONE:');
+            var dlDoneDd = el('dd', null, a.done || '-');
+            var dlEl = el('dl', { className: 'wb-agent-tasks' }, [dlNowDt, dlNowDd, dlNextDt, dlNextDd, dlDoneDt, dlDoneDd]);
+
+            var infoDiv = el('div', { className: 'wb-agent-info' }, [nameDiv, projDiv, dlEl]);
+
+            var timeSpan = el('span', { className: 'wb-time-ago' }, timeAgo);
+
+            var card = el('div', { className: 'wb-agent-card' }, [dot, infoDiv, timeSpan]);
+            container.appendChild(card);
+        }
+    }
+
+    function renderGoals(goals) {
+        var ul = document.getElementById('goals-list');
+        clearChildren(ul);
+
+        if (!goals || goals.length === 0) {
+            ul.appendChild(emptyItem('li', 'No goals set.'));
+            return;
+        }
+
+        for (var i = 0; i < goals.length; i++) {
+            var g = goals[i];
+            var isDone = g.done || g.completed || false;
+
+            var checkClass = 'wb-goal-check' + (isDone ? ' done' : '');
+            var checkSpan = el('span', { className: checkClass });
+            if (isDone) {
+                checkSpan.textContent = '\u2713';
+            }
+
+            var textClass = 'wb-goal-text' + (isDone ? ' done' : '') + ' wb-editable';
+            var textSpan = el('span', { className: textClass }, g.text || g.description || '');
+
+            var li = el('li', null, [checkSpan, textSpan]);
+            ul.appendChild(li);
+        }
+    }
+
+    function renderCompletions(completions) {
+        var ul = document.getElementById('completions-list');
+        clearChildren(ul);
+
+        if (!completions || completions.length === 0) {
+            ul.appendChild(emptyItem('li', 'No recent completions.'));
+            return;
+        }
+
+        for (var i = 0; i < completions.length; i++) {
+            var c = completions[i];
+            var dateSpan = el('span', { className: 'wb-completion-date' }, c.date || '');
+            var descSpan = el('span', { className: 'wb-completion-desc' }, c.description || '');
+            var agentSpan = el('span', { className: 'wb-completion-agent' }, c.agent || '');
+            var li = el('li', null, [dateSpan, descSpan, agentSpan]);
+            ul.appendChild(li);
+        }
+    }
+
+    function updateBoardSelector(boards) {
+        var sel = document.getElementById('board-selector');
+        clearChildren(sel);
+        var defaultOpt = el('option', { value: 'board_global' }, 'Global Board');
+        sel.appendChild(defaultOpt);
+
+        if (boards && boards.length) {
+            for (var i = 0; i < boards.length; i++) {
+                var b = boards[i];
+                var opt = el('option', { value: b.id || b.board_id || b.name }, b.name || b.id);
+                if (opt.value === currentBoard) opt.selected = true;
+                sel.appendChild(opt);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Data Fetching
+    // -----------------------------------------------------------------------
+
+    function fetchWhiteboardData(boardId) {
+        var baseUrl = window.location.origin;
+        var url = baseUrl + '/api/v1/whiteboard/boards/' + encodeURIComponent(boardId || 'board_global') + '/render';
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function(res) {
+                if (res.status === 404) {
+                    // Board not created yet — show empty state, not an error
+                    renderProjects([]);
+                    renderAgents([]);
+                    renderGoals([]);
+                    renderCompletions([]);
+                    console.log('[Whiteboard] Board not found — will populate when agents start writing');
+                    return null;
+                }
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                if (!data) return; // 404 already handled
+                // Unwrap agentic envelope if present (gateway wraps in {status, data, meta})
+                var d = (data.data && data.meta) ? data.data : data;
+                renderProjects(d.projects || []);
+                renderAgents(d.agents || []);
+                renderGoals(d.goals || []);
+                renderCompletions(d.completions || d.recent_completions || []);
+                if (d.boards) updateBoardSelector(d.boards);
+                setConnectionStatus(true);
+            })
+            .catch(function(err) {
+                console.error('[Whiteboard] Fetch error:', err);
+                setConnectionStatus(false);
+            });
+    }
+
+    // -----------------------------------------------------------------------
+    // WebSocket — listen for whiteboard_updated events
+    // -----------------------------------------------------------------------
+
+    function connectWebSocket() {
+        if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+            return;
+        }
+
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.log('[Whiteboard] WebSocket unavailable after ' + MAX_RECONNECT_ATTEMPTS + ' attempts — using polling only');
+            setConnectionStatus(false);
+            return;
+        }
+
+        reconnectAttempts++;
+        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var wsUrl = protocol + '//' + window.location.host + '/ws/whiteboard';
+
+        try {
+            ws = new WebSocket(wsUrl);
+        } catch (e) {
+            console.log('[Whiteboard] WebSocket not available, using polling only');
+            return;
+        }
+
+        ws.onopen = function() {
+            console.log('[Whiteboard] WebSocket connected');
+            reconnectAttempts = 0;
+            setConnectionStatus(true);
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+        };
+
+        ws.onmessage = function(event) {
+            try {
+                var msg = JSON.parse(event.data);
+                if (msg.type === 'whiteboard_updated') {
+                    console.log('[Whiteboard] Board updated, refreshing...');
+                    fetchWhiteboardData(currentBoard);
+                }
+            } catch (e) {
+                console.warn('[Whiteboard] Invalid WS message:', e);
+            }
+        };
+
+        ws.onclose = function() {
+            console.log('[Whiteboard] WebSocket disconnected');
+            setConnectionStatus(false);
+            scheduleReconnect();
+        };
+
+        ws.onerror = function() {
+            // Silently handle — onclose will fire next and schedule reconnect
+            setConnectionStatus(false);
+        };
+    }
+
+    function scheduleReconnect() {
+        if (reconnectTimer) return;
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.log('[Whiteboard] Giving up on WebSocket — refresh page to retry');
+            return;
+        }
+        reconnectTimer = setTimeout(function() {
+            reconnectTimer = null;
+            connectWebSocket();
+        }, RECONNECT_DELAY);
+    }
+
+    function setConnectionStatus(connected) {
+        var dot = document.getElementById('ws-status-dot');
+        var text = document.getElementById('ws-status-text');
+        if (connected) {
+            dot.className = 'wb-conn-dot connected';
+            text.textContent = 'Live';
+        } else {
+            dot.className = 'wb-conn-dot disconnected';
+            text.textContent = 'Disconnected';
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    function formatTimeAgo(isoDate) {
+        try {
+            var then = new Date(isoDate);
+            var now = new Date();
+            var diffMs = now - then;
+            var diffSec = Math.floor(diffMs / 1000);
+            if (diffSec < 60) return diffSec + 's ago';
+            var diffMin = Math.floor(diffSec / 60);
+            if (diffMin < 60) return diffMin + 'm ago';
+            var diffHr = Math.floor(diffMin / 60);
+            if (diffHr < 24) return diffHr + 'h ago';
+            var diffDay = Math.floor(diffHr / 24);
+            return diffDay + 'd ago';
+        } catch (e) {
+            return 'unknown';
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Init
+    // -----------------------------------------------------------------------
+
+    fetchWhiteboardData(currentBoard);
+    // WebSocket is Phase 2 — disabled until /ws/whiteboard endpoint is built.
+    // Data loads via REST fetch; manual refresh or tab re-click refreshes.
+    // try { connectWebSocket(); } catch(e) { console.log('[Whiteboard] WS not available yet'); }
+
+})();
+</script>
+
+</body>
+</html>

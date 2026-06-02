@@ -1,0 +1,366 @@
+# DAKB Gateway — Issue Definitions
+# Namespaced by domain: KB, MOD, MSG, SESS, ALIAS, REG, VAULT, WB, THREAD, MCP
+# Loaded by IssueRegistry at startup
+
+# --- Knowledge (KB) ---
+KB.NOT_FOUND:
+  severity: "blocking"
+  message: "Knowledge entry not found"
+  category: "validation"
+  retryable: false
+  remediation_key: "kb_not_found"
+
+KB.TITLE_REQUIRED:
+  severity: "blocking"
+  message: "Title is required for knowledge entry"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+KB.CONTENT_REQUIRED:
+  severity: "blocking"
+  message: "Content is required for knowledge entry"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+KB.CONTENT_TYPE_INVALID:
+  severity: "blocking"
+  message: "Invalid content_type — must be one of: lesson_learned, research, report, pattern, config, error_fix, plan, implementation"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+KB.CATEGORY_INVALID:
+  severity: "blocking"
+  message: "Invalid category — must be one of: database, ml, trading, devops, security, frontend, backend, general"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+KB.DUPLICATE_DETECTED:
+  severity: "warning"
+  message: "A similar knowledge entry already exists"
+  category: "validation"
+  retryable: false
+  remediation_key: "kb_duplicate"
+
+KB.SEARCH_FAILED:
+  severity: "blocking"
+  message: "Knowledge search failed — embedding service may be unavailable"
+  category: "dependency"
+  retryable: true
+
+KB.EMBEDDING_UNAVAILABLE:
+  severity: "blocking"
+  message: "Embedding service unavailable — semantic search disabled"
+  category: "dependency"
+  retryable: true
+
+KB.ACCESS_DENIED:
+  severity: "blocking"
+  message: "Access denied — insufficient access level for this entry"
+  category: "policy"
+  retryable: false
+
+KB.UPDATE_FAILED:
+  severity: "blocking"
+  message: "Knowledge update failed"
+  category: "dependency"
+  retryable: true
+
+KB.DELETE_FAILED:
+  severity: "blocking"
+  message: "Knowledge deletion failed"
+  category: "dependency"
+  retryable: true
+
+KB.VOTE_FAILED:
+  severity: "blocking"
+  message: "Failed to record vote on knowledge entry"
+  category: "dependency"
+  retryable: true
+
+KB.VOTE_TYPE_INVALID:
+  severity: "blocking"
+  message: "Invalid vote type — must be one of: helpful, unhelpful, outdated, incorrect"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+KB.FILTER_REQUIRED:
+  severity: "blocking"
+  message: "At least one filter (category or tags) is required for listing knowledge"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+KB.TAGS_REQUIRED:
+  severity: "blocking"
+  message: "At least one tag is required"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+KB.OWNER_REQUIRED:
+  severity: "blocking"
+  message: "Only the owner or admin can modify this knowledge entry"
+  category: "policy"
+  retryable: false
+
+# --- Moderation (MOD) ---
+MOD.ADMIN_REQUIRED:
+  severity: "blocking"
+  message: "Admin role required for this moderation action"
+  category: "policy"
+  retryable: false
+  remediation_key: "moderation_denied"
+
+MOD.CREATOR_REQUIRED:
+  severity: "blocking"
+  message: "Only the entry creator or admin can delete entries"
+  category: "policy"
+  retryable: false
+  remediation_key: "moderation_denied"
+
+MOD.CONFIRM_REQUIRED:
+  severity: "blocking"
+  message: "Non-admin moderation requires user_confirmed=true"
+  category: "validation"
+  retryable: true
+  remediation_key: "moderation_denied"
+
+MOD.REASON_REQUIRED:
+  severity: "blocking"
+  message: "Reason is required for deprecate/delete actions"
+  category: "validation"
+  retryable: true
+  remediation_key: "kb_validation"
+
+MOD.FLAG_NOT_FOUND:
+  severity: "blocking"
+  message: "Moderation flag not found"
+  category: "validation"
+  retryable: false
+
+# --- Messaging (MSG) ---
+MSG.NOT_FOUND:
+  severity: "blocking"
+  message: "Message not found"
+  category: "validation"
+  retryable: false
+  remediation_key: "message_not_found"
+
+MSG.RECIPIENT_NOT_FOUND:
+  severity: "blocking"
+  message: "Recipient agent not found"
+  category: "validation"
+  retryable: false
+
+MSG.SELF_MESSAGE:
+  severity: "blocking"
+  message: "Cannot send message to yourself"
+  category: "validation"
+  retryable: false
+
+MSG.CONTENT_REQUIRED:
+  severity: "blocking"
+  message: "Message content is required"
+  category: "validation"
+  retryable: true
+
+# --- Sessions (SESS) ---
+SESS.NOT_FOUND:
+  severity: "blocking"
+  message: "Session not found"
+  category: "validation"
+  retryable: false
+  remediation_key: "session_not_found"
+
+SESS.ALREADY_ENDED:
+  severity: "warning"
+  message: "Session has already ended"
+  category: "validation"
+  retryable: false
+
+SESS.HANDOFF_NOT_FOUND:
+  severity: "blocking"
+  message: "Session handoff not found"
+  category: "validation"
+  retryable: false
+
+SESS.EXPORT_FAILED:
+  severity: "blocking"
+  message: "Session export failed"
+  category: "dependency"
+  retryable: true
+
+# --- Aliases (ALIAS) ---
+ALIAS.NOT_FOUND:
+  severity: "blocking"
+  message: "Alias not found"
+  category: "validation"
+  retryable: false
+
+ALIAS.ALREADY_EXISTS:
+  severity: "blocking"
+  message: "Alias name already in use"
+  category: "validation"
+  retryable: false
+  remediation_key: "alias_conflict"
+
+ALIAS.LIMIT_REACHED:
+  severity: "blocking"
+  message: "Maximum alias limit reached for this agent"
+  category: "policy"
+  retryable: false
+
+# --- Registration (REG) ---
+REG.INVITE_INVALID:
+  severity: "blocking"
+  message: "Invalid or expired invite token"
+  category: "auth"
+  retryable: false
+
+REG.AGENT_EXISTS:
+  severity: "blocking"
+  message: "Agent already registered"
+  category: "validation"
+  retryable: false
+
+REG.ADMIN_REQUIRED:
+  severity: "blocking"
+  message: "Admin role required for this registration operation"
+  category: "policy"
+  retryable: false
+
+# --- Vault (VAULT) ---
+VAULT.FILE_NOT_FOUND:
+  severity: "blocking"
+  message: "Vault file not found"
+  category: "validation"
+  retryable: false
+
+VAULT.UPLOAD_FAILED:
+  severity: "blocking"
+  message: "File upload failed"
+  category: "dependency"
+  retryable: true
+  remediation_key: "vault_file_error"
+
+VAULT.TYPE_NOT_ALLOWED:
+  severity: "blocking"
+  message: "File type not allowed — see preflight endpoint for allowed types"
+  category: "validation"
+  retryable: false
+  remediation_key: "vault_file_error"
+
+VAULT.SIZE_EXCEEDED:
+  severity: "blocking"
+  message: "File size exceeds budget for this knowledge entry"
+  category: "validation"
+  retryable: false
+  remediation_key: "vault_file_error"
+
+VAULT.LIMIT_EXCEEDED:
+  severity: "blocking"
+  message: "Maximum file count per entry exceeded (limit: 10)"
+  category: "validation"
+  retryable: false
+  remediation_key: "vault_file_error"
+
+VAULT.EXECUTABLE_REJECTED:
+  severity: "blocking"
+  message: "File contains executable binary content (ELF, Mach-O, PE, Java class, or shebang script). The vault stores data only — executables are rejected by the magic-byte detector regardless of declared MIME type."
+  category: "policy"
+  retryable: false
+  remediation_key: "vault_file_error"
+
+# --- Whiteboard (WB) ---
+WB.BOARD_NOT_FOUND:
+  severity: "blocking"
+  message: "Whiteboard board not found"
+  category: "validation"
+  retryable: false
+
+WB.SECTION_NOT_FOUND:
+  severity: "blocking"
+  message: "Whiteboard section not found"
+  category: "validation"
+  retryable: false
+
+WB.VERSION_CONFLICT:
+  severity: "blocking"
+  message: "Whiteboard version conflict — another update happened since your read"
+  category: "validation"
+  retryable: true
+  remediation_key: "whiteboard_version_conflict"
+
+WB.BOARD_EXISTS:
+  severity: "warning"
+  message: "Board already exists"
+  category: "validation"
+  retryable: false
+
+WB.FORBIDDEN:
+  severity: "blocking"
+  message: "You may only modify whiteboard sections you own (or as an admin)"
+  category: "policy"
+  retryable: false
+
+# --- Threads (THREAD) ---
+THREAD.NOT_FOUND:
+  severity: "blocking"
+  message: "Thread or knowledge entry not found"
+  category: "validation"
+  retryable: false
+
+THREAD.TYPE_INVALID:
+  severity: "blocking"
+  message: "Invalid thread type — must be: comment, suggestion, endorsement"
+  category: "validation"
+  retryable: true
+
+# --- Auth (AUTH) ---
+AUTH.TOKEN_REQUIRED:
+  severity: "blocking"
+  message: "Authentication token required"
+  category: "auth"
+  retryable: true
+  remediation_key: "auth_required"
+
+AUTH.TOKEN_EXPIRED:
+  severity: "blocking"
+  message: "Authentication token has expired"
+  category: "auth"
+  retryable: true
+  remediation_key: "auth_required"
+
+AUTH.ROLE_INSUFFICIENT:
+  severity: "blocking"
+  message: "Insufficient role for this operation"
+  category: "policy"
+  retryable: false
+
+# --- Rate Limiting ---
+RATE.LIMIT_EXCEEDED:
+  severity: "blocking"
+  message: "Rate limit exceeded — wait and retry"
+  category: "rate"
+  retryable: true
+  remediation_key: "rate_limited"
+
+# --- MCP Transport (MCP) ---
+MCP.TYPE_MISMATCH:
+  severity: "blocking"
+  message: "MCP tool argument type mismatch — a field was passed with the wrong JSON type (e.g. quoted string \"18\" instead of integer 18, or stringified \"[\\\"a\\\",\\\"b\\\"]\" instead of real array [\"a\",\"b\"])"
+  category: "validation"
+  retryable: true
+  remediation_key: "mcp_type_mismatch"
+
+MCP.UNKNOWN_TOOL:
+  severity: "blocking"
+  message: "MCP tool name not found — check /mcp tools/list for available tools"
+  category: "validation"
+  retryable: true
+  remediation_key: "mcp_type_mismatch"

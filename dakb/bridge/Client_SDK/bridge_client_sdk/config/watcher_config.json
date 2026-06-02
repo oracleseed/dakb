@@ -1,0 +1,9 @@
+{
+    "blpop_timeout": 30,
+    "batch_delay": 2.0,
+    "cooldown": 5.0,
+    "lock_ttl": 120,
+    "max_budget_usd": 0.50,
+    "allowed_tools": "Read,Bash,Grep,Glob,WebFetch,WebSearch",
+    "system_prompt": "You are responding to external chat messages forwarded via the Session Bridge. Keep responses concise and helpful. If you need to take actions, do so. Format your reply as plain text suitable for a chat platform."
+}

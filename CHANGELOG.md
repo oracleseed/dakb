@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-01
+
+Major release. v2.0.0 turns DAKB from a knowledge-and-messaging store into a
+full multi-agent collaboration platform: file attachments, a live team
+whiteboard, threaded discussion + version history on entries, a uniform
+agentic response envelope, a Redis-backed real-time stack, and two bridges for
+connecting external agents and chat platforms.
+
+### Added
+
+- **File Vault** — Attach binary files (PDFs, images, archives, datasets, etc.)
+  to knowledge entries.
+  - Pluggable storage backends: local disk (default) and S3 (`pip install dakb-server[s3]`).
+  - Per-entry budgets (default 10 files / 500 MB), SHA-256 checksums, soft-delete
+    with a 30-day purge TTL.
+  - MIME allow-list with defense-in-depth executable-content detection
+    (ELF / Mach-O / PE / Java class / shebang scripts are always rejected).
+  - REST: `POST /api/v1/vault/upload`, `GET /api/v1/vault/preflight`,
+    `GET /api/v1/vault/{knowledge_id}`,
+    `GET /api/v1/vault/{knowledge_id}/{file_id}/download`,
+    `DELETE /api/v1/vault/{knowledge_id}/{file_id}`.
+  - MCP tools `dakb_vault_upload` / `dakb_vault_download`; SDK `vault_upload()` /
+    `vault_download()`.
+- **Whiteboard** — A live, shared team status board.
+  - Per-agent sections (`now`, `next`, `done_recent`, `status`) with optimistic
+    concurrency control (integer version, HTTP 409 on conflict).
+  - Compact and full render views, snapshot and history support, and lifecycle
+    triggers (session start/end auto-update agent status).
+  - MCP tool `dakb_whiteboard` (read / update / clear / snapshot / history).
+- **Knowledge Threads + Versions** — Collaborate on entries over time.
+  - Threaded comments, suggestions and endorsements on knowledge entries.
+  - Automatic version-history snapshots when an entry is edited, with retrieval.
+  - Follow/unfollow entries to track changes.
+  - Advanced ops: `post_thread`, `get_threads`, `follow_knowledge`,
+    `get_followed`, `get_versions`.
+  - Collections: `dakb_knowledge_threads`, `dakb_knowledge_versions`.
+- **Agentic API responses** — A uniform, LLM-oriented response envelope across
+  the gateway.
+  - Success responses carry `available_actions` and `suggestions`; errors carry
+    machine-readable issue codes, human instructions and remediation prompts so
+    agents can self-correct instead of receiving naked error codes.
+  - Backed by `dakb/agentic_core/` (envelope, registry, remediation, exceptions).
+- **Real-time stack (Redis)** — New optional real-time layer powered by Redis.
+  - Agent **WebSocket** endpoint for streaming events.
+  - **Presence** tracking (which agents are online).
+  - **Task delegation / routing** between agents.
+  - **Notification bus** for fan-out of events to subscribers.
+  - Degrades gracefully: when Redis is unavailable the gateway disables
+    real-time features and continues serving REST.
+- **Session Bridge** — Relay sessions and work context between agents over the
+  gateway, with a dedicated **`dakb-bridge-sdk`** client (`dakb/bridge/Client_SDK`)
+  plus launcher, queue and WebSocket handler.
+- **Chat Bridge** — Connect external chat platforms to the agent fleet.
+  - Router, registry, session manager, inbound/outbound consumers and a
+    pluggable adapter interface, shipping with a **Telegram reference adapter**.
+- **MCP protocol upgrade** — Adopted MCP protocol revision `2025-06-18`.
+  - Added **elicitation** support (server-initiated `elicitation/create` prompts,
+    used for confirmation flows such as moderation).
+  - **3 new standard tools**: `dakb_whiteboard`, `dakb_vault_upload`,
+    `dakb_vault_download` (standard profile now 15 tools).
+  - **5 new advanced operations**: `post_thread`, `get_threads`,
+    `follow_knowledge`, `get_followed`, `get_versions` (full profile now 39 tools).
+
+### Changed
+
+- MCP tool surface grew from 12/36 (standard/full) to **15/39**. The standard
+  profile gains the whiteboard and the two vault tools; the full profile gains
+  the five thread/version advanced operations.
+- Docker: added a `redis:7-alpine` service and a persistent vault volume; the
+  gateway now receives `DAKB_REDIS_URL` and `DAKB_VAULT_LOCAL_BASE_PATH`.
+
+### Fixed
+
+- `integration/alias_registration` — corrected agent alias registration so
+  startup alias bootstrapping is idempotent and no longer fails on re-runs.
+
+### Dependencies
+
+- Added core runtime deps: `redis>=5.0`, `websockets>=12.0`, `aiofiles`,
+  `python-magic` (requires the system `libmagic` library).
+- Added optional extra `dakb-server[s3]` = `boto3` for the S3 vault backend.
+
 ## [1.2.1] - 2026-01-14
 
 ### Fixed
@@ -63,7 +145,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory leak in long-running SSE connections
 - Race condition in FAISS index updates
 
-## [2.0.0] - 2024-12-11
+## [0.2.0] - 2024-12-11
+
+> Legacy pre-1.0 internal milestone (originally tagged `2.0.0` during early
+> development, before the package was re-versioned for PyPI). Renumbered here to
+> keep version identifiers unique now that the public `2.0.0` ships above.
 
 ### Added
 - Self-registration system with invite tokens
@@ -91,10 +177,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/oracleseed/dakb/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/oracleseed/dakb/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/oracleseed/dakb/compare/v1.2.1...v2.0.0
 [1.2.1]: https://github.com/oracleseed/dakb/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/oracleseed/dakb/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/oracleseed/dakb/compare/v3.0.0...v1.1.0
-[3.0.0]: https://github.com/oracleseed/dakb/compare/v2.0.0...v3.0.0
-[2.0.0]: https://github.com/oracleseed/dakb/compare/v1.0.0...v2.0.0
+[3.0.0]: https://github.com/oracleseed/dakb/compare/v0.2.0...v3.0.0
+[0.2.0]: https://github.com/oracleseed/dakb/compare/v1.0.0...v0.2.0
 [1.0.0]: https://github.com/oracleseed/dakb/releases/tag/v1.0.0

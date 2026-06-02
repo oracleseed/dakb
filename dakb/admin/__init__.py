@@ -15,9 +15,11 @@ Author: Claude Opus 4.5
 from .api import router as admin_api_router
 from .api import dashboard_router as admin_dashboard_router
 from .websocket import router as admin_ws_router
+from .whiteboard_dashboard import whiteboard_dashboard_router as admin_whiteboard_router
 
 __all__ = [
     "admin_api_router",
     "admin_dashboard_router",
     "admin_ws_router",
+    "admin_whiteboard_router",
 ]

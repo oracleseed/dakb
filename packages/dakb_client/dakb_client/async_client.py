@@ -4,7 +4,7 @@ DAKB Asynchronous Client
 An asynchronous HTTP client for the DAKB REST API.
 Uses httpx AsyncClient for non-blocking operations.
 
-Version: 1.0.0
+Version: 1.0.3
 Created: 2025-12-17
 
 Usage:
@@ -142,7 +142,7 @@ class DAKBAsyncClient:
         except json.JSONDecodeError:
             data = {"raw_response": response.text}
 
-        if response.status_code == 200:
+        if 200 <= response.status_code < 300:
             return data
 
         if response.status_code == 401:
@@ -316,6 +316,135 @@ class DAKBAsyncClient:
         return await self._request("POST", "knowledge/vote", data=data)
 
     # =========================================================================
+    # FILE VAULT OPERATIONS (v2.0.0)
+    # =========================================================================
+
+    async def vault_upload(
+        self,
+        files: list[str],
+        knowledge_id: Optional[str] = None,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        content_type: str | ContentType = "report",
+        category: str | Category = "general",
+        tags: Optional[list[str]] = None,
+        file_descriptions: Optional[list[dict[str, str]]] = None,
+        hold_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Upload one or more files to the DAKB File Vault (async).
+
+        Either attach to an existing entry (pass ``knowledge_id``) or create a new
+        entry (pass ``title`` and ``content`` — the gateway creates the entry).
+
+        Args:
+            files: Local file paths to upload (max 10, 500 MB total per entry)
+            knowledge_id: Existing entry to attach files to (optional)
+            title: Title for a new entry (used when knowledge_id is not given)
+            content: Body for a new entry (used when knowledge_id is not given)
+            content_type: Content type for a new entry (default: "report")
+            category: Category for a new entry (default: "general")
+            tags: Tags for a new entry
+            file_descriptions: Per-file descriptions, e.g.
+                ``[{"filename": "a.pdf", "description": "..."}]``
+            hold_id: Claim files held from a previous 422 budget response
+
+        Returns:
+            Agentic response envelope with ``data.knowledge_id`` and
+            ``data.vault_files``.
+
+        Example:
+            result = await client.vault_upload(
+                files=["report.pdf"],
+                title="Q2 Findings",
+                content="Full analysis attached.",
+            )
+        """
+        metadata: dict[str, Any] = {}
+        if title is not None:
+            metadata["title"] = title
+        if content is not None:
+            metadata["content"] = content
+        metadata["content_type"] = (
+            content_type if isinstance(content_type, str) else content_type.value
+        )
+        metadata["category"] = category if isinstance(category, str) else category.value
+        if tags:
+            metadata["tags"] = tags
+        if file_descriptions:
+            metadata["file_descriptions"] = file_descriptions
+
+        form: dict[str, Any] = {"metadata": json.dumps(metadata)}
+        if knowledge_id:
+            form["knowledge_id"] = knowledge_id
+        if hold_id:
+            form["hold_id"] = hold_id
+
+        client = await self._get_client()
+        # Handles must remain open across the POST (httpx streams them), so a
+        # single `with` block per file is not usable here; closed in `finally`.
+        opened = []
+        try:
+            multipart = []
+            for path in files:
+                fh = open(path, "rb")  # noqa: SIM115 - closed in finally; must stay open across POST
+                opened.append(fh)
+                filename = path.rsplit("/", 1)[-1]
+                multipart.append(("files", (filename, fh)))
+
+            # httpx sets the multipart Content-Type (with boundary) on the request,
+            # overriding the client's default application/json header.
+            response = await client.post(
+                self._api_url("vault/upload"),
+                data=form,
+                files=multipart,
+            )
+            return self._handle_response(response)
+        finally:
+            for fh in opened:
+                fh.close()
+
+    async def vault_download(
+        self,
+        knowledge_id: str,
+        file_id: str,
+        output_path: Optional[str] = None,
+    ) -> bytes:
+        """
+        Download a file from the DAKB File Vault (async).
+
+        Args:
+            knowledge_id: Knowledge entry the file belongs to
+            file_id: Vault file ID (e.g. "vf_...")
+            output_path: If given, write bytes to this path; otherwise return bytes
+
+        Returns:
+            The raw file bytes (also written to ``output_path`` when provided)
+
+        Raises:
+            DAKBNotFoundError: If the file or entry does not exist (404)
+            DAKBAuthenticationError: If access to the parent entry is denied (403)
+
+        Example:
+            data = await client.vault_download("kn_...", "vf_...", output_path="report.pdf")
+        """
+        client = await self._get_client()
+        # Local backend streams bytes; S3 backend issues a 307 to a signed URL,
+        # so follow redirects to transparently fetch S3-hosted bytes too.
+        response = await client.get(
+            self._api_url(f"vault/{knowledge_id}/{file_id}/download"),
+            follow_redirects=True,
+        )
+        if response.status_code >= 400:
+            self._handle_response(response)
+
+        content = response.content
+        if output_path:
+            with open(output_path, "wb") as f:
+                f.write(content)
+        return content
+
+    # =========================================================================
     # MESSAGING OPERATIONS
     # =========================================================================
 
@@ -408,7 +537,9 @@ class DAKBAsyncClient:
 
     async def status(self) -> dict[str, Any]:
         """Check DAKB service health status."""
-        return await self._request("GET", "status")
+        client = await self._get_client()
+        response = await client.get("/health")
+        return self._handle_response(response)
 
     async def get_stats(self) -> dict[str, Any]:
         """Get knowledge base statistics."""

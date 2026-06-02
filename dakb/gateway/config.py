@@ -21,6 +21,14 @@ Environment Variables:
 - DAKB_RATE_LIMIT_REQUESTS: Rate limit requests per window
 - DAKB_RATE_LIMIT_WINDOW: Rate limit window in seconds
 - DAKB_FAISS_DATA_DIR: FAISS data directory (default: data/dakb_faiss)
+- DAKB_REDIS_URL: Redis connection URL (default: redis://localhost:6379/0)
+- DAKB_MONGO_URI: Bridge MongoDB URI (default: mongodb://localhost:27017)
+- DAKB_BRIDGE_ALLOW_AGENT_LAUNCH: Allow agent launch from chat (default: False)
+- FILE_VAULT_BACKEND: Vault backend, 's3' or 'local' (default: local)
+- FILE_VAULT_S3_ENDPOINT_URL: S3-compatible endpoint (default: http://localhost:9000)
+- FILE_VAULT_S3_BUCKET: Vault bucket name (default: dakb-vault)
+- FILE_VAULT_MAX_FILES / FILE_VAULT_MAX_SIZE: Per-entry vault limits
+- FILE_VAULT_DELETE_TTL_DAYS: Soft-delete retention before purge (default: 30)
 """
 
 import os
@@ -69,6 +77,101 @@ def _get_env_list(key: str, default: list[str]) -> list[str]:
     if value is None:
         return default
     return [item.strip() for item in value.split(',') if item.strip()]
+
+
+class VaultSettings(BaseModel):
+    """File vault storage configuration.
+
+    Defaults are deployment-neutral: the S3 backend points at a local
+    S3-compatible endpoint (e.g. MinIO) and a generic bucket name. Override
+    every value via the FILE_VAULT_* environment variables in production.
+    """
+    backend: str = Field(default="local", description="'s3' or 'local'")
+    # S3 settings (defaults target a local S3-compatible endpoint such as MinIO)
+    s3_endpoint_url: str | None = Field(None)
+    s3_access_key: str | None = Field(None)
+    s3_secret_key: str | None = Field(None)
+    s3_bucket: str = Field(default="dakb-vault")
+    s3_region: str = Field(default="us-east-1")
+    # Local settings
+    local_base_path: str = Field(default="./data/vault")
+    # Limits
+    max_files_per_entry: int = Field(default=10)
+    max_total_size_bytes: int = Field(default=500 * 1024 * 1024)  # 500MB
+    # Hold settings
+    hold_ttl_seconds: int = Field(default=3600)  # 1 hour
+    hold_base_path: str = Field(default="./data/vault_holds")
+    # Cleanup
+    soft_delete_ttl_days: int = Field(default=30)
+    cleanup_interval_hours: int = Field(default=6)
+    # Security
+    signed_url_ttl_seconds: int = Field(default=900)  # 15 min
+    # Broad allow-list — covers nearly all common non-executable formats.
+    # Executable content is rejected by the upload route's executable detector
+    # regardless of declared MIME type, so application/octet-stream is safe to
+    # allow for ML data formats (parquet, npy, hdf5, etc.).
+    allowed_mime_types: list[str] = Field(default=[
+        # Documents
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.spreadsheet",
+        "application/vnd.oasis.opendocument.presentation",
+        "application/rtf",
+        "application/epub+zip",
+        # Text & code-as-text (storage only — not execution)
+        "text/plain", "text/markdown", "text/csv", "text/tab-separated-values",
+        "text/html", "text/xml", "text/css", "text/yaml", "text/x-yaml",
+        "text/x-python", "text/x-c", "text/x-c++", "text/x-java", "text/x-go",
+        "text/x-rust", "text/x-ruby", "text/x-php", "text/x-sql", "text/x-log",
+        # Application data
+        "application/json", "application/xml", "application/yaml",
+        "application/x-yaml", "application/toml", "application/javascript",
+        "application/x-ipynb+json", "application/sql",
+        "application/x-sqlite3", "application/vnd.sqlite3",
+        "application/x-hdf", "application/x-hdf5",
+        "application/vnd.apache.parquet", "application/x-parquet",
+        "application/x-numpy-data",
+        "application/octet-stream",  # ML data catchall — guarded by executable detector
+        # Images
+        "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+        "image/bmp", "image/tiff", "image/x-icon", "image/vnd.microsoft.icon",
+        "image/heic", "image/heif", "image/avif",
+        # Audio
+        "audio/mpeg", "audio/mp4", "audio/wav", "audio/x-wav", "audio/ogg",
+        "audio/flac", "audio/x-flac", "audio/aac", "audio/webm",
+        # Video
+        "video/mp4", "video/webm", "video/x-matroska", "video/quicktime",
+        "video/x-msvideo", "video/mpeg",
+        # Archives
+        "application/zip", "application/x-tar", "application/gzip",
+        "application/x-gzip", "application/x-bzip2", "application/x-xz",
+        "application/x-rar-compressed", "application/vnd.rar",
+        "application/x-7z-compressed", "application/zstd", "application/x-zstd",
+        # Fonts
+        "font/ttf", "font/otf", "font/woff", "font/woff2",
+    ])
+
+    def to_backend_config(self) -> dict:
+        """Convert to dict suitable for create_vault_backend()."""
+        if self.backend == "s3":
+            return {
+                "backend": "s3",
+                "endpoint_url": self.s3_endpoint_url,
+                "access_key": self.s3_access_key,
+                "secret_key": self.s3_secret_key,
+                "bucket": self.s3_bucket,
+                "region": self.s3_region,
+            }
+        return {
+            "backend": "local",
+            "base_path": self.local_base_path,
+        }
 
 
 class DAKBGatewaySettings(BaseModel):
@@ -250,6 +353,41 @@ class DAKBGatewaySettings(BaseModel):
         description="Directory for FAISS index storage (relative to project root or absolute)"
     )
 
+    # ==========================================================================
+    # Redis Settings (Real-Time Communication)
+    # ==========================================================================
+
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis connection URL for real-time communication"
+    )
+
+    # ==========================================================================
+    # Bridge Settings (Chat Bridge / Session Bridge)
+    # ==========================================================================
+
+    bridge_mongo_uri: str = Field(
+        default="mongodb://localhost:27017",
+        description="MongoDB connection URI used by the Session Bridge"
+    )
+
+    bridge_allow_agent_launch: bool = Field(
+        default=False,
+        description=(
+            "Allow launching agents from an external chat. DENY-BY-DEFAULT; "
+            "enable only with an explicit allowlist."
+        )
+    )
+
+    # ==========================================================================
+    # File Vault Settings
+    # ==========================================================================
+
+    vault: VaultSettings = Field(
+        default_factory=VaultSettings,
+        description="File vault storage configuration"
+    )
+
     @field_validator('internal_secret', 'jwt_secret')
     @classmethod
     def validate_secrets(cls, v: str) -> str:
@@ -326,6 +464,38 @@ def _load_settings_from_env() -> DAKBGatewaySettings:
 
         # Data storage settings
         faiss_data_dir=_get_env("DAKB_FAISS_DATA_DIR", "data/dakb_faiss"),
+
+        # Redis settings (Real-Time Communication)
+        redis_url=_get_env("DAKB_REDIS_URL", "redis://localhost:6379/0"),
+
+        # Bridge settings (Chat Bridge / Session Bridge)
+        bridge_mongo_uri=_get_env("DAKB_MONGO_URI", "mongodb://localhost:27017"),
+        bridge_allow_agent_launch=_get_env_bool(
+            "DAKB_BRIDGE_ALLOW_AGENT_LAUNCH", False
+        ),
+
+        # File Vault settings
+        vault=VaultSettings(
+            backend=_get_env("FILE_VAULT_BACKEND", "local"),
+            s3_endpoint_url=_get_env("FILE_VAULT_S3_ENDPOINT_URL", "http://localhost:9000"),
+            s3_access_key=_get_env("FILE_VAULT_S3_ACCESS_KEY"),
+            s3_secret_key=_get_env("FILE_VAULT_S3_SECRET_KEY"),
+            s3_bucket=_get_env("FILE_VAULT_S3_BUCKET", "dakb-vault"),
+            s3_region=_get_env("FILE_VAULT_S3_REGION", "us-east-1"),
+            local_base_path=_get_env("FILE_VAULT_LOCAL_BASE_PATH", "./data/vault"),
+            max_files_per_entry=_get_env_int("FILE_VAULT_MAX_FILES", 10),
+            max_total_size_bytes=_get_env_int("FILE_VAULT_MAX_SIZE", 500 * 1024 * 1024),
+            hold_ttl_seconds=_get_env_int("FILE_VAULT_HOLD_TTL", 3600),
+            hold_base_path=_get_env("FILE_VAULT_HOLD_PATH", "./data/vault_holds"),
+            soft_delete_ttl_days=_get_env_int("FILE_VAULT_DELETE_TTL_DAYS", 30),
+            cleanup_interval_hours=_get_env_int("FILE_VAULT_CLEANUP_HOURS", 6),
+            signed_url_ttl_seconds=_get_env_int("FILE_VAULT_SIGNED_URL_TTL", 900),
+            # Use VaultSettings class default — single source of truth
+            allowed_mime_types=_get_env_list(
+                "FILE_VAULT_ALLOWED_MIMES",
+                VaultSettings.model_fields["allowed_mime_types"].default,
+            ),
+        ),
     )
 
 

@@ -867,6 +867,7 @@ class DAKBGatewayClient:
         knowledge_id: str,
         action: str,
         reason: str | None = None,
+        user_confirmed: bool = False,
     ) -> dict[str, Any]:
         """
         Take moderation action on knowledge.
@@ -875,6 +876,8 @@ class DAKBGatewayClient:
             knowledge_id: Knowledge to moderate.
             action: Action to take (approve, deprecate, delete).
             reason: Reason for action.
+            user_confirmed: True if user confirmed via elicitation (required for
+                non-admin delete/deprecate).
 
         Returns:
             Moderation result with new status.
@@ -885,6 +888,8 @@ class DAKBGatewayClient:
         }
         if reason:
             data["reason"] = reason
+        if user_confirmed:
+            data["user_confirmed"] = True
 
         return await self._request(
             "POST",
@@ -2439,7 +2444,13 @@ async def handle_moderate(args: dict[str, Any]) -> ToolResponse:
     """
     Handle dakb_moderate tool call.
 
-    Takes moderation action on knowledge. Admin-only operation.
+    Takes moderation action on knowledge with permission model:
+    - approve: Admin only (no change)
+    - delete: Admin (direct) OR creator with user confirmation via elicitation
+    - deprecate: Admin (direct) OR any agent with user confirmation via elicitation
+
+    MCP Elicitation (spec 2025-06-18) shows a confirmation form to the user
+    before proceeding with destructive operations.
 
     Args:
         args: Tool arguments (knowledge_id, action, reason)
@@ -2447,12 +2458,17 @@ async def handle_moderate(args: dict[str, Any]) -> ToolResponse:
     Returns:
         ToolResponse with moderation result.
     """
+    from .elicitation import elicit_confirmation
+
     try:
         client = await get_client()
 
         knowledge_id = args["knowledge_id"]
         action = args["action"]
         reason = args.get("reason")
+        # Skip elicitation if caller explicitly confirms (e.g., the MCP client's
+        # tool approval UI already serves as user confirmation)
+        skip_elicitation = args.get("confirmed", False)
 
         # Validate reason is provided for deprecate/delete
         if action in ["deprecate", "delete"] and not reason:
@@ -2462,7 +2478,73 @@ async def handle_moderate(args: dict[str, Any]) -> ToolResponse:
                 error_code="VALIDATION_ERROR"
             )
 
-        result = await client.moderate(knowledge_id, action, reason)
+        # For delete/deprecate: fetch entry and confirm via elicitation
+        # (skipped when confirmed=true — user already approved the tool call)
+        if action in ["delete", "deprecate"] and not skip_elicitation:
+            # Fetch entry details for the confirmation message
+            try:
+                entry = await client.get_knowledge(knowledge_id)
+                entry_title = entry.get("title", knowledge_id)
+                entry_creator = entry.get("source", {}).get("agent_id", "unknown")
+                entry_category = entry.get("category", "unknown")
+            except Exception:
+                entry_title = knowledge_id
+                entry_creator = "unknown"
+                entry_category = "unknown"
+
+            # Build elicitation confirmation message
+            if action == "delete":
+                message = (
+                    f"DELETE Knowledge Entry\n\n"
+                    f"Title: {entry_title}\n"
+                    f"ID: {knowledge_id}\n"
+                    f"Created by: {entry_creator}\n"
+                    f"Category: {entry_category}\n"
+                    f"Reason: {reason}\n\n"
+                    f"This is a soft delete — the entry can be recovered by an admin.\n"
+                    f"Only the original creator or an admin can delete entries."
+                )
+            else:  # deprecate
+                message = (
+                    f"DEPRECATE Knowledge Entry\n\n"
+                    f"Title: {entry_title}\n"
+                    f"ID: {knowledge_id}\n"
+                    f"Created by: {entry_creator}\n"
+                    f"Category: {entry_category}\n"
+                    f"Reason: {reason}\n\n"
+                    f"Deprecated entries remain searchable but are marked as outdated."
+                )
+
+            # Send elicitation to user for confirmation.
+            #
+            # Design note: we deliberately use an empty-properties schema here.
+            # Earlier versions included a required boolean "confirm" field, but
+            # some MCP client form UIs cannot reliably toggle a required
+            # checkbox before Accept — clicking Accept leaves the field unset,
+            # the form re-validates, and the dialog re-opens. Dead loop.
+            #
+            # The Accept / Decline buttons ARE the confirmation signal per the
+            # MCP elicitation spec (action="accept" | "decline" | "cancel").
+            # No form field is needed — the message alone describes the action
+            # and the user's choice of button is the decision.
+            elicitation_result = await elicit_confirmation(
+                message=message,
+                schema={
+                    "type": "object",
+                    "properties": {},
+                },
+            )
+
+            if not elicitation_result.accepted:
+                return ToolResponse(
+                    success=False,
+                    error=f"Action cancelled by user (action: {elicitation_result.action})",
+                    error_code="USER_CANCELLED"
+                )
+
+        # Pass user_confirmed=True for delete/deprecate after elicitation
+        user_confirmed = action in ["delete", "deprecate"]
+        result = await client.moderate(knowledge_id, action, reason, user_confirmed=user_confirmed)
 
         return ToolResponse(
             success=True,
@@ -2472,6 +2554,7 @@ async def handle_moderate(args: dict[str, Any]) -> ToolResponse:
                 "action": action,
                 "new_status": result.get("new_status"),
                 "moderated_at": result.get("moderated_at"),
+                "confirmed_by_user": action in ["delete", "deprecate"],
             }
         )
 
@@ -2482,11 +2565,10 @@ async def handle_moderate(args: dict[str, Any]) -> ToolResponse:
             error_code="NOT_FOUND"
         )
     except DAKBAuthError as e:
-        # Moderation requires admin role
         logger.warning(f"Unauthorized moderation attempt: {e.message}")
         return ToolResponse(
             success=False,
-            error="Admin role required for moderation operations",
+            error=f"Permission denied: {e.message}",
             error_code="UNAUTHORIZED"
         )
     except DAKBTokenExpiredError as e:
@@ -2881,6 +2963,28 @@ async def handle_session_start(args: dict[str, Any]) -> ToolResponse:
         )
 
         session = result.get("session", {})
+
+        # Whiteboard auto-update: set agent status to active with task description
+        try:
+            from dakb.gateway.whiteboard_triggers import on_session_start
+            agent_alias = session.get("agent_id", "").split("-")[0] if session.get("agent_id") else "Unknown"
+            # Try to resolve alias from DAKB aliases
+            try:
+                aliases = await client.list_aliases()
+                alias_list = aliases.get("aliases", [])
+                if alias_list:
+                    agent_alias = alias_list[0].get("alias_name", agent_alias)
+            except Exception:
+                pass
+            on_session_start(
+                agent_id=session.get("agent_id", ""),
+                agent_alias=agent_alias,
+                project_path=session.get("project_path") or args.get("project_path"),
+                task_description=session.get("task_description") or args.get("task_description", ""),
+            )
+        except Exception as wb_err:
+            logger.debug(f"Whiteboard trigger (session_start) skipped: {wb_err}")
+
         return ToolResponse(
             success=True,
             data={
@@ -3021,6 +3125,27 @@ async def handle_session_end(args: dict[str, Any]) -> ToolResponse:
         )
 
         session = result.get("session", result)
+
+        # Whiteboard auto-update: set agent status to idle, move NOW → DONE
+        try:
+            from dakb.gateway.whiteboard_triggers import on_session_end
+            agent_alias = session.get("agent_id", "").split("-")[0] if session.get("agent_id") else "Unknown"
+            try:
+                aliases = await client.list_aliases()
+                alias_list = aliases.get("aliases", [])
+                if alias_list:
+                    agent_alias = alias_list[0].get("alias_name", agent_alias)
+            except Exception:
+                pass
+            on_session_end(
+                agent_id=session.get("agent_id", ""),
+                agent_alias=agent_alias,
+                project_path=session.get("project_path"),
+                summary=session.get("summary"),
+            )
+        except Exception as wb_err:
+            logger.debug(f"Whiteboard trigger (session_end) skipped: {wb_err}")
+
         return ToolResponse(
             success=True,
             data={
@@ -3705,6 +3830,108 @@ async def handle_resolve_alias(args: dict[str, Any]) -> ToolResponse:
 
 
 # =============================================================================
+# KNOWLEDGE THREAD HANDLERS (Phase 6)
+# =============================================================================
+
+async def handle_post_thread(args: dict[str, Any]) -> ToolResponse:
+    """Post a comment, suggestion, or endorsement on a KB entry."""
+    try:
+        client = await get_client()
+        params = args.get("params", args)
+        data = {
+            "knowledge_id": params["knowledge_id"],
+            "type": params["type"],
+            "content": params["content"],
+        }
+        if params.get("parent_id"):
+            data["parent_id"] = params["parent_id"]
+
+        result = await client._request("POST", "/api/v1/threads", data=data)
+        return ToolResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"post_thread error: {e}")
+        return ToolResponse(success=False, error=str(e), error_code="THREAD_ERROR")
+
+
+async def handle_get_threads(args: dict[str, Any]) -> ToolResponse:
+    """Get thread posts for a KB entry."""
+    try:
+        client = await get_client()
+        params = args.get("params", args)
+        knowledge_id = params["knowledge_id"]
+        query_params: dict[str, Any] = {}
+        if params.get("type"):
+            query_params["type"] = params["type"]
+        if params.get("parent_id"):
+            query_params["parent_id"] = params["parent_id"]
+        if params.get("sort"):
+            query_params["sort"] = params["sort"]
+        if params.get("page"):
+            query_params["page"] = params["page"]
+        if params.get("page_size"):
+            query_params["page_size"] = params["page_size"]
+
+        result = await client._request("GET", f"/api/v1/threads/{knowledge_id}", params=query_params)
+        return ToolResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"get_threads error: {e}")
+        return ToolResponse(success=False, error=str(e), error_code="THREAD_ERROR")
+
+
+async def handle_follow_knowledge(args: dict[str, Any]) -> ToolResponse:
+    """Follow or unfollow a KB entry."""
+    try:
+        client = await get_client()
+        params = args.get("params", args)
+        data = {
+            "knowledge_id": params["knowledge_id"],
+            "action": params["action"],
+        }
+        result = await client._request("POST", "/api/v1/threads/follow", data=data)
+        return ToolResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"follow_knowledge error: {e}")
+        return ToolResponse(success=False, error=str(e), error_code="THREAD_ERROR")
+
+
+async def handle_get_followed(args: dict[str, Any]) -> ToolResponse:
+    """Get KB entries the caller follows."""
+    try:
+        client = await get_client()
+        params = args.get("params", args)
+        query_params: dict[str, Any] = {}
+        if params.get("page"):
+            query_params["page"] = params["page"]
+        if params.get("page_size"):
+            query_params["page_size"] = params["page_size"]
+        if params.get("has_new_activity"):
+            query_params["has_new_activity"] = params["has_new_activity"]
+
+        result = await client._request("GET", "/api/v1/threads/followed", params=query_params)
+        return ToolResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"get_followed error: {e}")
+        return ToolResponse(success=False, error=str(e), error_code="THREAD_ERROR")
+
+
+async def handle_get_versions(args: dict[str, Any]) -> ToolResponse:
+    """Get version history for a KB entry."""
+    try:
+        client = await get_client()
+        params = args.get("params", args)
+        knowledge_id = params["knowledge_id"]
+        query_params: dict[str, Any] = {}
+        if params.get("limit"):
+            query_params["limit"] = params["limit"]
+
+        result = await client._request("GET", f"/api/v1/threads/versions/{knowledge_id}", params=query_params)
+        return ToolResponse(success=True, data=result)
+    except Exception as e:
+        logger.error(f"get_versions error: {e}")
+        return ToolResponse(success=False, error=str(e), error_code="THREAD_ERROR")
+
+
+# =============================================================================
 # ADVANCED PROXY HANDLER (v1.3 Profile System)
 # =============================================================================
 
@@ -3737,6 +3964,12 @@ ADVANCED_OPERATION_HANDLERS: dict[str, Any] = {
     "list_aliases": handle_list_aliases,
     "deactivate_alias": handle_deactivate_alias,
     "resolve_alias": handle_resolve_alias,
+    # Knowledge Threads (5)
+    "post_thread": handle_post_thread,
+    "get_threads": handle_get_threads,
+    "follow_knowledge": handle_follow_knowledge,
+    "get_followed": handle_get_followed,
+    "get_versions": handle_get_versions,
 }
 
 # Operation parameter documentation for help
@@ -3828,6 +4061,34 @@ ADVANCED_OPERATION_PARAMS: dict[str, dict[str, str]] = {
     "resolve_alias": {
         "alias": "string (required) - alias name to resolve",
     },
+    # Knowledge Threads (5)
+    "post_thread": {
+        "knowledge_id": "string (required)",
+        "type": "string: comment|suggestion|endorsement (required)",
+        "content": "string (required, 1-5000 chars)",
+        "parent_id": "string (optional) - reply to specific post",
+    },
+    "get_threads": {
+        "knowledge_id": "string (required)",
+        "type": "string (optional) - filter by post type",
+        "parent_id": "string (optional) - get replies to specific post",
+        "page": "int (optional, default: 1)",
+        "page_size": "int (optional, default: 20, max: 50)",
+        "sort": "string: newest|oldest|most_voted (optional, default: newest)",
+    },
+    "follow_knowledge": {
+        "knowledge_id": "string (required)",
+        "action": "string: follow|unfollow (required)",
+    },
+    "get_followed": {
+        "page": "int (optional, default: 1)",
+        "page_size": "int (optional, default: 20)",
+        "has_new_activity": "bool (optional, default: false)",
+    },
+    "get_versions": {
+        "knowledge_id": "string (required)",
+        "limit": "int (optional, default: 10, max: 50)",
+    },
 }
 
 
@@ -3894,6 +4155,13 @@ async def handle_advanced_help(args: dict[str, Any]) -> ToolResponse:
                     "list_aliases",
                     "deactivate_alias",
                     "resolve_alias",
+                ],
+                "threads": [
+                    "post_thread",
+                    "get_threads",
+                    "follow_knowledge",
+                    "get_followed",
+                    "get_versions",
                 ],
             },
             "total_operations": len(ADVANCED_OPERATION_HANDLERS),
@@ -3998,6 +4266,24 @@ HANDLERS: dict[str, Any] = {
     # Advanced Proxy (v1.3 Profile System)
     "dakb_advanced": handle_advanced,
 }
+
+# Vault handlers (Phase 8) — file vault upload/download
+from dakb.mcp.vault_handler import handle_vault_download, handle_vault_upload  # noqa: E402
+
+HANDLERS["dakb_vault_upload"] = handle_vault_upload
+HANDLERS["dakb_vault_download"] = handle_vault_download
+
+# Whiteboard handler (Phase 7) — wrapper adapts (client, args) signature to dispatch pattern
+from dakb.mcp.whiteboard_handler import handle_whiteboard as _handle_whiteboard_impl  # noqa: E402
+
+
+async def _handle_whiteboard_dispatch(args: dict[str, Any]) -> ToolResponse:
+    """Dispatch wrapper: resolves client and delegates to handle_whiteboard(client, args)."""
+    client = await get_client()
+    return await _handle_whiteboard_impl(client, args)
+
+
+HANDLERS["dakb_whiteboard"] = _handle_whiteboard_dispatch
 
 
 # Tools that should NOT include notification hints (to avoid recursion/noise)

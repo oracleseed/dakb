@@ -9,6 +9,7 @@ Components:
 - collections.py: MongoDB client and collection operations
 - indexes.py: Index creation and management
 - repositories/: Domain-specific repository classes
+- whiteboard_schemas.py / whiteboard_repository.py / whiteboard_indexes.py: Whiteboard
 
 Collections:
 - dakb_knowledge: Core knowledge entries
@@ -67,6 +68,9 @@ from .schemas import (
     AgentStatus,
     AgentType,
     AgentUpdate,
+    AliasCreate,
+    AliasUpdate,
+    AllowedMimeType,
     AuditAction,
     Category,
     CodeLanguage,
@@ -78,6 +82,9 @@ from .schemas import (
     DakbKnowledge,
     DakbMessage,
     DakbSession,
+    DakbTask,
+    DakbTaskCreate,
+    DelegatedTaskStatus,
     FlagReason,
     GitContext,
     KnowledgeCreate,
@@ -87,6 +94,7 @@ from .schemas import (
     KnowledgeSource,
     KnowledgeStatus,
     KnowledgeUpdate,
+    KnowledgeVersion,
     LeaderboardEntry,
     MessageAttachment,
     MessageCreate,
@@ -101,7 +109,15 @@ from .schemas import (
     SessionCreate,
     SessionUpdate,
     TaskStatus,
+    ThreadPost,
+    ThreadPostCreate,
+    ThreadPostStatus,
+    ThreadPostType,
+    ThreadSummary,
     TodoItem,
+    VaultFile,
+    VaultFileStatus,
+    VaultHold,
     VoteCreate,
     VoteDetail,
     Votes,
@@ -110,10 +126,37 @@ from .schemas import (
     generate_id,
 )
 
+# Import whiteboard schemas
+from .whiteboard_schemas import (
+    BoardSettings,
+    BoardType,
+    SectionPriority,
+    SectionStatus,
+    SectionType,
+    SnapshotTrigger,
+    SnapshotType,
+    WhiteboardBoard,
+    WhiteboardBoardCreate,
+    WhiteboardSection,
+    WhiteboardSectionCreate,
+    WhiteboardSectionUpdate,
+    WhiteboardSnapshot,
+    WhiteboardSnapshotCreate,
+)
+
 # Import collections
 from .collections import (
+    ThreadRepository,
+    VersionRepository,
     get_dakb_client,
     get_dakb_repositories,
+)
+
+# Import repositories
+from .repositories.vault_repository import VaultFileRepository
+from .whiteboard_repository import (
+    VersionConflictError,
+    WhiteboardRepository,
 )
 
 __all__ = [
@@ -145,11 +188,14 @@ __all__ = [
     "AgentRole",
     "AgentStatus",
     "AgentType",
+    "AllowedMimeType",
     "AuditAction",
+    "BoardType",
     "Category",
     "CodeLanguage",
     "ContentFormat",
     "ContentType",
+    "DelegatedTaskStatus",
     "FlagReason",
     "KnowledgeStatus",
     "MessagePriority",
@@ -157,17 +203,30 @@ __all__ = [
     "MessageType",
     "ModerateAction",
     "ResourceType",
+    "SectionPriority",
+    "SectionStatus",
+    "SectionType",
+    "SnapshotTrigger",
+    "SnapshotType",
     "TaskStatus",
+    "ThreadPostStatus",
+    "ThreadPostType",
+    "VaultFileStatus",
     "VoteType",
     # Models
     "AgentRegister",
     "AgentUpdate",
+    "AliasCreate",
+    "AliasUpdate",
+    "BoardSettings",
     "DakbAgent",
     "DakbAgentAlias",
     "DakbAuditLog",
     "DakbKnowledge",
     "DakbMessage",
     "DakbSession",
+    "DakbTask",
+    "DakbTaskCreate",
     "GitContext",
     "KnowledgeCreate",
     "KnowledgeFlag",
@@ -175,6 +234,7 @@ __all__ = [
     "KnowledgeResponse",
     "KnowledgeSource",
     "KnowledgeUpdate",
+    "KnowledgeVersion",
     "LeaderboardEntry",
     "MessageAttachment",
     "MessageCreate",
@@ -183,11 +243,29 @@ __all__ = [
     "SearchResults",
     "SessionCreate",
     "SessionUpdate",
+    "ThreadPost",
+    "ThreadPostCreate",
+    "ThreadSummary",
     "TodoItem",
+    "VaultFile",
+    "VaultHold",
     "VoteCreate",
     "VoteDetail",
     "Votes",
     "VoteSummary",
+    "WhiteboardBoard",
+    "WhiteboardBoardCreate",
+    "WhiteboardSection",
+    "WhiteboardSectionCreate",
+    "WhiteboardSectionUpdate",
+    "WhiteboardSnapshot",
+    "WhiteboardSnapshotCreate",
+    # Repositories
+    "ThreadRepository",
+    "VaultFileRepository",
+    "VersionConflictError",
+    "VersionRepository",
+    "WhiteboardRepository",
     # Functions
     "generate_id",
     "get_dakb_client",

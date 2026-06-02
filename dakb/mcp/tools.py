@@ -749,7 +749,7 @@ DAKB_TOOLS: list[dict[str, Any]] = [
             "sharing updates, or coordinating work. Messages support threading "
             "and reply functionality. "
             "**Alias Support**: The recipient_id can be either a direct token_id "
-            "or an agent alias (e.g., 'Coordinator', 'Backend'). Aliases are "
+            "or an agent alias (e.g., 'Planner', 'Backend'). Aliases are "
             "automatically resolved to their owning token's inbox."
         ),
         "inputSchema": {
@@ -1347,7 +1347,7 @@ DAKB_TOOLS: list[dict[str, Any]] = [
                 "alias": {
                     "type": "string",
                     "description": (
-                        "Optional alias to register (e.g., 'Coordinator', 'Reviewer')"
+                        "Optional alias to register (e.g., 'Planner', 'Reviewer')"
                     ),
                     "maxLength": 50,
                 },
@@ -1427,7 +1427,7 @@ DAKB_TOOLS: list[dict[str, Any]] = [
             "Register a new alias for this token's team inbox. "
             "Aliases enable flexible agent addressing - messages sent to an alias "
             "are routed to the owning token's shared inbox. Each token can have "
-            "multiple aliases (e.g., 'Coordinator', 'Backend', 'Reviewer'). "
+            "multiple aliases (e.g., 'Planner', 'Backend', 'Reviewer'). "
             "Aliases must be globally unique across all tokens."
         ),
         "inputSchema": {
@@ -1436,7 +1436,7 @@ DAKB_TOOLS: list[dict[str, Any]] = [
                 "alias": {
                     "type": "string",
                     "description": (
-                        "Unique alias name to register (e.g., 'Coordinator', 'Backend'). "
+                        "Unique alias name to register (e.g., 'Planner', 'Backend'). "
                         "Must be 1-50 characters, globally unique."
                     ),
                     "minLength": 1,
@@ -1529,6 +1529,203 @@ DAKB_TOOLS: list[dict[str, Any]] = [
             "required": ["alias"],
         },
     },
+    # =========================================================================
+    # WHITEBOARD TOOL (Phase 7)
+    # =========================================================================
+    {
+        "name": "dakb_whiteboard",
+        "description": (
+            "Read, update, or snapshot the HIVE team whiteboard. "
+            "Actions: read (compact/full view), update (requires version), "
+            "clear (reset section), snapshot (save board state), "
+            "history (list past snapshots).\n\n"
+            "Board: 'global' (default), 'project:name', or 'auto'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["read", "update", "clear", "snapshot", "history"],
+                    "description": "Whiteboard action to perform",
+                },
+                "board": {
+                    "type": "string",
+                    "description": (
+                        "Board selector: 'global', 'auto', or 'project:<name>'. "
+                        "Defaults to 'auto' (resolves to global)."
+                    ),
+                    "default": "auto",
+                },
+                "view": {
+                    "type": "string",
+                    "enum": ["compact", "full"],
+                    "description": "View mode for read action",
+                    "default": "compact",
+                },
+                "section": {
+                    "type": "string",
+                    "description": "Section ID (required for update/clear)",
+                },
+                "now": {
+                    "type": "string",
+                    "description": "Current task (update action)",
+                    "maxLength": 500,
+                },
+                "next": {
+                    "type": "string",
+                    "description": "Next planned task (update action)",
+                    "maxLength": 500,
+                },
+                "done_recent": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Recently completed items (update action)",
+                },
+                "note": {
+                    "type": "string",
+                    "description": "Free-text note (update action)",
+                    "maxLength": 1000,
+                },
+                "version": {
+                    "type": "integer",
+                    "description": "Current version for optimistic locking (required for update)",
+                    "minimum": 1,
+                },
+                "priority": {
+                    "type": "string",
+                    "enum": ["normal", "critical"],
+                    "description": "Section priority (update action)",
+                },
+                "is_blocked": {
+                    "type": "boolean",
+                    "description": "Whether the section is blocked (update action)",
+                },
+                "estimated_duration": {
+                    "type": "string",
+                    "description": "Estimated duration for current task (update action)",
+                },
+                "snapshot_range": {
+                    "type": "string",
+                    "description": "Date range filter for history (e.g. '7d', '30d')",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    # =========================================================================
+    # VAULT TOOLS (File Storage)
+    # =========================================================================
+    # -------------------------------------------------------------------------
+    # dakb_vault_upload - Upload files to the HIVE vault
+    # -------------------------------------------------------------------------
+    {
+        "name": "dakb_vault_upload",
+        "description": (
+            "Upload files to the HIVE vault. Attaches files to a new or existing "
+            "knowledge entry. Agent should extract text content from files before "
+            "uploading — provide title, summary, and content for embedding indexing."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "required": ["files"],
+            "properties": {
+                "knowledge_id": {
+                    "type": "string",
+                    "description": ("Existing knowledge entry to attach files to. If omitted, creates a new entry."),
+                },
+                "files": {
+                    "type": "array",
+                    "description": "File paths to upload (local paths accessible to the agent)",
+                    "items": {"type": "string"},
+                    "maxItems": 10,
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Knowledge entry title (required if no knowledge_id)",
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "Extracted summary of file content",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Extracted text content for embedding",
+                },
+                "content_type": {
+                    "type": "string",
+                    "enum": [
+                        "lesson_learned",
+                        "research",
+                        "report",
+                        "pattern",
+                        "config",
+                        "error_fix",
+                        "plan",
+                        "implementation",
+                    ],
+                },
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "database",
+                        "ml",
+                        "trading",
+                        "devops",
+                        "security",
+                        "frontend",
+                        "backend",
+                        "general",
+                    ],
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": 10,
+                },
+                "file_descriptions": {
+                    "type": "array",
+                    "description": "Per-file descriptions for search context",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "filename": {"type": "string"},
+                            "description": {"type": "string"},
+                        },
+                    },
+                },
+            },
+        },
+    },
+    # -------------------------------------------------------------------------
+    # dakb_vault_download - Download file from the HIVE vault
+    # -------------------------------------------------------------------------
+    {
+        "name": "dakb_vault_download",
+        "description": (
+            "Get a download URL or file content for a vault file. Returns a "
+            "short-lived pre-signed URL (S3 backends) or the file content "
+            "(local backend)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "required": ["knowledge_id", "file_id"],
+            "properties": {
+                "knowledge_id": {
+                    "type": "string",
+                    "description": "Knowledge entry that owns the file",
+                },
+                "file_id": {
+                    "type": "string",
+                    "description": "File identifier to download",
+                },
+                "output_path": {
+                    "type": "string",
+                    "description": ("Optional: local path to save the downloaded file"),
+                },
+            },
+        },
+    },
 ]
 
 
@@ -1553,9 +1750,14 @@ STANDARD_TOOL_NAMES: list[str] = [
     "dakb_mark_read",
     "dakb_broadcast",
     "dakb_get_message_stats",
+    # Whiteboard (1)
+    "dakb_whiteboard",
+    # Vault (2)
+    "dakb_vault_upload",
+    "dakb_vault_download",
 ]
 
-# Advanced tool names (24 tools) - accessible via proxy in standard profile
+# Advanced tool names (29 tools) - accessible via proxy in standard profile
 # or directly in full profile
 ADVANCED_TOOL_NAMES: list[str] = [
     # Bulk Operations (3)
@@ -1590,14 +1792,20 @@ ADVANCED_TOOL_NAMES: list[str] = [
     "dakb_list_aliases",
     "dakb_deactivate_alias",
     "dakb_resolve_alias",
+    # Knowledge Threads (5) - Phase 6
+    "dakb_post_thread",
+    "dakb_get_threads",
+    "dakb_follow_knowledge",
+    "dakb_get_followed",
+    "dakb_get_versions",
 ]
 
 # Proxy tool for accessing advanced features in standard profile
-# This single tool provides access to all 24 advanced operations
+# This single tool provides access to all 29 advanced operations
 DAKB_ADVANCED_TOOL: dict[str, Any] = {
     "name": "dakb_advanced",
     "description": (
-        "Access 24 advanced DAKB operations via proxy. Use this when you need "
+        "Access 29 advanced DAKB operations via proxy. Use this when you need "
         "features not in the standard tool set.\n\n"
         "**Available Operations:**\n"
         "- Bulk: bulk_store, list_by_category, list_by_tags\n"
@@ -1609,7 +1817,9 @@ DAKB_ADVANCED_TOOL: dict[str, Any] = {
         "session_import, git_context\n"
         "- Registration: create_invite, register_with_invite, revoke_agent, "
         "list_invites (admin-only)\n"
-        "- Aliases: register_alias, list_aliases, deactivate_alias, resolve_alias\n\n"
+        "- Aliases: register_alias, list_aliases, deactivate_alias, resolve_alias\n"
+        "- Threads: post_thread, get_threads, follow_knowledge, get_followed, "
+        "get_versions\n\n"
         "Pass the operation name and a params object matching the original tool's "
         "inputSchema. Use operation='help' to get parameter details for any operation."
     ),
@@ -1646,6 +1856,11 @@ DAKB_ADVANCED_TOOL: dict[str, Any] = {
                     "list_aliases",
                     "deactivate_alias",
                     "resolve_alias",
+                    "post_thread",
+                    "get_threads",
+                    "follow_knowledge",
+                    "get_followed",
+                    "get_versions",
                 ],
             },
             "params": {
@@ -1659,6 +1874,9 @@ DAKB_ADVANCED_TOOL: dict[str, Any] = {
         },
         "required": ["operation"],
     },
+    # Proxy for 29 advanced ops. find_related/get_versions/list_by_category
+    # can return large lists; raise inline ceiling.
+    "_meta": {"anthropic/maxResultSizeChars": 200000},
 }
 
 

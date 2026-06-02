@@ -294,6 +294,16 @@
                     <i class="bi bi-activity"></i>System Status
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="whiteboard">
+                    <i class="bi bi-kanban"></i>Whiteboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="vault">
+                    <i class="bi bi-archive"></i>File Vault
+                </a>
+            </li>
             <li class="nav-item mt-3">
                 <a class="nav-link" href="#" data-section="help">
                     <i class="bi bi-question-circle"></i>Help & Docs
@@ -1123,6 +1133,153 @@
                 </nav>
             </div>
         </div>
+
+        <!-- Whiteboard Section -->
+        <section id="section-whiteboard" class="section-content" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="page-title">Team Whiteboard</h1>
+                    <p class="text-muted">Live cross-platform agent status board</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary btn-sm" onclick="window.open('/admin/whiteboard', '_blank')">
+                        <i class="bi bi-arrows-fullscreen"></i> Open Full Panel
+                    </button>
+                </div>
+            </div>
+            <iframe id="whiteboard-frame" style="width: 100%; height: calc(100vh - 160px); border: none; border-radius: 8px; background: #fff;"></iframe>
+        </section>
+
+        <!-- File Vault Section -->
+        <section id="section-vault" class="section-content" style="display: none;">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <h1 class="page-title"><i class="bi bi-archive me-2"></i>File Vault</h1>
+                <button class="btn btn-primary" onclick="loadVaultStats()">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                </button>
+            </div>
+
+            <!-- Stats Cards Row -->
+            <div class="row g-4 mb-4" id="vaultStatsCards">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row g-4 mb-4" id="vaultChartsRow">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- File Browser -->
+            <div class="card-section mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="section-title mb-0"><i class="bi bi-folder2-open me-2"></i>File Browser</h5>
+                </div>
+                <!-- Filters -->
+                <div class="row g-2 mb-3" id="vaultFilters">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control form-control-sm" id="vaultSearchInput" placeholder="Search filenames..." oninput="debounceVaultSearch()">
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="vaultMimeFilter" onchange="loadVaultFiles()">
+                            <option value="">All MIME types</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="vaultStatusFilter" onchange="loadVaultFiles()">
+                            <option value="">All statuses</option>
+                            <option value="active" selected>Active</option>
+                            <option value="uploading">Uploading</option>
+                            <option value="deprecated">Deprecated</option>
+                            <option value="deleted">Deleted</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control form-control-sm" id="vaultKnowledgeIdFilter" placeholder="Knowledge ID..." oninput="debounceVaultSearch()">
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="vaultPageSize" onchange="loadVaultFiles(1)">
+                            <option value="10">10 per page</option>
+                            <option value="25" selected>25 per page</option>
+                            <option value="50">50 per page</option>
+                            <option value="100">100 per page</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Table -->
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Knowledge ID</th>
+                                <th>MIME Type</th>
+                                <th>Size</th>
+                                <th>Status</th>
+                                <th>Uploaded</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vaultFilesTableBody">
+                            <tr><td colspan="7" class="text-muted text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div class="d-flex justify-content-between align-items-center" id="vaultPagination">
+                    <small class="text-muted" id="vaultPaginationInfo">-</small>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" id="vaultPrevBtn" onclick="loadVaultFiles(vaultCurrentPage - 1)" disabled>&laquo; Prev</button>
+                        <button class="btn btn-outline-secondary" id="vaultNextBtn" onclick="loadVaultFiles(vaultCurrentPage + 1)" disabled>Next &raquo;</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Panel -->
+            <div class="card-section">
+                <h5 class="section-title mb-3"><i class="bi bi-wrench me-2"></i>Maintenance</h5>
+                <div class="row g-4" id="vaultMaintenancePanel">
+                    <!-- Hold Cleanup -->
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-hourglass-split me-2 text-warning"></i>Hold Cleanup</h6>
+                                <p class="card-text small text-muted">Remove expired upload holds. Holds expire 1 hour after creation.</p>
+                                <button class="btn btn-warning btn-sm" onclick="runVaultCleanup('holds')">
+                                    <i class="bi bi-play-fill me-1"></i>Run Cleanup
+                                </button>
+                                <div class="mt-2 small" id="holdCleanupResult"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Expired Purge -->
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-trash3 me-2 text-danger"></i>Expired File Purge</h6>
+                                <p class="card-text small text-muted">Permanently delete files past their soft-delete retention window.</p>
+                                <button class="btn btn-danger btn-sm" onclick="confirmVaultCleanup('purge')">
+                                    <i class="bi bi-play-fill me-1"></i>Run Purge
+                                </button>
+                                <div class="mt-2 small" id="purgeCleanupResult"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Orphan Detection -->
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-search me-2 text-info"></i>Orphan Detection</h6>
+                                <p class="card-text small text-muted">Detect DB records with missing files in object storage.</p>
+                                <button class="btn btn-info btn-sm" onclick="runVaultCleanup('orphans')">
+                                    <i class="bi bi-play-fill me-1"></i>Detect Orphans
+                                </button>
+                                <div class="mt-2 small" id="orphanCleanupResult"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- Help & Docs Section -->
         <section id="section-help" class="section-content" style="display: none;">
@@ -2076,6 +2233,16 @@
                     break;
                 case 'config': loadConfig(); break;
                 case 'status': loadSystemStatus(); break;
+                case 'vault':
+                    loadVaultStats();
+                    loadVaultFiles();
+                    break;
+                case 'whiteboard': {
+                    // Reload iframe to refresh whiteboard data
+                    const frame = document.getElementById('whiteboard-frame');
+                    if (frame) frame.src = '/admin/whiteboard';
+                    break;
+                }
             }
         }
 
@@ -3695,6 +3862,514 @@ ${token}
                 console.error('Error checking redundancy:', error);
                 resultsDiv.innerHTML = '<div class="alert alert-danger mb-0">Error checking for similar entries</div>';
             }
+        }
+
+        // =============================================================================
+        // FILE VAULT FUNCTIONS
+        // =============================================================================
+
+        // Vault state
+        let vaultCurrentPage = 1;
+        let vaultMimeChart = null;
+        let vaultStatusChart = null;
+        let vaultSearchTimeout = null;
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+        }
+
+        // --- Stats Cards + Charts ---
+
+        async function loadVaultStats() {
+            const data = await apiCall('/vault/stats');
+            if (!data) return;
+
+            // Render stat cards — uses textContent on all dynamic values per existing dashboard pattern
+            const cardsContainer = document.getElementById('vaultStatsCards');
+            cardsContainer.textContent = '';  // Clear safely
+
+            const cardData = [
+                { label: 'Total Files', value: data.total_files || 0, icon: 'bi-files', color: 'text-primary' },
+                { label: 'Total Size', value: data.total_size_human || '0 B', icon: 'bi-hdd', color: 'text-success' },
+                { label: 'Entries with Files', value: data.entries_with_files || 0, icon: 'bi-link-45deg', color: 'text-info' },
+                { label: 'Held Files', value: data.held_count || 0, icon: 'bi-hourglass-split', color: 'text-warning' },
+            ];
+
+            cardData.forEach(card => {
+                const col = document.createElement('div');
+                col.className = 'col-md-3';
+                const statCard = document.createElement('div');
+                statCard.className = 'stat-card';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'd-flex justify-content-between align-items-center';
+
+                const textDiv = document.createElement('div');
+                const labelEl = document.createElement('div');
+                labelEl.className = 'text-muted small';
+                labelEl.textContent = card.label;
+                const valueEl = document.createElement('div');
+                valueEl.className = 'fs-3 fw-bold';
+                valueEl.textContent = card.value;
+                textDiv.appendChild(labelEl);
+                textDiv.appendChild(valueEl);
+
+                const iconEl = document.createElement('i');
+                iconEl.className = `bi ${card.icon} fs-2 ${card.color} opacity-50`;
+
+                wrapper.appendChild(textDiv);
+                wrapper.appendChild(iconEl);
+                statCard.appendChild(wrapper);
+                col.appendChild(statCard);
+                cardsContainer.appendChild(col);
+            });
+
+            // Render charts
+            renderVaultCharts(data);
+
+            // Populate MIME filter dropdown
+            populateVaultMimeFilter(data.by_mime || {});
+        }
+
+        function renderVaultCharts(data) {
+            const colors = [
+                '#3498db', '#27ae60', '#f39c12', '#e74c3c',
+                '#9b59b6', '#1abc9c', '#34495e', '#e67e22',
+                '#2ecc71', '#e91e63', '#00bcd4', '#ff9800'
+            ];
+
+            const chartsContainer = document.getElementById('vaultChartsRow');
+            chartsContainer.textContent = '';
+
+            // Create MIME chart column
+            const mimeCol = document.createElement('div');
+            mimeCol.className = 'col-md-6';
+            const mimeCard = document.createElement('div');
+            mimeCard.className = 'card-section';
+            const mimeTitle = document.createElement('h6');
+            mimeTitle.className = 'section-title';
+            mimeTitle.textContent = 'Files by MIME Type';
+            const mimeIcon = document.createElement('i');
+            mimeIcon.className = 'bi bi-pie-chart me-2';
+            mimeTitle.prepend(mimeIcon);
+            const mimeWrapper = document.createElement('div');
+            mimeWrapper.style.cssText = 'height: 250px; position: relative;';
+            const mimeCanvas = document.createElement('canvas');
+            mimeCanvas.id = 'vaultMimeChart';
+            mimeWrapper.appendChild(mimeCanvas);
+            mimeCard.appendChild(mimeTitle);
+            mimeCard.appendChild(mimeWrapper);
+            mimeCol.appendChild(mimeCard);
+
+            // Create Status chart column
+            const statusCol = document.createElement('div');
+            statusCol.className = 'col-md-6';
+            const statusCard = document.createElement('div');
+            statusCard.className = 'card-section';
+            const statusTitle = document.createElement('h6');
+            statusTitle.className = 'section-title';
+            statusTitle.textContent = 'Files by Status';
+            const statusIcon = document.createElement('i');
+            statusIcon.className = 'bi bi-pie-chart me-2';
+            statusTitle.prepend(statusIcon);
+            const statusWrapper = document.createElement('div');
+            statusWrapper.style.cssText = 'height: 250px; position: relative;';
+            const statusCanvas = document.createElement('canvas');
+            statusCanvas.id = 'vaultStatusChart';
+            statusWrapper.appendChild(statusCanvas);
+            statusCard.appendChild(statusTitle);
+            statusCard.appendChild(statusWrapper);
+            statusCol.appendChild(statusCard);
+
+            chartsContainer.appendChild(mimeCol);
+            chartsContainer.appendChild(statusCol);
+
+            // MIME chart
+            const byMime = data.by_mime || {};
+            if (Object.keys(byMime).length > 0) {
+                if (vaultMimeChart) vaultMimeChart.destroy();
+                const ctx1 = document.getElementById('vaultMimeChart').getContext('2d');
+                vaultMimeChart = new Chart(ctx1, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(byMime),
+                        datasets: [{ data: Object.values(byMime), backgroundColor: colors.slice(0, Object.keys(byMime).length) }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { padding: 10, usePointStyle: true, font: { size: 11 } } } } }
+                });
+            }
+
+            // Status chart
+            const statusColors = { active: '#27ae60', uploading: '#3498db', deprecated: '#f39c12', deleted: '#e74c3c' };
+            const byStatus = data.by_status || {};
+            if (Object.keys(byStatus).length > 0) {
+                if (vaultStatusChart) vaultStatusChart.destroy();
+                const ctx2 = document.getElementById('vaultStatusChart').getContext('2d');
+                vaultStatusChart = new Chart(ctx2, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(byStatus),
+                        datasets: [{ data: Object.values(byStatus), backgroundColor: Object.keys(byStatus).map(s => statusColors[s] || '#95a5a6') }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { padding: 10, usePointStyle: true, font: { size: 11 } } } } }
+                });
+            }
+        }
+
+        function populateVaultMimeFilter(byMime) {
+            const select = document.getElementById('vaultMimeFilter');
+            const current = select.value;
+            // Clear and rebuild options safely
+            while (select.options.length > 1) select.remove(1);
+            Object.keys(byMime).sort().forEach(mime => {
+                const opt = document.createElement('option');
+                opt.value = mime;
+                opt.textContent = mime + ' (' + byMime[mime] + ')';
+                select.appendChild(opt);
+            });
+            if (current) select.value = current;
+        }
+
+        // --- File Browser ---
+
+        function debounceVaultSearch() {
+            clearTimeout(vaultSearchTimeout);
+            vaultSearchTimeout = setTimeout(() => loadVaultFiles(1), 300);
+        }
+
+        async function loadVaultFiles(page) {
+            if (page !== undefined) vaultCurrentPage = page;
+            if (vaultCurrentPage < 1) vaultCurrentPage = 1;
+
+            const pageSize = document.getElementById('vaultPageSize').value;
+            const mime = document.getElementById('vaultMimeFilter').value;
+            const status = document.getElementById('vaultStatusFilter').value;
+            const search = document.getElementById('vaultSearchInput').value;
+            const knowledgeId = document.getElementById('vaultKnowledgeIdFilter').value;
+
+            let url = '/vault/files?page=' + vaultCurrentPage + '&page_size=' + pageSize;
+            if (mime) url += '&mime_type=' + encodeURIComponent(mime);
+            if (status) url += '&status=' + encodeURIComponent(status);
+            if (search) url += '&search=' + encodeURIComponent(search);
+            if (knowledgeId) url += '&knowledge_id=' + encodeURIComponent(knowledgeId);
+
+            const data = await apiCall(url);
+            if (!data) return;
+
+            const tbody = document.getElementById('vaultFilesTableBody');
+            tbody.textContent = '';
+
+            if (!data.files || data.files.length === 0) {
+                const emptyRow = document.createElement('tr');
+                const emptyCell = document.createElement('td');
+                emptyCell.colSpan = 7;
+                emptyCell.className = 'text-muted text-center';
+                emptyCell.textContent = 'No files found';
+                emptyRow.appendChild(emptyCell);
+                tbody.appendChild(emptyRow);
+            } else {
+                data.files.forEach(f => {
+                    const tr = document.createElement('tr');
+
+                    // Filename cell
+                    const tdName = document.createElement('td');
+                    const nameStrong = document.createElement('strong');
+                    nameStrong.textContent = f.filename;
+                    tdName.appendChild(nameStrong);
+                    tdName.appendChild(document.createElement('br'));
+                    const nameSmall = document.createElement('small');
+                    nameSmall.className = 'text-muted';
+                    nameSmall.textContent = f.file_id;
+                    tdName.appendChild(nameSmall);
+
+                    // Knowledge ID cell
+                    const tdKid = document.createElement('td');
+                    const kidLink = document.createElement('a');
+                    kidLink.href = '#';
+                    kidLink.textContent = f.knowledge_id;
+                    kidLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        document.getElementById('vaultKnowledgeIdFilter').value = f.knowledge_id;
+                        loadVaultFiles(1);
+                    });
+                    tdKid.appendChild(kidLink);
+                    if (f.knowledge_title) {
+                        tdKid.appendChild(document.createElement('br'));
+                        const titleSmall = document.createElement('small');
+                        titleSmall.className = 'text-muted';
+                        titleSmall.textContent = f.knowledge_title;
+                        tdKid.appendChild(titleSmall);
+                    }
+
+                    // MIME type cell
+                    const tdMime = document.createElement('td');
+                    const mimeSmall = document.createElement('small');
+                    mimeSmall.textContent = f.mime_type;
+                    tdMime.appendChild(mimeSmall);
+
+                    // Size cell
+                    const tdSize = document.createElement('td');
+                    tdSize.textContent = formatBytes(f.size_bytes);
+
+                    // Status cell
+                    const tdStatus = document.createElement('td');
+                    const statusBadge = document.createElement('span');
+                    const badgeCls = { active: 'bg-success', uploading: 'bg-primary', deprecated: 'bg-warning', deleted: 'bg-danger' };
+                    statusBadge.className = 'badge ' + (badgeCls[f.status] || 'bg-secondary');
+                    statusBadge.textContent = f.status;
+                    tdStatus.appendChild(statusBadge);
+
+                    // Uploaded date cell
+                    const tdDate = document.createElement('td');
+                    const dateSmall = document.createElement('small');
+                    dateSmall.textContent = formatDate(f.uploaded_at);
+                    tdDate.appendChild(dateSmall);
+
+                    // Actions cell
+                    const tdActions = document.createElement('td');
+                    const viewBtn = document.createElement('button');
+                    viewBtn.className = 'btn btn-sm btn-outline-primary me-1';
+                    viewBtn.title = 'View details';
+                    viewBtn.addEventListener('click', () => viewVaultFile(f.file_id));
+                    const viewIcon = document.createElement('i');
+                    viewIcon.className = 'bi bi-eye';
+                    viewBtn.appendChild(viewIcon);
+                    tdActions.appendChild(viewBtn);
+
+                    if (f.status !== 'deleted') {
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'btn btn-sm btn-outline-danger';
+                        delBtn.title = 'Delete';
+                        delBtn.addEventListener('click', () => confirmDeleteVaultFile(f.file_id, f.filename));
+                        const delIcon = document.createElement('i');
+                        delIcon.className = 'bi bi-trash';
+                        delBtn.appendChild(delIcon);
+                        tdActions.appendChild(delBtn);
+                    }
+
+                    tr.appendChild(tdName);
+                    tr.appendChild(tdKid);
+                    tr.appendChild(tdMime);
+                    tr.appendChild(tdSize);
+                    tr.appendChild(tdStatus);
+                    tr.appendChild(tdDate);
+                    tr.appendChild(tdActions);
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // Update pagination
+            const total = data.total || 0;
+            const totalPages = data.total_pages || 1;
+            document.getElementById('vaultPaginationInfo').textContent =
+                'Showing ' + (data.files?.length || 0) + ' of ' + total + ' files (page ' + vaultCurrentPage + ' of ' + totalPages + ')';
+            document.getElementById('vaultPrevBtn').disabled = vaultCurrentPage <= 1;
+            document.getElementById('vaultNextBtn').disabled = vaultCurrentPage >= totalPages;
+        }
+
+        async function viewVaultFile(fileId) {
+            const data = await apiCall('/vault/files/' + fileId);
+            if (!data) return;
+
+            // Remove old modal if exists
+            const old = document.getElementById('vaultFileModal');
+            if (old) old.remove();
+
+            // Build modal using DOM API
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'vaultFileModal';
+            modal.tabIndex = -1;
+
+            const dialog = document.createElement('div');
+            dialog.className = 'modal-dialog modal-lg';
+            const content = document.createElement('div');
+            content.className = 'modal-content';
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'modal-header';
+            const title = document.createElement('h5');
+            title.className = 'modal-title';
+            title.textContent = data.filename;
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'btn-close';
+            closeBtn.setAttribute('data-bs-dismiss', 'modal');
+            header.appendChild(title);
+            header.appendChild(closeBtn);
+
+            // Body — detail table
+            const body = document.createElement('div');
+            body.className = 'modal-body';
+            const table = document.createElement('table');
+            table.className = 'table table-sm';
+
+            const fields = [
+                ['File ID', data.file_id, true],
+                ['Knowledge ID', data.knowledge_id, true],
+                ['Knowledge Title', data.knowledge_title, false],
+                ['Category', data.knowledge_category, false],
+                ['MIME Type', data.mime_type, false],
+                ['Size', formatBytes(data.size_bytes), false],
+                ['Status', data.status, false],
+                ['Uploaded By', data.uploaded_by, false],
+                ['Uploaded At', formatDate(data.uploaded_at), false],
+                ['SHA256', data.checksum_sha256, true],
+                ['Vault Path', data.vault_path, true],
+                ['Description', data.description, false],
+                ['Deleted At', data.deleted_at ? formatDate(data.deleted_at) : null, false],
+                ['Purge After', data.purge_after ? formatDate(data.purge_after) : null, false],
+            ];
+
+            fields.forEach(([label, value, isCode]) => {
+                if (value === null || value === undefined) return;
+                const row = document.createElement('tr');
+                const th = document.createElement('td');
+                th.className = 'fw-bold';
+                th.style.width = '35%';
+                th.textContent = label;
+                const td = document.createElement('td');
+                if (isCode) {
+                    const code = document.createElement('code');
+                    code.textContent = value;
+                    td.appendChild(code);
+                } else {
+                    td.textContent = value;
+                }
+                row.appendChild(th);
+                row.appendChild(td);
+                table.appendChild(row);
+            });
+
+            body.appendChild(table);
+
+            // Footer
+            const footer = document.createElement('div');
+            footer.className = 'modal-footer';
+            const closeBtn2 = document.createElement('button');
+            closeBtn2.type = 'button';
+            closeBtn2.className = 'btn btn-secondary';
+            closeBtn2.setAttribute('data-bs-dismiss', 'modal');
+            closeBtn2.textContent = 'Close';
+            footer.appendChild(closeBtn2);
+
+            content.appendChild(header);
+            content.appendChild(body);
+            content.appendChild(footer);
+            dialog.appendChild(content);
+            modal.appendChild(dialog);
+            document.body.appendChild(modal);
+
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
+
+        function confirmDeleteVaultFile(fileId, filename) {
+            if (confirm('Delete file "' + filename + '"?\n\nThis is a soft-delete with a recovery window.')) {
+                deleteVaultFile(fileId);
+            }
+        }
+
+        async function deleteVaultFile(fileId) {
+            const data = await apiCall('/vault/files/' + fileId, { method: 'DELETE' });
+            if (data && data.success) {
+                loadVaultFiles();
+                loadVaultStats();
+            }
+        }
+
+        // --- Maintenance Panel ---
+
+        function confirmVaultCleanup(action) {
+            if (confirm('Permanently delete all files past their soft-delete window?\n\nThis action cannot be undone.')) {
+                runVaultCleanup(action);
+            }
+        }
+
+        async function runVaultCleanup(action) {
+            const resultIds = { holds: 'holdCleanupResult', purge: 'purgeCleanupResult', orphans: 'orphanCleanupResult' };
+            const resultDiv = document.getElementById(resultIds[action]);
+            if (resultDiv) resultDiv.textContent = 'Running...';
+
+            const data = await apiCall('/vault/cleanup/' + action, { method: 'POST' });
+            if (!data) {
+                if (resultDiv) {
+                    resultDiv.textContent = '';
+                    const errSpan = document.createElement('span');
+                    errSpan.className = 'text-danger';
+                    errSpan.textContent = 'Request failed';
+                    resultDiv.appendChild(errSpan);
+                }
+                return;
+            }
+
+            if (resultDiv) resultDiv.textContent = '';
+
+            switch (action) {
+                case 'holds': {
+                    const span = document.createElement('span');
+                    span.className = 'text-success';
+                    const icon = document.createElement('i');
+                    icon.className = 'bi bi-check-circle me-1';
+                    span.appendChild(icon);
+                    span.appendChild(document.createTextNode(
+                        (data.holds_removed || 0) + ' holds removed, ' + (data.files_cleaned || 0) + ' files cleaned'
+                    ));
+                    resultDiv.appendChild(span);
+                    break;
+                }
+                case 'purge': {
+                    const span = document.createElement('span');
+                    span.className = 'text-success';
+                    const icon = document.createElement('i');
+                    icon.className = 'bi bi-check-circle me-1';
+                    span.appendChild(icon);
+                    let msg = (data.files_purged || 0) + ' files purged';
+                    if (data.errors > 0) msg += ', ' + data.errors + ' errors';
+                    span.appendChild(document.createTextNode(msg));
+                    resultDiv.appendChild(span);
+                    break;
+                }
+                case 'orphans': {
+                    if ((data.orphans_detected || 0) === 0) {
+                        const span = document.createElement('span');
+                        span.className = 'text-success';
+                        const icon = document.createElement('i');
+                        icon.className = 'bi bi-check-circle me-1';
+                        span.appendChild(icon);
+                        span.appendChild(document.createTextNode('No orphans detected'));
+                        resultDiv.appendChild(span);
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = 'text-warning';
+                        const icon = document.createElement('i');
+                        icon.className = 'bi bi-exclamation-triangle me-1';
+                        span.appendChild(icon);
+                        span.appendChild(document.createTextNode(data.orphans_detected + ' orphan(s) found'));
+                        resultDiv.appendChild(span);
+
+                        if (data.orphan_ids && data.orphan_ids.length > 0) {
+                            const ul = document.createElement('ul');
+                            ul.className = 'mb-0 mt-1';
+                            data.orphan_ids.forEach(id => {
+                                const li = document.createElement('li');
+                                const code = document.createElement('code');
+                                code.textContent = id;
+                                li.appendChild(code);
+                                ul.appendChild(li);
+                            });
+                            resultDiv.appendChild(ul);
+                        }
+                    }
+                    break;
+                }
+            }
+
+            // Refresh stats after cleanup
+            loadVaultStats();
         }
     </script>
 </body>

@@ -5,6 +5,7 @@ This package organizes repository classes by feature area.
 
 Modules:
 - registration: Invite token and registration audit repositories (Self-Registration v1.0)
+- vault_repository: Vault file CRUD operations (HIVE File Vault)
 """
 
 # Lazy imports to avoid circular import issues
@@ -29,9 +30,15 @@ except ImportError:
     InviteTokenRepository = None
     RegistrationAuditRepository = None
 
+try:
+    from .vault_repository import VaultFileRepository
+except ImportError:
+    VaultFileRepository = None
+
 
 __all__ = [
     "InviteTokenRepository",
     "RegistrationAuditRepository",
+    "VaultFileRepository",
     "get_registration_repositories",
 ]

@@ -7,7 +7,6 @@ send, receive, mark read, delete, and broadcast functionality.
 Version: 1.1
 Created: 2025-12-08
 Updated: 2025-12-08
-Author: Backend Agent (Claude Opus 4.5)
 
 Changelog v1.1:
 - ISS-064 Fix: Added rate limiting for send endpoints
@@ -29,6 +28,8 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+
+from ..agentic import ok_response, raise_issue
 
 # =============================================================================
 # RATE LIMITING (ISS-064 Fix)
@@ -81,18 +82,20 @@ def check_rate_limit(
 def rate_limit_message(agent_id: str) -> None:
     """Enforce rate limit for message sending."""
     if not check_rate_limit(agent_id, RATE_LIMIT_MESSAGES_PER_MINUTE, key_suffix="msg"):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded: max {RATE_LIMIT_MESSAGES_PER_MINUTE} messages per minute"
+        raise_issue(
+            "RATE.LIMIT_EXCEEDED",
+            status=429,
+            context={"limit": RATE_LIMIT_MESSAGES_PER_MINUTE, "window": "1 minute", "scope": "messages"},
         )
 
 
 def rate_limit_broadcast(agent_id: str) -> None:
     """Enforce rate limit for broadcast messages."""
     if not check_rate_limit(agent_id, RATE_LIMIT_BROADCASTS_PER_MINUTE, key_suffix="broadcast"):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded: max {RATE_LIMIT_BROADCASTS_PER_MINUTE} broadcasts per minute"
+        raise_issue(
+            "RATE.LIMIT_EXCEEDED",
+            status=429,
+            context={"limit": RATE_LIMIT_BROADCASTS_PER_MINUTE, "window": "1 minute", "scope": "broadcasts"},
         )
 
 from ...db.collections import get_dakb_client
@@ -104,7 +107,6 @@ from ...messaging import (
     MessageQueue,
     MessageRepository,
     MessageResponse,
-    MessageStats,
     MessageStatus,
     MessageType,
 )
@@ -222,14 +224,13 @@ def get_message_queue() -> MessageQueue:
 
 @router.post(
     "",
-    response_model=MessageResponse,
     summary="Send a message",
     description="Send a direct message to another agent or start a thread."
 )
 async def send_message(
     request: SendMessageRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> MessageResponse:
+) -> dict:
     """
     Send a message to another agent.
 
@@ -245,24 +246,30 @@ async def send_message(
 
     # Validate message type
     if request.message_type == MessageType.DIRECT and not request.recipient_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Direct messages require recipient_id"
+        raise_issue(
+            "MSG.RECIPIENT_NOT_FOUND",
+            status=400,
+            message="Direct messages require recipient_id",
+            context={"message_type": request.message_type.value},
         )
 
     if request.message_type == MessageType.REPLY and not request.reply_to_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Reply messages require reply_to_id"
+        raise_issue(
+            "MSG.CONTENT_REQUIRED",
+            status=400,
+            message="Reply messages require reply_to_id",
+            context={"message_type": request.message_type.value},
         )
 
     # Check if replying to existing message
     if request.reply_to_id:
         parent = repo.get_by_id(request.reply_to_id)
         if not parent:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Reply target message not found: {request.reply_to_id}"
+            raise_issue(
+                "MSG.NOT_FOUND",
+                status=404,
+                message=f"Reply target message not found: {request.reply_to_id}",
+                context={"reply_to_id": request.reply_to_id},
             )
 
     try:
@@ -307,13 +314,18 @@ async def send_message(
                 # Don't fail the message send if notification fails
                 logger.warning(f"Failed to send SSE notification: {e}")
 
-        return MessageResponse(
-            success=True,
-            message=message
+        return ok_response(
+            data=MessageResponse(success=True, message=message).model_dump(),
+            actions=["get_messages", "send_message", "mark_read"],
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise_issue(
+            "MSG.CONTENT_REQUIRED",
+            status=400,
+            message=str(e),
+            context={"recipient_id": request.recipient_id},
+        )
     except Exception as e:
         logger.error(f"Error sending message: {e}")
         raise HTTPException(status_code=500, detail="Failed to send message")
@@ -321,14 +333,13 @@ async def send_message(
 
 @router.post(
     "/broadcast",
-    response_model=BroadcastResponse,
     summary="Send broadcast message",
     description="Send a message to all registered agents."
 )
 async def send_broadcast(
     request: BroadcastRequest,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> BroadcastResponse:
+) -> dict:
     """
     Send a broadcast message to all agents.
 
@@ -382,11 +393,14 @@ async def send_broadcast(
             # Don't fail the broadcast if notification fails
             logger.warning(f"Failed to send SSE broadcast notification: {e}")
 
-        return BroadcastResponse(
-            success=True,
-            message_id=message.message_id,
-            recipients_count=recipients_count,
-            delivered_count=0,  # Will be updated asynchronously
+        return ok_response(
+            data=BroadcastResponse(
+                success=True,
+                message_id=message.message_id,
+                recipients_count=recipients_count,
+                delivered_count=0,  # Will be updated asynchronously
+            ).model_dump(),
+            actions=["get_messages"],
         )
 
     except Exception as e:
@@ -400,7 +414,6 @@ async def send_broadcast(
 
 @router.get(
     "",
-    response_model=MessageListResponse,
     summary="Get messages",
     description="Get messages for the authenticated agent (inbox)."
 )
@@ -413,7 +426,7 @@ async def get_messages(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> MessageListResponse:
+) -> dict:
     """
     Get messages for the authenticated agent.
 
@@ -440,13 +453,16 @@ async def get_messages(
         if thread_id:
             messages = [m for m in messages if m.thread_id == thread_id]
 
-        return MessageListResponse(
-            success=True,
-            messages=messages,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_more=page * page_size < total,
+        return ok_response(
+            data=MessageListResponse(
+                success=True,
+                messages=messages,
+                total=total,
+                page=page,
+                page_size=page_size,
+                has_more=page * page_size < total,
+            ).model_dump(),
+            actions=["mark_read", "send_message"],
         )
 
     except Exception as e:
@@ -456,7 +472,6 @@ async def get_messages(
 
 @router.get(
     "/sent",
-    response_model=MessageListResponse,
     summary="Get sent messages",
     description="Get messages sent by the authenticated agent."
 )
@@ -464,7 +479,7 @@ async def get_sent_messages(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> MessageListResponse:
+) -> dict:
     """Get messages sent by the authenticated agent."""
     repo = get_message_repository()
 
@@ -475,13 +490,16 @@ async def get_sent_messages(
             page_size=page_size,
         )
 
-        return MessageListResponse(
-            success=True,
-            messages=messages,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_more=page * page_size < total,
+        return ok_response(
+            data=MessageListResponse(
+                success=True,
+                messages=messages,
+                total=total,
+                page=page,
+                page_size=page_size,
+                has_more=page * page_size < total,
+            ).model_dump(),
+            actions=["get_messages", "send_message"],
         )
 
     except Exception as e:
@@ -502,7 +520,10 @@ async def get_unread_count(
 
     try:
         count = repo.get_unread_count(agent.agent_id)
-        return {"unread_count": count}
+        return ok_response(
+            data={"unread_count": count},
+            actions=["get_messages", "mark_read"],
+        )
 
     except Exception as e:
         logger.error(f"Error getting unread count: {e}")
@@ -511,7 +532,6 @@ async def get_unread_count(
 
 @router.get(
     "/thread/{thread_id}",
-    response_model=MessageListResponse,
     summary="Get thread messages",
     description="Get all messages in a conversation thread."
 )
@@ -520,7 +540,7 @@ async def get_thread(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> MessageListResponse:
+) -> dict:
     """
     Get all messages in a thread.
 
@@ -536,13 +556,16 @@ async def get_thread(
             page_size=page_size,
         )
 
-        return MessageListResponse(
-            success=True,
-            messages=messages,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_more=page * page_size < total,
+        return ok_response(
+            data=MessageListResponse(
+                success=True,
+                messages=messages,
+                total=total,
+                page=page,
+                page_size=page_size,
+                has_more=page * page_size < total,
+            ).model_dump(),
+            actions=["send_message", "mark_read"],
         )
 
     except Exception as e:
@@ -550,30 +573,65 @@ async def get_thread(
         raise HTTPException(status_code=500, detail="Failed to get thread")
 
 
+# =============================================================================
+# STATISTICS ENDPOINTS
+# NOTE: Must be defined BEFORE /{message_id} catch-all to avoid route shadowing
+# =============================================================================
+
+@router.get(
+    "/stats",
+    summary="Get message statistics",
+    description="Get message statistics for the authenticated agent."
+)
+async def get_stats(
+    agent: AuthenticatedAgent = Depends(get_current_agent),
+) -> dict:
+    """Get message statistics for the authenticated agent."""
+    repo = get_message_repository()
+
+    try:
+        stats = repo.get_stats(agent.agent_id)
+        return ok_response(
+            data=stats.model_dump() if hasattr(stats, "model_dump") else stats,
+            actions=["get_messages", "send_message"],
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get statistics")
+
+
 @router.get(
     "/{message_id}",
-    response_model=MessageResponse,
     summary="Get message by ID",
     description="Get a specific message by its identifier."
 )
 async def get_message(
     message_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> MessageResponse:
+) -> dict:
     """Get a specific message by ID."""
     repo = get_message_repository()
 
     message = repo.get_by_id(message_id)
     if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
+        raise_issue("MSG.NOT_FOUND", status=404, context={"message_id": message_id})
 
     # Check access - must be sender, recipient, or broadcast
     if (message.sender_id != agent.agent_id and
         message.recipient_id != agent.agent_id and
         message.message_type != MessageType.BROADCAST):
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise_issue(
+            "MSG.NOT_FOUND",
+            status=403,
+            message="Access denied — must be sender, recipient, or broadcast",
+            context={"message_id": message_id},
+        )
 
-    return MessageResponse(success=True, message=message)
+    return ok_response(
+        data=MessageResponse(success=True, message=message).model_dump(),
+        actions=["mark_read", "send_message", "get_messages"],
+    )
 
 
 # =============================================================================
@@ -582,22 +640,24 @@ async def get_message(
 
 @router.post(
     "/{message_id}/read",
-    response_model=MessageResponse,
     summary="Mark message as read",
     description="Mark a message as read by the authenticated agent."
 )
 async def mark_read(
     message_id: str,
     agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> MessageResponse:
+) -> dict:
     """Mark a message as read."""
     repo = get_message_repository()
 
     message = repo.mark_read(message_id, agent.agent_id)
     if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
+        raise_issue("MSG.NOT_FOUND", status=404, context={"message_id": message_id})
 
-    return MessageResponse(success=True, message=message)
+    return ok_response(
+        data=MessageResponse(success=True, message=message).model_dump(),
+        actions=["get_messages"],
+    )
 
 
 @router.post(
@@ -611,17 +671,25 @@ async def mark_read_batch(
 ) -> dict:
     """Mark multiple messages as read."""
     if not request.message_ids:
-        raise HTTPException(status_code=400, detail="message_ids required")
+        raise_issue(
+            "MSG.CONTENT_REQUIRED",
+            status=400,
+            message="message_ids required",
+            context={"field": "message_ids"},
+        )
 
     repo = get_message_repository()
 
     count = repo.mark_multiple_read(request.message_ids, agent.agent_id)
 
-    return {
-        "success": True,
-        "marked_count": count,
-        "requested_count": len(request.message_ids)
-    }
+    return ok_response(
+        data={
+            "success": True,
+            "marked_count": count,
+            "requested_count": len(request.message_ids),
+        },
+        actions=["get_messages"],
+    )
 
 
 # =============================================================================
@@ -654,12 +722,17 @@ async def delete_message(
     )
 
     if not success:
-        raise HTTPException(
-            status_code=404,
-            detail="Message not found or access denied"
+        raise_issue(
+            "MSG.NOT_FOUND",
+            status=404,
+            message="Message not found or access denied",
+            context={"message_id": message_id},
         )
 
-    return {"success": True, "deleted": message_id}
+    return ok_response(
+        data={"success": True, "deleted": message_id},
+        actions=["get_messages", "send_message"],
+    )
 
 
 @router.delete(
@@ -681,29 +754,9 @@ async def delete_thread(
         hard_delete=hard_delete,
     )
 
-    return {"success": True, "deleted_count": count}
+    return ok_response(
+        data={"success": True, "deleted_count": count},
+        actions=["get_messages", "send_message"],
+    )
 
 
-# =============================================================================
-# STATISTICS ENDPOINTS
-# =============================================================================
-
-@router.get(
-    "/stats",
-    response_model=MessageStats,
-    summary="Get message statistics",
-    description="Get message statistics for the authenticated agent."
-)
-async def get_stats(
-    agent: AuthenticatedAgent = Depends(get_current_agent),
-) -> MessageStats:
-    """Get message statistics for the authenticated agent."""
-    repo = get_message_repository()
-
-    try:
-        stats = repo.get_stats(agent.agent_id)
-        return stats
-
-    except Exception as e:
-        logger.error(f"Error getting stats: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get statistics")

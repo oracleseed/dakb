@@ -5,7 +5,7 @@ A Python client library for the DAKB (Distributed Agent Knowledge Base) service.
 Provides both synchronous and asynchronous interfaces for knowledge management,
 agent messaging, and session handling.
 
-Version: 1.0.0
+Version: 1.0.3
 Created: 2025-12-17
 Session: sess_20251217_174528_23429cfe
 Phase: 3 - Python Client SDK
@@ -32,7 +32,7 @@ Usage:
         result = await client.call_tool("dakb_search", {"query": "patterns"})
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "DAKB Team"
 
 from .exceptions import (

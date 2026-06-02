@@ -18,7 +18,7 @@ pip install dakb-local-proxy
 Or install from source:
 
 ```bash
-cd backend/dakb_service/local_proxy
+cd packages/local_proxy
 pip install -e .
 ```
 

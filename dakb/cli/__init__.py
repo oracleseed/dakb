@@ -1,12 +1,20 @@
 """
-DAKB Server CLI - Command Line Interface for DAKB services.
+DAKB CLI package.
 
-Usage:
+Two complementary command-line interfaces live here:
+
+1. Server management CLI (``dakb-server`` -> ``dakb.cli:main``), defined in this
+   module. Manages the local services::
+
     dakb-server init        Initialize configuration and secrets
     dakb-server start       Start all DAKB services
     dakb-server stop        Stop all DAKB services
     dakb-server status      Check service status
     dakb-server version     Show version information
+
+2. Knowledge-base client CLI (``dakb.cli.main``), defined in ``main.py``. Talks
+   to a running gateway over HTTP for knowledge, messaging, session, and vote
+   operations. Re-exported here as ``kb_cli`` / ``kb_main`` for convenience.
 """
 
 import os
@@ -442,6 +450,16 @@ def version():
     click.echo("   License: Apache-2.0")
     click.echo("\n🔗 https://github.com/oracleseed/dakb")
     click.echo()
+
+
+# The knowledge-base *client* CLI lives in the sibling ``dakb.cli.main`` submodule
+# (``dakb.cli.main:main`` / ``dakb.cli.main:cli``). It is intentionally NOT
+# re-exported from this package namespace: importing the ``main`` submodule would
+# bind the package attribute ``dakb.cli.main`` to the module object and shadow the
+# ``dakb-server`` console entry point (``dakb.cli:main``, the server group above).
+# Import the client CLI directly from ``dakb.cli.main`` instead.
+
+__all__ = ["main"]
 
 
 if __name__ == "__main__":

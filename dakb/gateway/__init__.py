@@ -18,6 +18,19 @@ Usage:
     from dakb.gateway.main import app
 """
 
-from dakb.gateway.main import app, run
-
 __all__ = ["app", "run"]
+
+
+def __getattr__(name: str):
+    """Lazily expose ``app``/``run`` (PEP 562).
+
+    Importing them lazily avoids eagerly loading ``dakb.gateway.main`` (which
+    imports ``dakb.admin``) at package-import time. Eager loading created a
+    circular import when ``dakb.admin.*`` was imported before ``dakb.gateway``.
+    ``from dakb.gateway import app, run`` still works unchanged.
+    """
+    if name in ("app", "run"):
+        from dakb.gateway.main import app, run
+
+        return {"app": app, "run": run}[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

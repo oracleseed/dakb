@@ -7,12 +7,11 @@ Implements Phases 2-5 of the DAKB Self-Registration System v1.0.
 Version: 1.3
 Created: 2025-12-11
 Updated: 2025-12-11
-Author: Backend Agent (Claude Opus 4.5)
 Session Reference: sess_selfreg_v1_20251211
 
 Changelog:
     v1.3 (2025-12-11):
-        - Phase 5: Applied S-Reviewer Phase 4 condition fixes:
+        - Phase 5: Applied review Phase 4 condition fixes:
           - WARNING-1: Mask target_token in audit log responses
           - WARNING-2: Add self-revocation prevention check
     v1.2 (2025-12-11):
@@ -112,7 +111,7 @@ Collection: dakb_agent_aliases
 To create these indexes, run:
   python backend/dakb_service/scripts/create_registration_indexes.py
 
-PHASE 5 FIXES (S-Reviewer Phase 4 Conditions)
+PHASE 5 FIXES (review Phase 4 Conditions)
 ---------------------------------------------
 WARNING-1 FIX: Mask target_token in audit log responses
   - Applied mask_token() to target_token in GET /audit endpoint
@@ -128,6 +127,7 @@ WARNING-2 FIX: Self-revocation prevention
 
 import asyncio
 import logging
+import os
 import re
 import time
 from collections import defaultdict
@@ -147,6 +147,7 @@ from ...db.registration_schemas.registration import (
     utcnow,
 )
 from ...db.schemas import AccessLevel, AgentRole, AgentStatus
+from ..agentic import ok_response, raise_issue
 from ..config import get_settings
 from ..middleware.auth import (
     AuthenticatedAgent,
@@ -250,15 +251,23 @@ def get_invite_rate_limiter() -> InviteRateLimiter:
 # ADMIN AGENTS CONFIGURATION
 # =============================================================================
 
-# Agents with admin privileges for registration
-ADMIN_AGENTS = frozenset({
-    "Coordinator",
+# Agents with admin privileges for registration.
+# Override via the DAKB_ADMIN_AGENTS environment variable (comma-separated).
+# The defaults below are generic role names — deployments should configure
+# their own admin agent identifiers.
+_DEFAULT_ADMIN_AGENTS = {
+    "admin",
     "manager",
-    "backend",
-    "claude-code-agent",
-    "claude-code-backend",
     "system",
-})
+}
+ADMIN_AGENTS = frozenset(
+    {
+        a.strip()
+        for a in os.getenv("DAKB_ADMIN_AGENTS", "").split(",")
+        if a.strip()
+    }
+    or _DEFAULT_ADMIN_AGENTS
+)
 
 
 def is_admin_agent(agent_id: str) -> bool:
@@ -303,13 +312,12 @@ async def require_admin(
         f"Admin access denied for agent '{agent.agent_id}' "
         f"(role: {agent.role.value})"
     )
-    raise HTTPException(
-        status_code=403,
-        detail={
-            "error": "admin_required",
-            "message": f"Agent '{agent.agent_id}' does not have admin privileges. "
-                      "Contact Coordinator or manager for invite tokens."
-        }
+    raise_issue(
+        "REG.ADMIN_REQUIRED",
+        status=403,
+        message=f"Agent '{agent.agent_id}' does not have admin privileges. "
+                "Contact an admin agent for invite tokens.",
+        context={"agent_id": agent.agent_id, "role": agent.role.value},
     )
 
 
@@ -359,6 +367,14 @@ class CreateInviteRequest(BaseModel):
         None,
         description="Optional expected agent type"
     )
+    granted_role: str | None = Field(
+        default="developer",
+        description="Role to grant the agent (admin, developer, researcher, viewer, specialist, coordinator, analyst, observer)"
+    )
+    granted_access_levels: list[str] | None = Field(
+        default=["public"],
+        description="Access levels to grant (public, restricted, secret)"
+    )
     expires_in_hours: int = Field(
         default=48,
         ge=1,
@@ -375,14 +391,6 @@ class CreateInviteRequest(BaseModel):
         None,
         max_length=500,
         description="Optional note about why this invite was created"
-    )
-    granted_role: AgentRole = Field(
-        default=AgentRole.DEVELOPER,
-        description="Role to grant the invited agent"
-    )
-    granted_access_levels: list[AccessLevel] = Field(
-        default_factory=lambda: [AccessLevel.PUBLIC],
-        description="Access levels to grant the invited agent"
     )
 
 
@@ -472,7 +480,7 @@ class RegistrationRequest(BaseModel):
     @classmethod
     def validate_agent_type(cls, v: str) -> str:
         """Validate agent type is supported."""
-        valid_types = {'claude', 'claude_code', 'gpt', 'openai', 'gemini', 'grok', 'local', 'human'}
+        valid_types = {'claude', 'claude_code', 'codex', 'gpt', 'openai', 'gemini', 'grok', 'local', 'human'}
         if v.lower() not in valid_types:
             raise ValueError(
                 f"Invalid agent_type. Must be one of: {', '.join(sorted(valid_types))}. Got: {v}"
@@ -543,7 +551,8 @@ class AuditListResponse(BaseModel):
 
 class InviteTokenListItem(BaseModel):
     """Response model for a single invite token in listing."""
-    invite_token: str = Field(..., description="Token identifier (masked)")
+    invite_token: str = Field(..., description="Token identifier (masked for display)")
+    full_token: str = Field(..., description="Full token value (for admin copy/use)")
     created_by: str = Field(..., description="Admin who created the token")
     created_at: datetime = Field(..., description="Creation timestamp")
     expires_at: datetime = Field(..., description="Expiration timestamp")
@@ -1151,14 +1160,14 @@ async def get_registration_info() -> RegistrationSchemaResponse:
     Returns:
         RegistrationSchemaResponse with full schema and instructions.
     """
-    return RegistrationSchemaResponse(
+    schema = RegistrationSchemaResponse(
         service="DAKB (Distributed Agent Knowledge Base)",
         version="1.0",
         mode="invite-only",
         description="Agent registration system. Registration requires a valid invite token from an admin.",
         registration_enabled=True,
         invite_required=True,
-        supported_agent_types=["claude", "claude_code", "gpt", "openai", "gemini", "grok", "local", "human"],
+        supported_agent_types=["claude", "claude_code", "codex", "gpt", "openai", "gemini", "grok", "local", "human"],
         required_fields=["agent_id", "agent_type", "invite_token"],
         optional_fields=["display_name", "alias", "alias_role", "callback_url", "model_version", "capabilities"],
         agent_id_pattern="^[a-z0-9][a-z0-9-]{2,48}[a-z0-9]$",
@@ -1167,7 +1176,7 @@ async def get_registration_info() -> RegistrationSchemaResponse:
             "overview": "To register with DAKB, you need an invite token from an admin. "
                        "Send a POST request to the endpoint URL with the invite token and your agent details.",
             "steps": [
-                "1. Obtain an invite token from a DAKB admin (Coordinator, manager, or backend agent)",
+                "1. Obtain an invite token from a DAKB admin agent",
                 "2. Review the request_schema below to understand required fields",
                 "3. POST to the endpoint URL with Content-Type: application/json",
                 "4. On success, you'll receive a full access token immediately",
@@ -1179,7 +1188,7 @@ async def get_registration_info() -> RegistrationSchemaResponse:
                 "If invite includes pre-registered alias, it will be auto-activated",
                 "The agent_id pattern: start/end with alphanumeric, hyphens in middle only"
             ],
-            "admin_contact": "Request invite token from Coordinator or manager agent via DAKB messaging",
+            "admin_contact": "Request invite token from an admin agent via DAKB messaging",
             "rate_limits": {
                 "registration_attempts": "5 per hour per IP",
                 "invite_generation": "10 per hour per admin"
@@ -1207,7 +1216,7 @@ async def get_registration_info() -> RegistrationSchemaResponse:
             "agent_type": {
                 "type": "string",
                 "required": True,
-                "enum": ["claude", "claude_code", "gpt", "openai", "gemini", "grok", "local", "human"],
+                "enum": ["claude", "claude_code", "codex", "gpt", "openai", "gemini", "grok", "local", "human"],
                 "description": "Type of AI agent"
             },
             "display_name": {
@@ -1231,7 +1240,7 @@ async def get_registration_info() -> RegistrationSchemaResponse:
             "alias": {
                 "type": "string",
                 "required": False,
-                "description": "Optional alias to register (e.g., 'Coordinator', 'Reviewer')",
+                "description": "Optional alias to register (e.g., 'planner', 'worker')",
                 "max_length": 50
             },
             "alias_role": {
@@ -1297,6 +1306,11 @@ async def get_registration_info() -> RegistrationSchemaResponse:
                 "purpose": "Research assistant for analyzing trading strategies and market data"
             }
         }
+    )
+    return ok_response(
+        data=schema.model_dump(),
+        actions=["create_invite", "register_agent"],
+        suggestions=["Obtain an invite token from a DAKB admin before registering."],
     )
 
 
@@ -1388,6 +1402,25 @@ async def create_invite_token(
         except ValueError:
             logger.warning(f"Unknown target agent type: {request.target_agent_type}")
 
+    # Parse granted role from request
+    granted_role_str = request.granted_role or "developer"
+    try:
+        granted_role_enum = AgentRole(granted_role_str.lower())
+    except ValueError:
+        logger.warning(f"Unknown role '{granted_role_str}', defaulting to developer")
+        granted_role_enum = AgentRole.DEVELOPER
+
+    # Parse granted access levels from request
+    granted_access_levels_list = request.granted_access_levels or ["public"]
+    granted_access_enums = []
+    for level in granted_access_levels_list:
+        try:
+            granted_access_enums.append(AccessLevel(level.lower()))
+        except ValueError:
+            logger.warning(f"Unknown access level '{level}', skipping")
+    if not granted_access_enums:
+        granted_access_enums = [AccessLevel.PUBLIC]
+
     # Create token document
     token_doc = DakbInviteToken(
         invite_token=invite_token,
@@ -1396,8 +1429,8 @@ async def create_invite_token(
         for_agent_type=target_agent_type,
         for_agent_id_hint=request.target_agent_id,
         purpose=purpose if len(purpose) >= 10 else f"Invite for new agent registration ({purpose})",
-        granted_role=AgentRole.DEVELOPER,
-        granted_access_levels=[AccessLevel.PUBLIC],
+        granted_role=granted_role_enum,
+        granted_access_levels=granted_access_enums,
         status=InviteTokenStatus.ACTIVE,
         expires_at=expires_at,
         admin_notes=request.created_by_note,
@@ -1446,12 +1479,20 @@ async def create_invite_token(
         f"(expires: {expires_at.isoformat()}, max_uses: {request.max_uses})"
     )
 
-    return CreateInviteResponse(
+    result = CreateInviteResponse(
         invite_token=invite_token,
         expires_at=expires_at,
         max_uses=request.max_uses,
         message=f"Invite token created. Valid for {request.expires_in_hours} hours. "
                f"Share this token with the new agent to complete registration."
+    )
+    return ok_response(
+        data=result.model_dump(),
+        actions=["register_agent"],
+        suggestions=[
+            "Share the invite token with the target agent.",
+            f"Token expires in {request.expires_in_hours} hours.",
+        ],
     )
 
 
@@ -1625,13 +1666,12 @@ async def register_agent(
         )
         await create_audit_entry(audit_doc.model_dump())
 
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": "agent_id_taken",
-                "message": f"Agent ID '{request_body.agent_id}' is already registered. "
-                          "Please choose a different agent_id."
-            }
+        raise_issue(
+            "REG.AGENT_EXISTS",
+            status=409,
+            message=f"Agent ID '{request_body.agent_id}' is already registered. "
+                    "Please choose a different agent_id.",
+            context={"agent_id": request_body.agent_id},
         )
 
     # Step 2: Check alias availability if provided (before consuming token)
@@ -1691,51 +1731,23 @@ async def register_agent(
         )
         await create_audit_entry(audit_doc.model_dump())
 
-        # Map error types to HTTP responses
-        if error_type == "invalid_token":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "invalid_token",
-                    "message": "Invite token is invalid or does not exist. "
-                              "Please request a new invite from an admin."
-                }
-            )
-        elif error_type == "token_already_used":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "token_already_used",
-                    "message": "Invite token has already been used by another agent. "
-                              "Please request a new invite from an admin."
-                }
-            )
-        elif error_type == "token_revoked":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "token_revoked",
-                    "message": "Invite token has been revoked by an admin. "
-                              "Please request a new invite."
-                }
-            )
-        elif error_type == "token_expired":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "token_expired",
-                    "message": "Invite token has expired. "
-                              "Please request a new invite from an admin."
-                }
-            )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "invalid_token",
-                    "message": f"Invite token cannot be used: {error}"
-                }
-            )
+        # Map error types to agentic issue responses
+        error_messages = {
+            "invalid_token": "Invite token is invalid or does not exist. "
+                            "Please request a new invite from an admin.",
+            "token_already_used": "Invite token has already been used by another agent. "
+                                 "Please request a new invite from an admin.",
+            "token_revoked": "Invite token has been revoked by an admin. "
+                            "Please request a new invite.",
+            "token_expired": "Invite token has expired. "
+                            "Please request a new invite from an admin.",
+        }
+        raise_issue(
+            "REG.INVITE_INVALID",
+            status=400,
+            message=error_messages.get(error_type, f"Invite token cannot be used: {error}"),
+            context={"error_type": error_type, "detail": error_detail},
+        )
 
     # Token consumed successfully - now create the agent
     # If anything fails from here, we need to rollback the token
@@ -1900,7 +1912,7 @@ async def register_agent(
         if settings.gateway_host == "0.0.0.0":
             gateway_base = f"http://localhost:{settings.gateway_port}"
 
-        return RegistrationResponse(
+        result = RegistrationResponse(
             status="approved",
             agent_id=request_body.agent_id,
             token=auth_token,
@@ -1929,6 +1941,15 @@ async def register_agent(
                     "aliases": "/api/v1/aliases"
                 }
             }
+        )
+        return ok_response(
+            data=result.model_dump(),
+            http_status=201,
+            actions=["store_knowledge", "search_knowledge", "send_message"],
+            suggestions=[
+                "Use the token in the Authorization header for all DAKB API requests.",
+                "Visit /docs for the interactive API explorer.",
+            ],
         )
 
     except HTTPException:
@@ -2108,7 +2129,7 @@ async def revoke_agent_access(
         f"(aliases deactivated: {len(deactivated_aliases)})"
     )
 
-    return RevocationResponse(
+    result = RevocationResponse(
         status="revoked",
         agent_id=agent_id,
         revoked_at=now,
@@ -2116,6 +2137,10 @@ async def revoke_agent_access(
         aliases_deactivated=deactivated_aliases,
         message=f"Agent '{agent_id}' has been suspended. "
                f"{len(deactivated_aliases)} alias(es) deactivated."
+    )
+    return ok_response(
+        data=result.model_dump(),
+        actions=["create_invite", "register_agent"],
     )
 
 
@@ -2231,7 +2256,7 @@ async def get_audit_log(
     # WARNING-1 FIX: Apply mask_token() to target_token in audit log responses
     entry_responses = []
     for entry in entries:
-        # Mask the target_token for security (WARNING-1 from S-Reviewer Phase 4)
+        # Mask the target_token for security (WARNING-1 from review Phase 4)
         raw_target_token = entry.get("target_token")
         masked_target_token = mask_token(raw_target_token) if raw_target_token else None
 
@@ -2253,12 +2278,13 @@ async def get_audit_log(
         f"agent_id={agent_id}, action={action}, total={total}"
     )
 
-    return AuditListResponse(
+    result = AuditListResponse(
         entries=entry_responses,
         total=total,
         skip=skip,
         limit=limit
     )
+    return ok_response(data=result.model_dump())
 
 
 @router.get(
@@ -2345,15 +2371,16 @@ async def list_invite_tokens(
         limit=limit
     )
 
-    # Convert to response models with masked tokens
+    # Convert to response models with masked tokens for display
     token_responses = []
     for token in tokens:
-        # Mask the token value for security
+        # Get the full token value and create masked version for display
         token_value = token.get("invite_token", "unknown")
         masked_token = mask_token(token_value)
 
         token_responses.append(InviteTokenListItem(
             invite_token=masked_token,
+            full_token=token_value,  # Full token for admin copy/use
             created_by=token.get("created_by", "unknown"),
             created_at=token.get("created_at", utcnow()),
             expires_at=token.get("expires_at", utcnow()),
@@ -2370,9 +2397,173 @@ async def list_invite_tokens(
         f"status={status}, created_by={created_by}, total={total}"
     )
 
-    return InviteListResponse(
+    result = InviteListResponse(
         tokens=token_responses,
         total=total,
         skip=skip,
         limit=limit
     )
+    return ok_response(data=result.model_dump(), actions=["create_invite"])
+
+
+class RevokeInviteResponse(BaseModel):
+    """Response model for invite token revocation."""
+    success: bool = Field(..., description="Whether revocation succeeded")
+    invite_token: str = Field(..., description="Revoked token (masked)")
+    message: str = Field(..., description="Status message")
+
+
+@router.delete(
+    "/invite/{invite_token}",
+    response_model=RevokeInviteResponse,
+    summary="Revoke invite token",
+    description="""
+Revoke an invite token to prevent its use.
+
+**Admin-only endpoint.** Only active (unused) tokens can be revoked.
+
+**Use Cases:**
+- Cancel an invite that was created by mistake
+- Invalidate an invite that was shared with the wrong party
+- Clean up unused invites
+
+**Notes:**
+- Already used tokens cannot be revoked (use agent revocation instead)
+- Expired tokens are already invalid and don't need revocation
+    """,
+    responses={
+        200: {
+            "description": "Invite token revoked successfully",
+            "model": RevokeInviteResponse
+        },
+        404: {
+            "description": "Invite token not found"
+        },
+        400: {
+            "description": "Token cannot be revoked (already used or expired)"
+        },
+        403: {
+            "description": "Admin privileges required"
+        }
+    }
+)
+async def revoke_invite_token(
+    invite_token: str,
+    admin: AuthenticatedAgent = Depends(require_admin)
+) -> RevokeInviteResponse:
+    """
+    Revoke an invite token.
+
+    Admin-only endpoint. Only active tokens can be revoked.
+
+    Args:
+        invite_token: The invite token to revoke.
+        admin: Authenticated admin agent.
+
+    Returns:
+        RevokeInviteResponse with revocation status.
+
+    Raises:
+        HTTPException 404: If token not found.
+        HTTPException 400: If token cannot be revoked.
+        HTTPException 403: If not admin.
+    """
+    client = get_dakb_client()
+    db = client["dakb"]
+    invites_coll = db["dakb_invite_tokens"]
+
+    # Find the token - support both full and masked tokens
+    token_doc = invites_coll.find_one({"invite_token": invite_token})
+
+    # If not found and token contains mask pattern, try regex search
+    if not token_doc and "****" in invite_token:
+        # Masked token format: prefix (16 chars) + **** + suffix (4 chars)
+        # e.g., inv_20260114_858****36eb
+        parts = invite_token.split("****")
+        if len(parts) == 2:
+            prefix, suffix = parts[0], parts[1]
+            # Use regex to match: ^prefix.*suffix$
+            regex_pattern = f"^{re.escape(prefix)}.*{re.escape(suffix)}$"
+            token_doc = invites_coll.find_one({
+                "invite_token": {"$regex": regex_pattern}
+            })
+
+    if not token_doc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "token_not_found",
+                "message": f"Invite token not found: {invite_token[:20]}..."
+            }
+        )
+
+    # Get the actual full token from the document (in case input was masked)
+    actual_token = token_doc.get("invite_token")
+    current_status = token_doc.get("status", "unknown")
+
+    # Check if token can be revoked
+    if current_status == InviteTokenStatus.USED.value:
+        used_by = token_doc.get("used_by_agent_id", "unknown")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "token_already_used",
+                "message": f"Cannot revoke used token. Agent '{used_by}' has already registered with this token. "
+                          f"Use agent revocation instead: DELETE /api/v1/register/revoke/{used_by}"
+            }
+        )
+
+    if current_status == InviteTokenStatus.REVOKED.value:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "token_already_revoked",
+                "message": "This invite token has already been revoked."
+            }
+        )
+
+    # Revoke the token (use actual_token for update query)
+    result = invites_coll.update_one(
+        {"invite_token": actual_token},
+        {
+            "$set": {
+                "status": InviteTokenStatus.REVOKED.value,
+                "revoked_by": admin.agent_id,
+                "revoked_at": utcnow()
+            }
+        }
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "revocation_failed",
+                "message": "Failed to revoke invite token. Please try again."
+            }
+        )
+
+    # Create audit entry (use actual_token for complete audit trail)
+    audit_doc = {
+        "action": RegistrationAuditAction.INVITE_REVOKED.value,
+        "actor_agent_id": admin.agent_id,
+        "target_token": actual_token,
+        "timestamp": utcnow(),
+        "success": True,
+        "details": {
+            "previous_status": current_status,
+            "for_agent_id_hint": token_doc.get("for_agent_id_hint"),
+            "for_agent_type": token_doc.get("for_agent_type")
+        }
+    }
+    await create_audit_entry(audit_doc)
+
+    masked_token = mask_token(actual_token)
+    logger.info(f"Invite token revoked by admin '{admin.agent_id}': {masked_token}")
+
+    result = RevokeInviteResponse(
+        success=True,
+        invite_token=masked_token,
+        message=f"Invite token successfully revoked by {admin.agent_id}."
+    )
+    return ok_response(data=result.model_dump(), actions=["create_invite"])

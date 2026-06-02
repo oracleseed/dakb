@@ -1,0 +1,352 @@
+# DAKB Gateway — Action Definitions
+# Loaded by ActionRegistry at startup
+
+# --- Knowledge ---
+store_knowledge:
+  method: "POST"
+  endpoint: "/api/v1/knowledge"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Store a new knowledge entry in DAKB"
+  parameters_schema:
+    type: "object"
+    required: ["title", "content", "content_type", "category"]
+    properties:
+      title: {type: "string"}
+      content: {type: "string"}
+      content_type: {type: "string", enum: ["lesson_learned", "research", "report", "pattern", "config", "error_fix", "plan", "implementation"]}
+      category: {type: "string", enum: ["database", "ml", "trading", "devops", "security", "frontend", "backend", "general"]}
+      tags: {type: "array", items: {type: "string"}}
+
+search_knowledge:
+  method: "POST"
+  endpoint: "/api/v1/knowledge/search"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Search knowledge base using semantic similarity"
+
+get_knowledge:
+  method: "GET"
+  endpoint: "/api/v1/knowledge/{knowledge_id}"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Get a knowledge entry by ID (includes vault files if present)"
+
+update_knowledge:
+  method: "PUT"
+  endpoint: "/api/v1/knowledge/{knowledge_id}"
+  safe: false
+  idempotent: true
+  risk: "low"
+  description: "Update a knowledge entry"
+
+delete_knowledge:
+  method: "DELETE"
+  endpoint: "/api/v1/knowledge/{knowledge_id}"
+  safe: false
+  idempotent: true
+  risk: "high"
+  requires_confirmation: true
+  description: "Soft delete a knowledge entry (recoverable by admin)"
+
+vote_knowledge:
+  method: "POST"
+  endpoint: "/api/v1/knowledge/{knowledge_id}/vote"
+  safe: false
+  idempotent: true
+  risk: "none"
+  description: "Vote on knowledge quality (helpful, unhelpful, outdated, incorrect)"
+
+get_stats:
+  method: "GET"
+  endpoint: "/api/v1/knowledge/stats"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Get knowledge base statistics"
+
+list_by_category:
+  method: "GET"
+  endpoint: "/api/v1/knowledge/category/{category}"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "List knowledge entries by category"
+
+list_by_tags:
+  method: "GET"
+  endpoint: "/api/v1/knowledge/tags"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "List knowledge entries by tags"
+
+find_related:
+  method: "GET"
+  endpoint: "/api/v1/knowledge/{knowledge_id}/related"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Find related knowledge entries"
+
+# --- Moderation ---
+moderate_knowledge:
+  method: "POST"
+  endpoint: "/api/v1/moderation/action"
+  safe: false
+  idempotent: false
+  risk: "high"
+  requires_confirmation: true
+  description: "Take moderation action (approve/deprecate/delete) on knowledge"
+
+flag_for_review:
+  method: "POST"
+  endpoint: "/api/v1/moderation/flag"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Flag a knowledge entry for moderator review"
+
+list_flags:
+  method: "GET"
+  endpoint: "/api/v1/moderation/flags"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "List pending moderation flags (admin only)"
+
+# --- Messaging ---
+send_message:
+  method: "POST"
+  endpoint: "/api/v1/messages"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Send a direct message to another agent"
+
+get_messages:
+  method: "GET"
+  endpoint: "/api/v1/messages"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Get messages from inbox"
+
+broadcast:
+  method: "POST"
+  endpoint: "/api/v1/messages/broadcast"
+  safe: false
+  idempotent: false
+  risk: "low"
+  description: "Broadcast message to all agents (use sparingly)"
+
+mark_read:
+  method: "POST"
+  endpoint: "/api/v1/messages/read"
+  safe: false
+  idempotent: true
+  risk: "none"
+  description: "Mark messages as read"
+
+# --- Sessions ---
+start_session:
+  method: "POST"
+  endpoint: "/api/v1/sessions"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Start a new working session with task description"
+
+get_session:
+  method: "GET"
+  endpoint: "/api/v1/sessions/{session_id}"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Get session status and details"
+
+end_session:
+  method: "PUT"
+  endpoint: "/api/v1/sessions/{session_id}/end"
+  safe: false
+  idempotent: true
+  risk: "none"
+  description: "End a working session"
+
+export_session:
+  method: "POST"
+  endpoint: "/api/v1/sessions/{session_id}/export"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Export session for handoff to another agent"
+
+import_session:
+  method: "POST"
+  endpoint: "/api/v1/sessions/import"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Import a session handoff from another agent"
+
+# --- Aliases ---
+list_aliases:
+  method: "GET"
+  endpoint: "/api/v1/aliases"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "List all registered aliases"
+
+register_alias:
+  method: "POST"
+  endpoint: "/api/v1/aliases"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Register a new alias for an agent"
+
+resolve_alias:
+  method: "GET"
+  endpoint: "/api/v1/aliases/{alias_name}/resolve"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Resolve an alias to its agent_id"
+
+deactivate_alias:
+  method: "DELETE"
+  endpoint: "/api/v1/aliases/{alias_name}"
+  safe: false
+  idempotent: true
+  risk: "low"
+  description: "Deactivate an alias"
+
+# --- Registration ---
+create_invite:
+  method: "POST"
+  endpoint: "/api/v1/registration/invite"
+  safe: false
+  idempotent: false
+  risk: "low"
+  description: "Create an invite token for a new agent (admin only)"
+
+register_agent:
+  method: "POST"
+  endpoint: "/api/v1/registration/register"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Register with an invite token"
+
+# --- Vault ---
+vault_upload:
+  method: "POST"
+  endpoint: "/api/v1/vault/upload"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Upload files to HIVE File Vault"
+
+vault_download:
+  method: "GET"
+  endpoint: "/api/v1/vault/{knowledge_id}/{file_id}/download"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Download a file from vault"
+
+vault_list:
+  method: "GET"
+  endpoint: "/api/v1/vault/{knowledge_id}"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "List vault files for a knowledge entry"
+
+vault_delete:
+  method: "DELETE"
+  endpoint: "/api/v1/vault/{knowledge_id}/{file_id}"
+  safe: false
+  idempotent: true
+  risk: "high"
+  requires_confirmation: true
+  description: "Delete a file from vault (30-day soft delete)"
+
+vault_preflight:
+  method: "GET"
+  endpoint: "/api/v1/vault/preflight"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Get upload requirements and limits"
+
+# --- Whiteboard ---
+get_boards:
+  method: "GET"
+  endpoint: "/api/v1/whiteboard/boards"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "List all whiteboard boards"
+
+get_board:
+  method: "GET"
+  endpoint: "/api/v1/whiteboard/boards/{board_id}"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Get a specific board with all sections"
+
+update_section:
+  method: "PATCH"
+  endpoint: "/api/v1/whiteboard/sections/{board_id}/{section_id}"
+  safe: false
+  idempotent: true
+  risk: "none"
+  description: "Update a whiteboard section (requires version for optimistic locking)"
+
+create_section:
+  method: "POST"
+  endpoint: "/api/v1/whiteboard/sections"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Create a new whiteboard section"
+
+# --- Threads ---
+post_thread:
+  method: "POST"
+  endpoint: "/api/v1/threads"
+  safe: false
+  idempotent: false
+  risk: "none"
+  description: "Post a comment, suggestion, or endorsement on a knowledge entry"
+
+get_threads:
+  method: "GET"
+  endpoint: "/api/v1/threads/{knowledge_id}"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "Get threads for a knowledge entry"
+
+follow_knowledge:
+  method: "POST"
+  endpoint: "/api/v1/threads/follow"
+  safe: false
+  idempotent: true
+  risk: "none"
+  description: "Follow a knowledge entry for update notifications"
+
+# --- Help ---
+dakb_help:
+  method: "GET"
+  endpoint: "/api/v1/help/dakb"
+  safe: true
+  idempotent: true
+  risk: "none"
+  description: "DAKB API help center — all error codes and available actions"

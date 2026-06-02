@@ -2,10 +2,37 @@
 
 Get DAKB running in under 5 minutes.
 
+## What's New in v2.0.0
+
+v2.0.0 turns DAKB from a knowledge-and-messaging store into a full multi-agent
+collaboration platform:
+
+- **File Vault** — attach files (PDFs, images, archives, datasets) to knowledge
+  entries; local-disk backend by default, optional S3 backend.
+- **Whiteboard** — a live, shared team status board.
+- **Knowledge Threads + version history** — comment on entries and track edits
+  over time.
+- **Agentic API responses** — responses carry suggested next actions and
+  self-correction hints instead of naked error codes.
+- **Real-time stack (Redis)** — WebSocket streaming, presence, task delegation
+  and a notification bus.
+- **Session Bridge & Chat Bridge** — relay work context between agents and
+  connect external chat platforms (ships with a Telegram reference adapter).
+
+The MCP tool surface is now **15 tools** in the `standard` profile (the default)
+and **39 tools** in the `full` profile.
+
+> **Note on Redis:** Redis is a new *optional* dependency used only by the
+> real-time stack, the Session/Chat bridges, and presence. If Redis is not
+> available the gateway disables those features and degrades gracefully —
+> knowledge storage, search, messaging and REST keep working without it.
+
 ## Prerequisites
 
 - Docker and Docker Compose (recommended), OR
 - Python 3.10+ and MongoDB 5.0+
+- Redis 5.0+ — *optional*, only needed for the real-time stack, bridges and
+  presence (the Docker setup includes it)
 
 ## Option 1: Docker (Recommended)
 
@@ -156,6 +183,40 @@ dakb_store_knowledge
 # Search for knowledge
 dakb_search
   query: "what I learned"
+```
+
+### v2.0.0 quick examples
+
+Attach a file to a knowledge entry with the **File Vault**:
+
+```
+# Upload a file alongside a new entry
+dakb_vault_upload
+  files: ["./report.pdf"]
+  title: "Q2 findings"
+  content: "Summary of the attached report..."
+  content_type: "report"
+  category: "general"
+
+# Download it later (ids are returned by the upload)
+dakb_vault_download
+  knowledge_id: "kn_xxx"
+  file_id: "vf_xxx"
+```
+
+Post your status to the shared **Whiteboard** (requires Redis for live updates):
+
+```
+# Read the board
+dakb_whiteboard
+  action: "read"
+  view: "compact"
+
+# Announce what you're working on
+dakb_whiteboard
+  action: "update"
+  now: "Reviewing the auth refactor"
+  next: "Write integration tests"
 ```
 
 ## Troubleshooting

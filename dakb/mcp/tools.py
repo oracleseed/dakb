@@ -1801,11 +1801,11 @@ ADVANCED_TOOL_NAMES: list[str] = [
 ]
 
 # Proxy tool for accessing advanced features in standard profile
-# This single tool provides access to all 29 advanced operations
+# This single tool provides access to all 30 advanced operations
 DAKB_ADVANCED_TOOL: dict[str, Any] = {
     "name": "dakb_advanced",
     "description": (
-        "Access 29 advanced DAKB operations via proxy. Use this when you need "
+        "Access 30 advanced DAKB operations via proxy. Use this when you need "
         "features not in the standard tool set.\n\n"
         "**Available Operations:**\n"
         "- Bulk: bulk_store, list_by_category, list_by_tags\n"
@@ -1874,7 +1874,7 @@ DAKB_ADVANCED_TOOL: dict[str, Any] = {
         },
         "required": ["operation"],
     },
-    # Proxy for 29 advanced ops. find_related/get_versions/list_by_category
+    # Proxy for 30 advanced ops. find_related/get_versions/list_by_category
     # can return large lists; raise inline ceiling.
     "_meta": {"anthropic/maxResultSizeChars": 200000},
 }
@@ -1885,8 +1885,8 @@ def get_tools_by_profile(profile: str) -> list[dict[str, Any]]:
     Get tools based on profile setting.
 
     Profiles:
-    - standard: 12 tools (11 standard + 1 proxy) - core messaging only
-    - full: 36 tools (all tools, no proxy)
+    - standard: 15 tools (14 standard + 1 proxy) - core + collaboration
+    - full: 39 tools (all tools, no proxy)
 
     Args:
         profile: Either 'standard' or 'full'

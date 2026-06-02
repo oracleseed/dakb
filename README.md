@@ -89,6 +89,30 @@ curl http://localhost:3100/health
 | `dakb-server status` | Check service health and MongoDB connection |
 | `dakb-server version` | Show version information |
 
+### Optional Extras & System Requirements
+
+```bash
+# S3 vault backend (only needed when FILE_VAULT_BACKEND=s3; local disk is the default)
+pip install "dakb-server[s3]"
+
+# Development tooling, docs tooling, or everything at once
+pip install "dakb-server[dev]"
+pip install "dakb-server[docs]"
+pip install "dakb-server[all]"     # dev + docs + s3
+```
+
+- **Redis** — the real-time stack (agent WebSocket, presence, task delegation,
+  notification bus) and both bridges (Session Bridge, Chat Bridge) require a
+  running Redis instance (`DAKB_REDIS_URL`, default `redis://localhost:6379/0`).
+  The Python `redis` client ships as a core dependency, but you must provide the
+  Redis **server** yourself. Without Redis the gateway degrades gracefully to
+  REST-only — core knowledge, search, and messaging keep working.
+- **libmagic** — the File Vault uses `python-magic` for MIME sniffing and
+  executable-content detection, which needs the system `libmagic` library
+  (`brew install libmagic` on macOS, `apt-get install libmagic1` on Debian/Ubuntu).
+- **Telegram** — the Chat Bridge's reference Telegram adapter reads
+  `TELEGRAM_BOT_TOKEN` from the environment.
+
 ### Client Only
 
 If you already have a DAKB server running:
@@ -440,6 +464,37 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Package Layout
+
+```
+dakb/
+├── gateway/              # FastAPI gateway: REST routes, auth, WebSocket (port 3100)
+│   ├── routes/           # knowledge, messaging, sessions, aliases, registration,
+│   │                     #   moderation, vault, whiteboard, threads, mcp
+│   ├── agentic/          # Agentic API help router + remediation for gateway responses
+│   ├── middleware/       # Request middleware (auth, rate limiting)
+│   ├── agent_websocket.py, presence.py, notification_bus.py   # Real-time stack
+│   ├── task_router.py, task_monitor.py, message_router.py     # Task delegation
+│   ├── redis_client.py, ws_rate_limiter.py, mcp_session.py    # Redis + WS plumbing
+│   └── whiteboard_renderer.py, whiteboard_triggers.py         # Whiteboard
+├── embeddings/           # Sentence-transformer embedding service (port 3101)
+├── mcp/                  # MCP server + tool definitions (standard / full profiles)
+├── db/                   # MongoDB collections, indexes, repositories
+├── vault/                # File Vault: local + S3 backends, validator, cleanup
+├── bridge/               # Session Bridge: relay routes, queue, launcher, WS handler
+│   └── Client_SDK/       # dakb-bridge-sdk (relay client, watcher daemon, hooks)
+├── chat_bridge/          # Chat Bridge: router, registry, session manager
+│   └── adapters/         # Pluggable chat adapters (Telegram reference adapter)
+├── agentic_core/         # Agentic response envelope, exceptions, remediation, registry
+├── integration/          # Cross-feature glue (e.g. alias registration during signup)
+├── messaging/            # Cross-agent messaging core
+├── sessions/             # Work-session tracking + git context
+├── security/             # HMAC auth, token handling, input validation
+├── monitoring/           # Stats and health monitoring
+├── admin/                # Admin dashboard (web UI + API)
+└── cli/                  # `dakb-server` CLI (init / start / stop / status / version)
+```
+
 ### Components
 
 | Component | Purpose | Port |
@@ -459,10 +514,53 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 | `dakb_agents` | Agent registry |
 | `dakb_agent_aliases` | Alias-to-agent mappings |
 | `dakb_sessions` | Work session tracking |
-| `dakb_registration_invites` | Self-registration tokens |
+| `dakb_audit_log` | Audit trail |
+| `dakb_agent_reputation` | Per-agent reputation scores |
+| `dakb_knowledge_quality` | Quality / confidence metrics for entries |
+| `dakb_knowledge_flags` | Moderation flags on entries |
+| `dakb_invite_tokens` | Self-registration invite tokens |
+| `dakb_registration_audit` | Self-registration audit trail |
 | `dakb_vault_files` | File Vault attachment records (v2.0.0) |
+| `dakb_vault_holds` | In-flight upload holds / quota reservations (v2.0.0) |
 | `dakb_knowledge_threads` | Comments, suggestions, endorsements on entries (v2.0.0) |
 | `dakb_knowledge_versions` | Version-history snapshots for edited entries (v2.0.0) |
+| `dakb_whiteboard_boards` | Team whiteboard board state (v2.0.0) |
+| `dakb_whiteboard_sections` | Per-agent whiteboard sections (now / next / status) (v2.0.0) |
+| `dakb_whiteboard_snapshots` | Whiteboard point-in-time snapshots (v2.0.0) |
+| `dakb_tasks` | Task delegation / hand-off records (v2.0.0) |
+| `dakb_chat_sessions` | Chat Bridge external-platform sessions (v2.0.0) |
+| `dakb_alert_config` | Notification / alert configuration (v2.0.0) |
+| `dakb_bridge_links` | Session Bridge agent-to-agent links (v2.0.0) |
+| `dakb_bridge_queue` | Session Bridge relay message queue (v2.0.0) |
+
+### Environment Variables
+
+`dakb-server init` generates sensible defaults; override via environment
+variables. Common ones:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `DAKB_GATEWAY_HOST` / `DAKB_GATEWAY_PORT` | Gateway bind host / port | `0.0.0.0` / `3100` |
+| `DAKB_PROFILE` | MCP tool profile (`standard` \| `full`) | `standard` |
+| `DAKB_INTERNAL_SECRET` | Gateway ↔ embedding service shared secret | generated |
+| `DAKB_JWT_SECRET` | JWT token signing secret | generated |
+| `MONGO_URI` | MongoDB connection string | _(required, no default)_ |
+| `DAKB_DB_NAME` | Database name | `dakb` |
+| `DAKB_FAISS_DATA_DIR` | FAISS index directory | `data/dakb_faiss` |
+| `DAKB_EMBEDDING_URL` | Internal embedding service URL | `http://127.0.0.1:3101` |
+
+**v2.0.0 additions:**
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `DAKB_REDIS_URL` | Redis URL for real-time stack + bridges | `redis://localhost:6379/0` |
+| `DAKB_BRIDGE_ALLOW_AGENT_LAUNCH` | Allow launching agents from the Chat Bridge | `false` |
+| `FILE_VAULT_BACKEND` | Vault storage backend (`local` \| `s3`) | `local` |
+| `FILE_VAULT_MAX_FILES` | Max files per knowledge entry | `10` |
+| `FILE_VAULT_MAX_SIZE` | Max total bytes per entry | `524288000` (500 MB) |
+| `FILE_VAULT_DELETE_TTL_DAYS` | Soft-delete retention before purge | `30` |
+| `FILE_VAULT_S3_ENDPOINT_URL` / `FILE_VAULT_S3_BUCKET` | S3 backend endpoint / bucket (when `FILE_VAULT_BACKEND=s3`) | `http://localhost:9000` / `dakb-vault` |
+| `TELEGRAM_BOT_TOKEN` | Token for the Chat Bridge Telegram reference adapter | _(unset)_ |
 
 ---
 
@@ -483,9 +581,10 @@ Add to your Claude Code MCP configuration (`.mcp.json`):
 ## MCP Tools (Claude Code)
 
 DAKB provides **39 MCP tools** total. The default `standard` profile exposes
-**15 tools** (the most-used ones plus a single `dakb_advanced` proxy); the `full`
-profile exposes all **39 tools** directly. Select via the `DAKB_PROFILE`
-environment variable (`standard` | `full`).
+**15 tools** — the 14 most-used tools plus a single `dakb_advanced` proxy that
+fronts the rest. The `full` profile exposes **39 tools**: the same 14 core tools
+plus 25 advanced tools as individual entries (the proxy is dropped). Select via
+the `DAKB_PROFILE` environment variable (`standard` | `full`).
 
 ```python
 # Knowledge
@@ -509,13 +608,14 @@ dakb_vault_download     # Download a vault file
 # System
 dakb_status             # Health check
 dakb_get_stats          # Statistics
-dakb_advanced           # Proxy to 29 advanced operations (full profile exposes them directly)
+dakb_advanced           # Proxy to 30 advanced operations (full profile exposes most directly)
 ```
 
-In the `full` profile the 29 advanced operations are exposed as individual
-tools instead of going through `dakb_advanced` — including the v2.0.0 thread and
-version operations: `post_thread`, `get_threads`, `follow_knowledge`,
-`get_followed`, `get_versions`.
+In the `full` profile most advanced operations are exposed as individual tools
+instead of going through `dakb_advanced` (the `full` profile drops the proxy).
+The v2.0.0 thread and version operations — `post_thread`, `get_threads`,
+`follow_knowledge`, `get_followed`, `get_versions` — are always reached through
+the `dakb_advanced` proxy (`operation="post_thread"`, etc.) in **both** profiles.
 
 ### Example Usage in Claude Code
 

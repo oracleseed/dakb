@@ -86,22 +86,38 @@
   </g>
 
   <!-- Feature Pills -->
-  <g transform="translate(600, 550)">
-    <!-- Feature 1 -->
-    <rect x="-250" y="0" width="160" height="40" rx="20" fill="#1e293b" stroke="#334155" />
-    <text x="-170" y="25" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">Shared Memory</text>
-    
-    <!-- Feature 2 -->
-    <rect x="-80" y="0" width="160" height="40" rx="20" fill="#1e293b" stroke="#334155" />
-    <text x="0" y="25" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">Messaging</text>
-    
-    <!-- Feature 3 -->
-    <rect x="90" y="0" width="160" height="40" rx="20" fill="#1e293b" stroke="#334155" />
-    <text x="170" y="25" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">Semantic Search</text>
+  <!-- Row 1: new v2.0 subsystems (cyan accent = new) -->
+  <g transform="translate(600, 512)">
+    <rect x="-260" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" />
+    <text x="-176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">File Vault</text>
+
+    <rect x="-84" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" />
+    <text x="0" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">Whiteboard</text>
+
+    <rect x="92" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" />
+    <text x="176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">Real-time Bridge</text>
+  </g>
+
+  <!-- Row 2: core + threads (muted) -->
+  <g transform="translate(600, 562)">
+    <rect x="-260" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#334155" />
+    <text x="-176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Knowledge Threads</text>
+
+    <rect x="-84" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#334155" />
+    <text x="0" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Semantic Search</text>
+
+    <rect x="92" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#334155" />
+    <text x="176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Agent Messaging</text>
   </g>
 
   <!-- Main Title -->
   <text x="600" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="48" fill="#fff" letter-spacing="1">Distributed Agent Knowledge Base</text>
   <text x="600" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#94a3b8">Connect Your AI Fleet</text>
+
+  <!-- v2.0 Version Badge (top-right) -->
+  <g transform="translate(1095, 48)">
+    <rect x="-52" y="-21" width="104" height="42" rx="21" fill="#1e293b" stroke="#06b6d4" stroke-width="2" filter="url(#glow)" />
+    <text x="0" y="7" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="22" fill="#67e8f9" letter-spacing="1">v2.0</text>
+  </g>
 
 </svg>

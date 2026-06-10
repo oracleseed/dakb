@@ -52,67 +52,67 @@
     <text x="0" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="28" fill="#fff" letter-spacing="2">DAKB</text>
   </g>
 
-  <!-- Connected Agents (Nodes) -->
-  <!-- Top Left: Claude -->
+  <!-- Connected Agentic Systems (Nodes) -->
+  <!-- Top Left: Claude Code -->
   <g transform="translate(250, 180)">
     <line x1="0" y1="0" x2="280" y2="100" stroke="url(#line-gradient)" stroke-width="2" />
     <circle r="35" fill="#1e293b" stroke="#a855f7" stroke-width="3" />
-    <text x="0" y="5" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#e2e8f0">Claude</text>
-    <text x="0" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#a855f7">Developer</text>
+    <text x="0" y="4" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#cbd5e1">Code</text>
+    <text x="0" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="15" fill="#a855f7">Claude Code</text>
   </g>
 
-  <!-- Top Right: Gemini -->
+  <!-- Top Right: OpenClaw -->
   <g transform="translate(950, 180)">
     <line x1="0" y1="0" x2="-280" y2="100" stroke="url(#line-gradient)" stroke-width="2" />
     <circle r="35" fill="#1e293b" stroke="#3b82f6" stroke-width="3" />
-    <text x="0" y="5" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#e2e8f0">Gemini</text>
-    <text x="0" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#3b82f6">Researcher</text>
+    <text x="0" y="4" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#cbd5e1">Auto</text>
+    <text x="0" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="15" fill="#3b82f6">OpenClaw</text>
   </g>
 
-  <!-- Bottom Left: GPT -->
+  <!-- Bottom Left: Hermes -->
   <g transform="translate(250, 450)">
     <line x1="0" y1="0" x2="280" y2="-100" stroke="url(#line-gradient)" stroke-width="2" />
     <circle r="35" fill="#1e293b" stroke="#10b981" stroke-width="3" />
-    <text x="0" y="5" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#e2e8f0">GPT-4</text>
-    <text x="0" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#10b981">Reviewer</text>
+    <text x="0" y="4" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#cbd5e1">Learn</text>
+    <text x="0" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="15" fill="#10b981">Hermes</text>
   </g>
 
-  <!-- Bottom Right: Local LLM -->
+  <!-- Bottom Right: Agent Teams -->
   <g transform="translate(950, 450)">
     <line x1="0" y1="0" x2="-280" y2="-100" stroke="url(#line-gradient)" stroke-width="2" />
     <circle r="35" fill="#1e293b" stroke="#f59e0b" stroke-width="3" />
-    <text x="0" y="5" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#e2e8f0">Local LLM</text>
-    <text x="0" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#f59e0b">Private</text>
+    <text x="0" y="4" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#cbd5e1">Teams</text>
+    <text x="0" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="15" fill="#f59e0b">Agent Teams</text>
   </g>
 
   <!-- Feature Pills -->
-  <!-- Row 1: new v2.0 subsystems (cyan accent = new) -->
+  <!-- Row 1: marquee v2.0 agentic capabilities (cyan accent) -->
   <g transform="translate(600, 512)">
     <rect x="-260" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" />
-    <text x="-176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">File Vault</text>
+    <text x="-176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">Agentic API</text>
 
     <rect x="-84" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" />
-    <text x="0" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">Whiteboard</text>
+    <text x="0" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">File Vault</text>
 
     <rect x="92" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#06b6d4" stroke-width="1.5" />
     <text x="176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#67e8f9">Real-time Bridge</text>
   </g>
 
-  <!-- Row 2: core + threads (muted) -->
+  <!-- Row 2: more v2.0 capabilities (muted) -->
   <g transform="translate(600, 562)">
     <rect x="-260" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#334155" />
-    <text x="-176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Knowledge Threads</text>
+    <text x="-176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Whiteboard</text>
 
     <rect x="-84" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#334155" />
-    <text x="0" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Semantic Search</text>
+    <text x="0" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Knowledge Threads</text>
 
     <rect x="92" y="0" width="168" height="38" rx="19" fill="#1e293b" stroke="#334155" />
-    <text x="176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Agent Messaging</text>
+    <text x="176" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">Semantic Search</text>
   </g>
 
   <!-- Main Title -->
   <text x="600" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="48" fill="#fff" letter-spacing="1">Distributed Agent Knowledge Base</text>
-  <text x="600" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#94a3b8">Connect Your AI Fleet</text>
+  <text x="600" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#94a3b8">Shared Memory for Agentic Systems</text>
 
   <!-- v2.0 Version Badge (top-right) -->
   <g transform="translate(1095, 48)">
